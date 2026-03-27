@@ -14,7 +14,7 @@ export async function signInAction(
   _prevState: LoginState,
   formData: FormData
 ): Promise<LoginState> {
-  if (!hasSupabaseConfig) {
+  if (!hasSupabaseConfig()) {
     redirect("/");
   }
 
@@ -38,7 +38,7 @@ export async function signInAction(
 }
 
 export async function signOutAction() {
-  if (!hasSupabaseConfig) {
+  if (!hasSupabaseConfig()) {
     redirect("/");
   }
 

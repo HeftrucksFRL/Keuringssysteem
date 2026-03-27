@@ -340,7 +340,7 @@ function mapPlanningRow(row: Record<string, unknown>): PlanningRecord {
 }
 
 export async function createInspection(input: CreateInspectionInput) {
-  if (!hasSupabaseConfig) {
+  if (!hasSupabaseConfig()) {
     return createDemoInspection(input);
   }
 
@@ -539,7 +539,7 @@ export async function createInspection(input: CreateInspectionInput) {
 }
 
 export async function getDashboardData() {
-  const data = hasSupabaseConfig
+  const data = hasSupabaseConfig()
     ? {
         customers: await getCustomers(),
         machines: await getMachines(),
@@ -562,7 +562,7 @@ export async function getDashboardData() {
 }
 
 export async function getCustomers() {
-  if (hasSupabaseConfig) {
+  if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
     const { data } = await supabase
       .from("customers")
@@ -575,7 +575,7 @@ export async function getCustomers() {
 }
 
 export async function getMachines() {
-  if (hasSupabaseConfig) {
+  if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
     const { data } = await supabase
       .from("machines")
@@ -588,7 +588,7 @@ export async function getMachines() {
 }
 
 export async function getInspections() {
-  if (hasSupabaseConfig) {
+  if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
     const { data } = await supabase
       .from("inspections")
@@ -601,7 +601,7 @@ export async function getInspections() {
 }
 
 export async function getPlanningItems() {
-  if (hasSupabaseConfig) {
+  if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
     const { data } = await supabase
       .from("planning_items")
@@ -614,7 +614,7 @@ export async function getPlanningItems() {
 }
 
 export async function getInspectionAttachments() {
-  if (hasSupabaseConfig) {
+  if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
     const { data } = await supabase
       .from("inspection_attachments")

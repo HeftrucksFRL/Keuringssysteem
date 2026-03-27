@@ -11,7 +11,7 @@ export async function AuthStatus() {
     user?.email ??
     "Gebruiker";
 
-  if (!hasSupabaseConfig) {
+  if (!hasSupabaseConfig()) {
     return <span className="badge blue">Demo: {name}</span>;
   }
 

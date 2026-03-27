@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { appConfig, hasSupabaseConfig } from "@/lib/env";
 
 export async function getCurrentUser() {
-  if (!hasSupabaseConfig) {
+  if (!hasSupabaseConfig()) {
     return {
       id: "demo-user",
       email: "demo@heftrucks.frl",

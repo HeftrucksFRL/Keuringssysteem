@@ -20,7 +20,7 @@ export async function storeInspectionPhoto(
     ".jpg"
   );
 
-  if (!hasSupabaseConfig) {
+  if (!hasSupabaseConfig()) {
     const relativePath = path.join("uploads", "inspections", inspectionId, fileName);
     const absolutePath = path.join(process.cwd(), relativePath);
     await mkdir(path.dirname(absolutePath), { recursive: true });

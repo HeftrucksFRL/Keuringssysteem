@@ -9,7 +9,7 @@ export default function LoginPage() {
       <p>
         Log in met je keurmeester-account om klanten, machines en keuringen te beheren.
       </p>
-      {!hasSupabaseConfig ? (
+      {!hasSupabaseConfig() ? (
         <div className="panel" style={{ marginTop: "1rem" }}>
           Demo-modus is actief. Voeg Supabase-variabelen toe om echte login te gebruiken.
         </div>
