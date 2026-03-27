@@ -155,30 +155,34 @@ async function createDemoInspection(input: CreateInspectionInput) {
   };
 
   const documents = await generateInspectionDocuments(inspection, {
-    persistToDisk: true
+    persistToDisk: !process.env.VERCEL
   });
   inspection.pdfPath = documents.pdfPath;
   inspection.wordPath = documents.wordPath;
   data.inspections.unshift(inspection);
-  data.attachments.unshift({
-    id: randomUUID(),
-    inspectionId: inspection.id,
-    kind: "pdf",
-    fileName: documents.pdfFileName,
-    storagePath: path.relative(process.cwd(), documents.pdfPath ?? "").replaceAll("\\", "/"),
-    mimeType: "application/pdf",
-    createdAt: nowIso()
-  });
-  data.attachments.unshift({
-    id: randomUUID(),
-    inspectionId: inspection.id,
-    kind: "word",
-    fileName: documents.wordFileName,
-    storagePath: path.relative(process.cwd(), documents.wordPath ?? "").replaceAll("\\", "/"),
-    mimeType:
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    createdAt: nowIso()
-  });
+  if (documents.pdfPath) {
+    data.attachments.unshift({
+      id: randomUUID(),
+      inspectionId: inspection.id,
+      kind: "pdf",
+      fileName: documents.pdfFileName,
+      storagePath: path.relative(process.cwd(), documents.pdfPath).replaceAll("\\", "/"),
+      mimeType: "application/pdf",
+      createdAt: nowIso()
+    });
+  }
+  if (documents.wordPath) {
+    data.attachments.unshift({
+      id: randomUUID(),
+      inspectionId: inspection.id,
+      kind: "word",
+      fileName: documents.wordFileName,
+      storagePath: path.relative(process.cwd(), documents.wordPath).replaceAll("\\", "/"),
+      mimeType:
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      createdAt: nowIso()
+    });
+  }
 
   for (const photo of input.photos) {
     const attachment = await storeInspectionPhoto(inspection.id, photo);
