@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import { buildCustomerMail, buildInternalMail } from "@/lib/mail";
@@ -155,7 +154,9 @@ async function createDemoInspection(input: CreateInspectionInput) {
     updatedAt: nowIso()
   };
 
-  const documents = await generateInspectionDocuments(inspection);
+  const documents = await generateInspectionDocuments(inspection, {
+    persistToDisk: true
+  });
   inspection.pdfPath = documents.pdfPath;
   inspection.wordPath = documents.wordPath;
   data.inspections.unshift(inspection);
@@ -163,8 +164,8 @@ async function createDemoInspection(input: CreateInspectionInput) {
     id: randomUUID(),
     inspectionId: inspection.id,
     kind: "pdf",
-    fileName: path.basename(documents.pdfPath),
-    storagePath: path.relative(process.cwd(), documents.pdfPath).replaceAll("\\", "/"),
+    fileName: documents.pdfFileName,
+    storagePath: path.relative(process.cwd(), documents.pdfPath ?? "").replaceAll("\\", "/"),
     mimeType: "application/pdf",
     createdAt: nowIso()
   });
@@ -172,8 +173,8 @@ async function createDemoInspection(input: CreateInspectionInput) {
     id: randomUUID(),
     inspectionId: inspection.id,
     kind: "word",
-    fileName: path.basename(documents.wordPath),
-    storagePath: path.relative(process.cwd(), documents.wordPath).replaceAll("\\", "/"),
+    fileName: documents.wordFileName,
+    storagePath: path.relative(process.cwd(), documents.wordPath ?? "").replaceAll("\\", "/"),
     mimeType:
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     createdAt: nowIso()
@@ -225,7 +226,17 @@ async function createDemoInspection(input: CreateInspectionInput) {
     inspection,
     customer.email,
     customer.contactName,
-    customer.companyName
+    customer.companyName,
+    {
+      pdf: {
+        filename: documents.pdfFileName,
+        content: documents.pdfBuffer
+      },
+      word: {
+        filename: documents.wordFileName,
+        content: documents.wordBuffer
+      }
+    }
   );
   const internalStoredEvent = data.mailEvents.find(
     (event) => event.inspectionId === inspection.id && event.channel === "internal"
@@ -431,15 +442,15 @@ export async function createInspection(input: CreateInspectionInput) {
     pdfPath: documents.pdfPath,
     wordPath: documents.wordPath
   };
-  const pdfStoragePath = `${inspection.inspectionDate.slice(0, 4)}/${inspection.inspectionNumber}/${path.basename(documents.pdfPath)}`;
-  const wordStoragePath = `${inspection.inspectionDate.slice(0, 4)}/${inspection.inspectionNumber}/${path.basename(documents.wordPath)}`;
+  const pdfStoragePath = `${inspection.inspectionDate.slice(0, 4)}/${inspection.inspectionNumber}/${documents.pdfFileName}`;
+  const wordStoragePath = `${inspection.inspectionDate.slice(0, 4)}/${inspection.inspectionNumber}/${documents.wordFileName}`;
 
   await supabase.storage
     .from("inspection-files")
-    .upload(pdfStoragePath, await readFile(documents.pdfPath), { upsert: true, contentType: "application/pdf" });
+    .upload(pdfStoragePath, documents.pdfBuffer, { upsert: true, contentType: "application/pdf" });
   await supabase.storage
     .from("inspection-files")
-    .upload(wordStoragePath, await readFile(documents.wordPath), {
+    .upload(wordStoragePath, documents.wordBuffer, {
       upsert: true,
       contentType:
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -491,7 +502,17 @@ export async function createInspection(input: CreateInspectionInput) {
     mailInspection,
     input.customer.email,
     input.customer.contactName,
-    input.customer.companyName
+    input.customer.companyName,
+    {
+      pdf: {
+        filename: documents.pdfFileName,
+        content: documents.pdfBuffer
+      },
+      word: {
+        filename: documents.wordFileName,
+        content: documents.wordBuffer
+      }
+    }
   );
 
   await supabase.from("mail_events").insert({

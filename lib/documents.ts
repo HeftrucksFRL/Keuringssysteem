@@ -15,6 +15,10 @@ import {
 import { getFormDefinition } from "@/lib/form-definitions";
 import type { InspectionRecord } from "@/lib/domain";
 
+interface GenerateDocumentsOptions {
+  persistToDisk?: boolean;
+}
+
 function checklistRows(inspection: InspectionRecord) {
   const form = getFormDefinition(inspection.machineType);
   return form.sections.flatMap((section) => [
@@ -48,18 +52,10 @@ function checklistRows(inspection: InspectionRecord) {
   ]);
 }
 
-export async function generateInspectionDocuments(inspection: InspectionRecord) {
-  const baseDir = path.join(
-    process.cwd(),
-    "generated",
-    inspection.inspectionDate.slice(0, 4),
-    inspection.inspectionNumber
-  );
-  await mkdir(baseDir, { recursive: true });
-
-  const pdfPath = path.join(baseDir, `${inspection.inspectionNumber}.pdf`);
-  const wordPath = path.join(baseDir, `${inspection.inspectionNumber}.docx`);
-
+export async function generateInspectionDocuments(
+  inspection: InspectionRecord,
+  options: GenerateDocumentsOptions = {}
+) {
   const pdfDocument = await PDFDocument.create();
   const page = pdfDocument.addPage([595, 842]);
   const boldFont = await pdfDocument.embedFont(StandardFonts.HelveticaBold);
@@ -95,7 +91,6 @@ export async function generateInspectionDocuments(inspection: InspectionRecord) 
   });
 
   const pdfBytes = await pdfDocument.save();
-  await writeFile(pdfPath, pdfBytes);
 
   const wordDocument = new Document({
     sections: [
@@ -129,9 +124,29 @@ export async function generateInspectionDocuments(inspection: InspectionRecord) 
   });
 
   const wordBuffer = await Packer.toBuffer(wordDocument);
-  await writeFile(wordPath, wordBuffer);
+
+  let pdfPath: string | undefined;
+  let wordPath: string | undefined;
+
+  if (options.persistToDisk) {
+    const baseDir = path.join(
+      process.cwd(),
+      "generated",
+      inspection.inspectionDate.slice(0, 4),
+      inspection.inspectionNumber
+    );
+    await mkdir(baseDir, { recursive: true });
+    pdfPath = path.join(baseDir, `${inspection.inspectionNumber}.pdf`);
+    wordPath = path.join(baseDir, `${inspection.inspectionNumber}.docx`);
+    await writeFile(pdfPath, pdfBytes);
+    await writeFile(wordPath, wordBuffer);
+  }
 
   return {
+    pdfBuffer: Buffer.from(pdfBytes),
+    wordBuffer,
+    pdfFileName: `${inspection.inspectionNumber}.pdf`,
+    wordFileName: `${inspection.inspectionNumber}.docx`,
     pdfPath,
     wordPath
   };

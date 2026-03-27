@@ -1,9 +1,12 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { Resend } from "resend";
 import { appConfig } from "@/lib/env";
 import { buildCustomerMail, buildInternalMail } from "@/lib/mail";
 import type { InspectionRecord } from "@/lib/domain";
+
+interface MailAttachment {
+  filename: string;
+  content: Buffer;
+}
 
 function createResendClient() {
   const apiKey = process.env.RESEND_API_KEY;
@@ -14,19 +17,15 @@ function createResendClient() {
   return new Resend(apiKey);
 }
 
-async function buildAttachment(filePath: string) {
-  const content = await readFile(filePath);
-  return {
-    filename: path.basename(filePath),
-    content
-  };
-}
-
 export async function sendInspectionEmails(
   inspection: InspectionRecord,
   customerEmail: string,
   customerName: string,
-  companyName: string
+  companyName: string,
+  files?: {
+    pdf?: MailAttachment;
+    word?: MailAttachment;
+  }
 ) {
   const resend = createResendClient();
   if (!resend) {
@@ -37,11 +36,7 @@ export async function sendInspectionEmails(
   }
 
   const internalMail = buildInternalMail(companyName, inspection.inspectionNumber);
-  const attachments = [];
-
-  if (inspection.wordPath) {
-    attachments.push(await buildAttachment(inspection.wordPath));
-  }
+  const attachments = files?.word ? [files.word] : [];
 
   await resend.emails.send({
     from: appConfig.mailFrom,
@@ -54,7 +49,7 @@ export async function sendInspectionEmails(
 
   let customerStatus: "sent" | "skipped" | "not_requested" = "not_requested";
 
-  if (inspection.sendPdfToCustomer && customerEmail && inspection.pdfPath) {
+  if (inspection.sendPdfToCustomer && customerEmail && files?.pdf) {
     const customerMail = buildCustomerMail(customerName);
     await resend.emails.send({
       from: appConfig.mailFrom,
@@ -62,7 +57,7 @@ export async function sendInspectionEmails(
       to: [customerEmail],
       subject: customerMail.subject,
       html: customerMail.html,
-      attachments: [await buildAttachment(inspection.pdfPath)]
+      attachments: [files.pdf]
     });
     customerStatus = "sent";
   }
