@@ -152,7 +152,7 @@ export async function generateInspectionDocuments(
             ]
           }),
           new Paragraph({
-            text: "Keuringsrapport",
+            text: "Heftrucks Friesland | BMWT keuringsrapport",
             heading: HeadingLevel.TITLE
           }),
           new Paragraph(`Keurnummer: ${inspection.inspectionNumber}`),

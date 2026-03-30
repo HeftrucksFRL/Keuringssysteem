@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import type { CustomerRecord, MachineRecord, PlanningRecord } from "@/lib/domain";
 import { movePlanningItemAction } from "@/app/klanten/actions";
@@ -22,6 +23,7 @@ export function PlanningCalendar({
   machines
 }: PlanningCalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedItemId, setSelectedItemId] = useState<string>("");
   const [, startTransition] = useTransition();
 
   const days = useMemo(() => {
@@ -42,6 +44,10 @@ export function PlanningCalendar({
 
     return cells;
   }, [currentDate]);
+
+  const selectedItem = items.find((item) => item.id === selectedItemId) ?? null;
+  const selectedCustomer = customers.find((customer) => customer.id === selectedItem?.customerId);
+  const selectedMachine = machines.find((machine) => machine.id === selectedItem?.machineId);
 
   return (
     <div className="panel">
@@ -117,6 +123,7 @@ export function PlanningCalendar({
                     onDragStart={(event) =>
                       event.dataTransfer.setData("text/planning-id", item.id)
                     }
+                    onClick={() => setSelectedItemId(item.id)}
                     type="button"
                   >
                     <strong>
@@ -135,6 +142,32 @@ export function PlanningCalendar({
           </div>
         ))}
       </div>
+      {selectedItem ? (
+        <div className="panel" style={{ marginTop: "1rem" }}>
+          <div className="eyebrow">Gekozen planning</div>
+          <h2>{selectedCustomer?.companyName ?? "Onbekende klant"}</h2>
+          <div className="list">
+            <div className="list-item">
+              <span>Machine</span>
+              <strong>
+                {selectedMachine?.brand ?? "Machine"} {selectedMachine?.model ?? ""}
+              </strong>
+            </div>
+            <div className="list-item">
+              <span>Datum</span>
+              <strong>{selectedItem.dueDate}</strong>
+            </div>
+          </div>
+          <div className="actions">
+            <Link className="button-secondary" href={`/klanten/${selectedItem.customerId}`}>
+              Open klantkaart
+            </Link>
+            <Link className="button-secondary" href={`/machines/${selectedItem.machineId}`}>
+              Open machinekaart
+            </Link>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

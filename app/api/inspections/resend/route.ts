@@ -3,7 +3,11 @@ import { resendInspectionMail } from "@/lib/inspection-service";
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as { inspectionId?: string };
+    const body = (await request.json()) as {
+      inspectionId?: string;
+      customerRecipient?: string;
+      sendPdfToCustomer?: boolean;
+    };
 
     if (!body.inspectionId) {
       return NextResponse.json(
@@ -12,7 +16,10 @@ export async function POST(request: Request) {
       );
     }
 
-    await resendInspectionMail(body.inspectionId);
+    await resendInspectionMail(body.inspectionId, {
+      customerRecipient: body.customerRecipient,
+      sendPdfToCustomer: body.sendPdfToCustomer
+    });
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json(

@@ -25,41 +25,78 @@ export async function sendInspectionEmails(
   files?: {
     pdf?: MailAttachment;
     word?: MailAttachment;
+  },
+  options?: {
+    sendPdfToCustomer?: boolean;
   }
 ) {
   const resend = createResendClient();
   if (!resend) {
     return {
       internal: "skipped" as const,
-      customer: inspection.sendPdfToCustomer ? ("skipped" as const) : ("not_requested" as const)
+      customer: (options?.sendPdfToCustomer ?? inspection.sendPdfToCustomer)
+        ? ("skipped" as const)
+        : ("not_requested" as const)
     };
   }
 
   const internalMail = buildInternalMail(companyName, inspection.inspectionNumber);
   const attachments = files?.word ? [files.word] : [];
 
-  await resend.emails.send({
-    from: appConfig.mailFrom,
-    replyTo: appConfig.mailReplyTo,
-    to: [appConfig.mailInternalTo],
-    subject: internalMail.subject,
-    text: internalMail.text,
-    attachments
-  });
-
-  let customerStatus: "sent" | "skipped" | "not_requested" = "not_requested";
-
-  if (inspection.sendPdfToCustomer && customerEmail && files?.pdf) {
-    const customerMail = buildCustomerMail(customerName);
+  try {
     await resend.emails.send({
       from: appConfig.mailFrom,
       replyTo: appConfig.mailReplyTo,
-      to: [customerEmail],
-      subject: customerMail.subject,
-      html: customerMail.html,
-      attachments: [files.pdf]
+      to: [appConfig.mailInternalTo],
+      subject: internalMail.subject,
+      text: internalMail.text,
+      attachments
     });
-    customerStatus = "sent";
+    console.info("Internal inspection mail sent", {
+      inspectionNumber: inspection.inspectionNumber,
+      recipient: appConfig.mailInternalTo
+    });
+  } catch (error) {
+    console.error("Internal inspection mail failed", {
+      inspectionNumber: inspection.inspectionNumber,
+      recipient: appConfig.mailInternalTo,
+      error
+    });
+
+    return {
+      internal: "failed" as const,
+      customer: (options?.sendPdfToCustomer ?? inspection.sendPdfToCustomer)
+        ? ("skipped" as const)
+        : ("not_requested" as const)
+    };
+  }
+
+  let customerStatus: "sent" | "skipped" | "not_requested" = "not_requested";
+
+  if ((options?.sendPdfToCustomer ?? inspection.sendPdfToCustomer) && customerEmail && files?.pdf) {
+    const customerMail = buildCustomerMail(customerName);
+    try {
+      await resend.emails.send({
+        from: appConfig.mailFrom,
+        replyTo: appConfig.mailReplyTo,
+        to: [customerEmail],
+        subject: customerMail.subject,
+        html: customerMail.html,
+        attachments: [files.pdf]
+      });
+      console.info("Customer inspection mail sent", {
+        inspectionNumber: inspection.inspectionNumber,
+        recipient: customerEmail
+      });
+      customerStatus = "sent";
+    } catch (error) {
+      console.error("Customer inspection mail failed", {
+        inspectionNumber: inspection.inspectionNumber,
+        recipient: customerEmail,
+        error
+      });
+      customerStatus = "skipped";
+    }
   }
 
   return {

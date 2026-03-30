@@ -4,7 +4,6 @@ import { hasSupabaseConfig } from "@/lib/env";
 export default function LoginPage() {
   return (
     <section className="hero" style={{ maxWidth: "560px", margin: "0 auto" }}>
-      <div className="eyebrow">Inloggen</div>
       <h1>Keuringssysteem</h1>
       <p>
         Log in met je keurmeester-account om klanten, machines en keuringen te beheren.

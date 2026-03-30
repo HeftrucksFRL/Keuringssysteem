@@ -780,7 +780,13 @@ export async function updateMachine(input: {
   await writeAppData(data);
 }
 
-export async function resendInspectionMail(inspectionId: string) {
+export async function resendInspectionMail(
+  inspectionId: string,
+  options?: {
+    customerRecipient?: string;
+    sendPdfToCustomer?: boolean;
+  }
+) {
   const inspection = await getInspectionById(inspectionId);
   if (!inspection) {
     throw new Error("Keuring niet gevonden");
@@ -809,7 +815,7 @@ export async function resendInspectionMail(inspectionId: string) {
 
   const sendResult = await sendInspectionEmails(
     inspection,
-    customer.email,
+    options?.customerRecipient || customer.email,
     customer.contactName,
     customer.companyName,
     {
@@ -827,6 +833,9 @@ export async function resendInspectionMail(inspectionId: string) {
               content: (await readAttachment(wordAttachment.storagePath)) as Buffer
             }
           : undefined
+    },
+    {
+      sendPdfToCustomer: options?.sendPdfToCustomer ?? inspection.sendPdfToCustomer
     }
   );
 
@@ -840,11 +849,11 @@ export async function resendInspectionMail(inspectionId: string) {
         channel: "internal",
         delivery_status: sendResult.internal
       },
-      ...(inspection.sendPdfToCustomer
+      ...((options?.sendPdfToCustomer ?? inspection.sendPdfToCustomer)
         ? [
             {
               inspection_id: inspection.id,
-              recipient: customer.email,
+              recipient: options?.customerRecipient || customer.email,
               subject: `Opnieuw verzonden ${inspection.inspectionNumber}`,
               channel: "customer",
               delivery_status:
@@ -866,11 +875,11 @@ export async function resendInspectionMail(inspectionId: string) {
     deliveryStatus: sendResult.internal,
     createdAt: nowIso()
   });
-  if (inspection.sendPdfToCustomer) {
+  if (options?.sendPdfToCustomer ?? inspection.sendPdfToCustomer) {
     data.mailEvents.unshift({
       id: randomUUID(),
       inspectionId: inspection.id,
-      recipient: customer.email,
+      recipient: options?.customerRecipient || customer.email,
       subject: `Opnieuw verzonden ${inspection.inspectionNumber}`,
       channel: "customer",
       deliveryStatus:

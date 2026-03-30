@@ -64,6 +64,13 @@ export async function GET(request: NextRequest) {
 
     return new NextResponse(data, {
       headers: {
+        "Content-Type":
+          data.type ||
+          (targetPath.endsWith(".pdf")
+            ? "application/pdf"
+            : targetPath.endsWith(".docx")
+              ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              : "image/jpeg"),
         "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${path.basename(
           targetPath
         )}"`

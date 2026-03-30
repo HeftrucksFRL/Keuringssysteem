@@ -27,6 +27,9 @@ export function InspectionsTable({
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [resendInspectionId, setResendInspectionId] = useState<string>("");
+  const [customRecipient, setCustomRecipient] = useState("");
+  const [sendToCustomer, setSendToCustomer] = useState(true);
   const [isPending, startTransition] = useTransition();
 
   const filteredInspections = useMemo(() => {
@@ -59,7 +62,11 @@ export function InspectionsTable({
       const response = await fetch("/api/inspections/resend", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ inspectionId })
+        body: JSON.stringify({
+          inspectionId,
+          customerRecipient: customRecipient.trim() || undefined,
+          sendPdfToCustomer: sendToCustomer
+        })
       });
 
       if (!response.ok) {
@@ -68,6 +75,9 @@ export function InspectionsTable({
       }
 
       setFeedback("Mail opnieuw verzonden.");
+      setResendInspectionId("");
+      setCustomRecipient("");
+      setSendToCustomer(true);
       router.refresh();
     });
   }
@@ -82,6 +92,50 @@ export function InspectionsTable({
         />
       </div>
       {feedback ? <p className="form-message success">{feedback}</p> : null}
+      {resendInspectionId ? (
+        <div className="panel" style={{ marginBottom: "1rem" }}>
+          <div className="eyebrow">Opnieuw mailen</div>
+          <h2>Kies eerst waar de PDF heen moet</h2>
+          <div className="form-block">
+            <label className="status-chip">
+              <input
+                checked={sendToCustomer}
+                onChange={() => setSendToCustomer(true)}
+                type="radio"
+              />
+              Mail naar klant
+            </label>
+            <label className="status-chip">
+              <input
+                checked={!sendToCustomer}
+                onChange={() => setSendToCustomer(false)}
+                type="radio"
+              />
+              Mail naar ander adres
+            </label>
+            {!sendToCustomer ? (
+              <div className="field">
+                <label htmlFor="customRecipient">Ander e-mailadres</label>
+                <input
+                  id="customRecipient"
+                  type="email"
+                  value={customRecipient}
+                  onChange={(event) => setCustomRecipient(event.target.value)}
+                  placeholder="naam@bedrijf.nl"
+                />
+              </div>
+            ) : null}
+            <div className="actions">
+              <button className="button" type="button" disabled={isPending} onClick={() => resendMail(resendInspectionId)}>
+                {isPending ? "Bezig..." : "Verzenden"}
+              </button>
+              <button className="button-secondary" type="button" onClick={() => setResendInspectionId("")}>
+                Annuleren
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="table-like">
         <div className="table-row table-head">
           <span>Keurnummer</span>
@@ -125,7 +179,10 @@ export function InspectionsTable({
                   className="button-secondary"
                   type="button"
                   disabled={isPending}
-                  onClick={() => resendMail(inspection.id)}
+                  onClick={() => {
+                    setFeedback(null);
+                    setResendInspectionId(inspection.id);
+                  }}
                 >
                   Opnieuw mailen
                 </button>

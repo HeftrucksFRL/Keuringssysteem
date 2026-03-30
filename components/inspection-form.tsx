@@ -1,17 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { getFormDefinition } from "@/lib/form-definitions";
 import { addTwelveMonths } from "@/lib/utils";
+import type { CustomerRecord, InspectionRecord, MachineRecord } from "@/lib/domain";
 import type { ChecklistOption, MachineType } from "@/lib/types";
-import type {
-  CustomerRecord,
-  InspectionRecord,
-  MachineRecord
-} from "@/lib/domain";
 
-interface InspectionFormProps {
+interface Props {
   customers: CustomerRecord[];
   machines: MachineRecord[];
   inspections: InspectionRecord[];
@@ -20,15 +16,11 @@ interface InspectionFormProps {
   defaultMachineId?: string;
 }
 
-interface PhotoItem {
-  file: File;
-  previewUrl: string;
-  sizeLabel: string;
-}
-
 type Step = 1 | 2 | 3 | 4;
-type StartMode = "existing" | "new";
-type MachineMode = "existing" | "new";
+type Mode = "existing" | "new";
+type Flash = { type: "success" | "error" | "info"; text: string } | null;
+type SavedInspection = { id: string; inspectionNumber: string } | null;
+type PhotoItem = { file: File; previewUrl: string; sizeLabel: string };
 
 const machineTypeOptions: { value: MachineType; label: string }[] = [
   { value: "heftruck_reachtruck", label: "Heftruck / reachtruck" },
@@ -41,21 +33,20 @@ const machineTypeOptions: { value: MachineType; label: string }[] = [
   { value: "stellingmateriaal", label: "Stellingmateriaal" }
 ];
 
-const stepMeta: { step: Step; label: string; title: string }[] = [
-  { step: 1, label: "Stap 1", title: "Start" },
-  { step: 2, label: "Stap 2", title: "Klant" },
-  { step: 3, label: "Stap 3", title: "Machine" },
-  { step: 4, label: "Stap 4", title: "Keuring" }
+const stepMeta = [
+  { step: 1 as Step, label: "Stap 1", title: "Start" },
+  { step: 2 as Step, label: "Stap 2", title: "Klant" },
+  { step: 3 as Step, label: "Stap 3", title: "Machine" },
+  { step: 4 as Step, label: "Stap 4", title: "Keuring" }
 ];
 
-function visibleField(fieldKey: string) {
-  return !fieldKey.includes("sticker") && fieldKey !== "machine_number";
+function visibleField(key: string) {
+  return !key.includes("sticker") && key !== "machine_number";
 }
 
 function buildDefaultChecklist(type: MachineType) {
   const definition = getFormDefinition(type);
   const defaultOption = definition.checklistOptions[0];
-
   return Object.fromEntries(
     definition.sections.flatMap((section) =>
       section.items.map((item) => [item.key, defaultOption])
@@ -63,7 +54,7 @@ function buildDefaultChecklist(type: MachineType) {
   ) as Record<string, ChecklistOption>;
 }
 
-function buildCustomerValues(customer?: CustomerRecord | null) {
+function customerValues(customer?: CustomerRecord | null) {
   return {
     customer_name: customer?.companyName ?? "",
     customer_address: customer?.address ?? "",
@@ -73,57 +64,41 @@ function buildCustomerValues(customer?: CustomerRecord | null) {
   };
 }
 
-function buildMachineValues(machine?: MachineRecord | null) {
+function machineValues(machine?: MachineRecord | null) {
   return {
     brand: machine?.brand ?? "",
     model: machine?.model ?? "",
     serial_number: machine?.serialNumber ?? "",
     build_year: machine?.buildYear ?? "",
-    internal_number: machine?.internalNumber || machine?.machineNumber || ""
+    internal_number: machine?.internalNumber || machine?.machineNumber || "",
+    hour_reading: machine?.configuration.hour_reading ?? ""
   };
 }
 
 async function compressImage(file: File) {
-  const imageUrl = URL.createObjectURL(file);
+  const url = URL.createObjectURL(file);
   const image = await new Promise<HTMLImageElement>((resolve, reject) => {
     const element = new Image();
     element.onload = () => resolve(element);
     element.onerror = reject;
-    element.src = imageUrl;
+    element.src = url;
   });
-
   const canvas = document.createElement("canvas");
   const scale = Math.min(1, 1600 / Math.max(image.width, image.height));
   canvas.width = Math.round(image.width * scale);
   canvas.height = Math.round(image.height * scale);
-
   const context = canvas.getContext("2d");
-  if (!context) {
-    throw new Error("Canvas niet beschikbaar");
-  }
-
+  if (!context) throw new Error("Canvas niet beschikbaar");
   context.drawImage(image, 0, 0, canvas.width, canvas.height);
-  URL.revokeObjectURL(imageUrl);
-
+  URL.revokeObjectURL(url);
   let quality = 0.82;
-  let blob = await new Promise<Blob | null>((resolve) =>
-    canvas.toBlob(resolve, "image/jpeg", quality)
-  );
-
+  let blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
   while (blob && blob.size > 300 * 1024 && quality > 0.45) {
     quality -= 0.08;
-    blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, "image/jpeg", quality)
-    );
+    blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
   }
-
-  if (!blob) {
-    throw new Error("Afbeelding kon niet worden verwerkt");
-  }
-
-  return new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), {
-    type: "image/jpeg"
-  });
+  if (!blob) throw new Error("Afbeelding kon niet worden verwerkt");
+  return new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), { type: "image/jpeg" });
 }
 
 export function InspectionForm({
@@ -133,31 +108,23 @@ export function InspectionForm({
   defaultType = "heftruck_reachtruck",
   defaultCustomerId = "",
   defaultMachineId = ""
-}: InspectionFormProps) {
-  const router = useRouter();
+}: Props) {
   const [isPending, startTransition] = useTransition();
   const [type, setType] = useState<MachineType>(defaultType);
   const [step, setStep] = useState<Step>(defaultMachineId ? 4 : defaultCustomerId ? 3 : 1);
-  const [startMode, setStartMode] = useState<StartMode>(
-    defaultCustomerId || defaultMachineId ? "existing" : "new"
-  );
-  const [machineMode, setMachineMode] = useState<MachineMode>(
-    defaultMachineId ? "existing" : "new"
-  );
+  const [customerMode, setCustomerMode] = useState<Mode>(defaultCustomerId || defaultMachineId ? "existing" : "new");
+  const [machineMode, setMachineMode] = useState<Mode>(defaultMachineId ? "existing" : "new");
   const [customerQuery, setCustomerQuery] = useState("");
   const [machineQuery, setMachineQuery] = useState("");
+  const [customerMenuOpen, setCustomerMenuOpen] = useState(false);
+  const [machineMenuOpen, setMachineMenuOpen] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState(defaultCustomerId);
   const [selectedMachineId, setSelectedMachineId] = useState(defaultMachineId);
-  const [values, setValues] = useState<Record<string, string>>({
-    inspection_date: new Date().toISOString().slice(0, 10)
-  });
+  const [values, setValues] = useState<Record<string, string>>({ inspection_date: new Date().toISOString().slice(0, 10) });
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
-  const [message, setMessage] = useState<{ type: "success" | "error" | "info"; text: string } | null>(
-    null
-  );
-  const [checklist, setChecklist] = useState<Record<string, ChecklistOption>>(
-    buildDefaultChecklist(defaultType)
-  );
+  const [message, setMessage] = useState<Flash>(null);
+  const [savedInspection, setSavedInspection] = useState<SavedInspection>(null);
+  const [checklist, setChecklist] = useState<Record<string, ChecklistOption>>(buildDefaultChecklist(defaultType));
 
   const form = useMemo(() => getFormDefinition(type), [type]);
   const selectedCustomer = customers.find((item) => item.id === selectedCustomerId) ?? null;
@@ -166,92 +133,46 @@ export function InspectionForm({
 
   const filteredCustomers = useMemo(() => {
     const query = customerQuery.trim().toLowerCase();
-    if (!query) {
-      return customers.slice(0, 8);
-    }
-
+    if (!query) return customers.slice(0, 8);
     return customers.filter((customer) =>
-      [customer.companyName, customer.contactName, customer.email]
-        .join(" ")
-        .toLowerCase()
-        .includes(query)
+      [customer.companyName, customer.contactName, customer.email, customer.phone].join(" ").toLowerCase().includes(query)
     );
   }, [customerQuery, customers]);
 
-  const customerMachines = useMemo(() => {
-    if (!selectedCustomerId) {
-      return [];
-    }
-
-    return machines.filter((machine) => machine.customerId === selectedCustomerId);
-  }, [machines, selectedCustomerId]);
+  const customerMachines = useMemo(
+    () => (selectedCustomerId ? machines.filter((machine) => machine.customerId === selectedCustomerId) : []),
+    [machines, selectedCustomerId]
+  );
 
   const filteredMachines = useMemo(() => {
     const query = machineQuery.trim().toLowerCase();
-    if (!query) {
-      return customerMachines.slice(0, 8);
-    }
-
+    if (!query) return customerMachines.slice(0, 8);
     return customerMachines.filter((machine) =>
-      [
-        machine.internalNumber,
-        machine.machineNumber,
-        machine.brand,
-        machine.model,
-        machine.serialNumber
-      ]
+      [machine.internalNumber, machine.machineNumber, machine.brand, machine.model, machine.serialNumber]
         .join(" ")
         .toLowerCase()
         .includes(query)
     );
   }, [customerMachines, machineQuery]);
 
-  useEffect(() => {
-    setChecklist(buildDefaultChecklist(type));
-  }, [type]);
+  useEffect(() => setChecklist(buildDefaultChecklist(type)), [type]);
 
   useEffect(() => {
-    if (!selectedCustomer) {
-      return;
-    }
-
-    setValues((current) => ({
-      ...current,
-      ...buildCustomerValues(selectedCustomer)
-    }));
-
-    if (!customerQuery) {
-      setCustomerQuery(selectedCustomer.companyName);
-    }
+    if (!selectedCustomer) return;
+    setValues((current) => ({ ...current, ...customerValues(selectedCustomer) }));
+    if (!customerQuery) setCustomerQuery(selectedCustomer.companyName);
   }, [selectedCustomer, customerQuery]);
 
   useEffect(() => {
-    if (!selectedMachine) {
-      return;
-    }
-
+    if (!selectedMachine) return;
     setType(selectedMachine.machineType);
-    setMachineMode("existing");
-    setValues((current) => ({
-      ...current,
-      ...buildMachineValues(selectedMachine),
-      ...selectedMachine.configuration
-    }));
-    setMachineQuery(
-      [selectedMachine.internalNumber || selectedMachine.machineNumber, selectedMachine.brand, selectedMachine.model]
-        .filter(Boolean)
-        .join(" ")
-    );
-
-    const previousInspection = inspections.find(
-      (inspection) => inspection.machineId === selectedMachine.id
-    );
-
+    setValues((current) => ({ ...current, ...machineValues(selectedMachine), ...selectedMachine.configuration }));
+    setMachineQuery([selectedMachine.internalNumber || selectedMachine.machineNumber, selectedMachine.brand, selectedMachine.model].filter(Boolean).join(" "));
+    const previousInspection = inspections.find((inspection) => inspection.machineId === selectedMachine.id);
     if (!previousInspection) {
       setChecklist(buildDefaultChecklist(selectedMachine.machineType));
       return;
     }
-
     setValues((current) => ({
       ...current,
       ...previousInspection.machineSnapshot,
@@ -260,107 +181,77 @@ export function InspectionForm({
       conclusion: previousInspection.conclusion,
       inspection_date: current.inspection_date
     }));
-    setChecklist({
-      ...buildDefaultChecklist(selectedMachine.machineType),
-      ...previousInspection.checklist
-    });
+    setChecklist({ ...buildDefaultChecklist(selectedMachine.machineType), ...previousInspection.checklist });
   }, [selectedMachine, inspections]);
 
   function setFieldValue(key: string, value: string) {
-    setValues((current) => ({
-      ...current,
-      [key]: value
-    }));
+    setValues((current) => ({ ...current, [key]: value }));
   }
 
   function chooseCustomer(customer: CustomerRecord) {
-    setStartMode("existing");
+    setCustomerMode("existing");
     setSelectedCustomerId(customer.id);
     setCustomerQuery(customer.companyName);
     setSelectedMachineId("");
     setMachineQuery("");
+    setCustomerMenuOpen(false);
+    setMachineMenuOpen(false);
     setMachineMode("existing");
-    setValues((current) => ({
-      ...current,
-      ...buildCustomerValues(customer),
-      ...buildMachineValues(null),
-      findings: "",
-      recommendations: "",
-      conclusion: ""
-    }));
+    setValues((current) => ({ ...current, ...customerValues(customer), ...machineValues(null), findings: "", recommendations: "", conclusion: "" }));
     setChecklist(buildDefaultChecklist(type));
     setStep(2);
   }
 
-  function handleCustomerMode(mode: StartMode) {
-    setStartMode(mode);
+  function resetForCustomerMode(mode: Mode) {
+    setCustomerMode(mode);
     setSelectedCustomerId("");
     setCustomerQuery("");
     setSelectedMachineId("");
     setMachineQuery("");
+    setCustomerMenuOpen(false);
+    setMachineMenuOpen(false);
     setMachineMode("new");
-    setValues((current) => ({
-      ...current,
-      ...buildCustomerValues(null),
-      ...buildMachineValues(null),
-      findings: "",
-      recommendations: "",
-      conclusion: ""
-    }));
+    setValues((current) => ({ ...current, ...customerValues(null), ...machineValues(null), findings: "", recommendations: "", conclusion: "" }));
     setChecklist(buildDefaultChecklist(type));
   }
 
   function chooseMachine(machine: MachineRecord) {
     setMachineMode("existing");
     setSelectedMachineId(machine.id);
-    setStep(3);
+    setMachineMenuOpen(false);
   }
 
-  function handleMachineMode(mode: MachineMode) {
+  function resetForMachineMode(mode: Mode) {
     setMachineMode(mode);
     setSelectedMachineId("");
     setMachineQuery("");
-    setValues((current) => ({
-      ...current,
-      ...buildMachineValues(null)
-    }));
+    setMachineMenuOpen(false);
+    setValues((current) => ({ ...current, ...machineValues(null) }));
     setChecklist(buildDefaultChecklist(type));
   }
 
-  function validateStep(currentStep: Step) {
-    if (currentStep === 1 && startMode === "existing" && !selectedCustomerId) {
+  function validateStep(targetStep: Step) {
+    if (targetStep === 1 && customerMode === "existing" && !selectedCustomerId) {
       setMessage({ type: "error", text: "Kies eerst een klant om verder te gaan." });
       return false;
     }
-
-    if (currentStep === 2 && !String(values.customer_name || "").trim()) {
+    if (targetStep === 2 && !String(values.customer_name || "").trim()) {
       setMessage({ type: "error", text: "Vul eerst de klantgegevens in." });
       return false;
     }
-
-    if (
-      currentStep === 3 &&
-      machineMode === "existing" &&
-      !selectedMachineId &&
-      customerMachines.length > 0
-    ) {
+    if (targetStep === 3 && machineMode === "existing" && !selectedMachineId && customerMachines.length > 0) {
       setMessage({ type: "error", text: "Kies eerst een machine of maak een nieuwe aan." });
       return false;
     }
-
-    if (currentStep === 3 && !String(values.internal_number || "").trim()) {
+    if (targetStep === 3 && !String(values.internal_number || "").trim()) {
       setMessage({ type: "error", text: "Vul eerst het interne nummer van de machine in." });
       return false;
     }
-
     return true;
   }
 
   function nextStep() {
-    if (!validateStep(step)) {
-      return;
-    }
-
+    if (!validateStep(step)) return;
     setMessage(null);
     setStep((current) => (current < 4 ? ((current + 1) as Step) : current));
   }
@@ -376,21 +267,14 @@ export function InspectionForm({
       setPhotos([]);
       return;
     }
-
     setMessage({ type: "info", text: "Foto's worden voorbereid..." });
-
     try {
       const compressed = await Promise.all(
         files.map(async (file) => {
           const compressedFile = await compressImage(file);
-          return {
-            file: compressedFile,
-            previewUrl: URL.createObjectURL(compressedFile),
-            sizeLabel: `${Math.round(compressedFile.size / 1024)} KB`
-          };
+          return { file: compressedFile, previewUrl: URL.createObjectURL(compressedFile), sizeLabel: `${Math.round(compressedFile.size / 1024)} KB` };
         })
       );
-
       setPhotos(compressed);
       setMessage(null);
     } catch {
@@ -400,51 +284,43 @@ export function InspectionForm({
 
   async function submitForm(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    if (!validateStep(3)) {
-      return;
-    }
+    if (!validateStep(3)) return;
 
     const formData = new FormData(event.currentTarget);
     formData.set("machine_type", type);
     formData.set("checklist", JSON.stringify(checklist));
     formData.delete("photos");
-
-    photos.forEach((photo) => {
-      formData.append("photos", photo.file);
-    });
+    photos.forEach((photo) => formData.append("photos", photo.file));
 
     setMessage(null);
     startTransition(async () => {
-      const response = await fetch("/api/inspections", {
-        method: "POST",
-        body: formData
-      });
-
+      const response = await fetch("/api/inspections", { method: "POST", body: formData });
       const result = (await response.json()) as
-        | { ok: true; inspectionNumber: string }
+        | { ok: true; inspectionId: string; inspectionNumber: string }
         | { ok: false; message: string };
 
       if (!response.ok || !result.ok) {
-        setMessage({
-          type: "error",
-          text: result.ok ? "Opslaan is niet gelukt." : result.message
-        });
+        setMessage({ type: "error", text: result.ok ? "Opslaan is niet gelukt." : result.message });
         return;
       }
 
-      router.push(`/keuringen?created=${result.inspectionNumber}`);
-      router.refresh();
+      setSavedInspection({ id: result.inspectionId, inspectionNumber: result.inspectionNumber });
+      setMessage({ type: "success", text: `Keuring ${result.inspectionNumber} is opgeslagen.` });
     });
+  }
+
+  function canJumpToStep(targetStep: Step) {
+    if (targetStep <= step) return true;
+    if (targetStep === 2) return customerMode === "new" || Boolean(selectedCustomerId);
+    if (targetStep === 3) return Boolean(values.customer_name);
+    return Boolean(values.customer_name) && Boolean(values.internal_number);
   }
 
   return (
     <form onSubmit={submitForm} className="inspection-layout">
-      {Object.entries(values)
-        .filter(([key]) => key.startsWith("customer_"))
-        .map(([key, value]) => (
-          <input key={key} type="hidden" name={key} value={value} />
-        ))}
+      {Object.entries(values).filter(([key]) => key.startsWith("customer_")).map(([key, value]) => (
+        <input key={key} type="hidden" name={key} value={value} />
+      ))}
 
       <section className="inspection-card inspection-card-full">
         <div className="eyebrow">Nieuwe keuring</div>
@@ -455,7 +331,8 @@ export function InspectionForm({
               key={item.step}
               type="button"
               className={`step-chip ${step === item.step ? "active" : step > item.step ? "done" : ""}`}
-              onClick={() => setStep(item.step)}
+              onClick={() => canJumpToStep(item.step) && setStep(item.step)}
+              disabled={!canJumpToStep(item.step)}
             >
               <span>{item.label}</span>
               <strong>{item.title}</strong>
@@ -469,25 +346,16 @@ export function InspectionForm({
           <div className="eyebrow">Stap 1</div>
           <h2>Hoe wil je starten?</h2>
           <div className="choice-grid">
-            <button
-              type="button"
-              className={`choice-card ${startMode === "existing" ? "active" : ""}`}
-              onClick={() => handleCustomerMode("existing")}
-            >
+            <button type="button" className={`choice-card ${customerMode === "existing" ? "active" : ""}`} onClick={() => resetForCustomerMode("existing")}>
               <strong>Bestaande klant of machine zoeken</strong>
               <span>Kies een klant en pak daarna direct de juiste machine erbij.</span>
             </button>
-            <button
-              type="button"
-              className={`choice-card ${startMode === "new" ? "active" : ""}`}
-              onClick={() => handleCustomerMode("new")}
-            >
+            <button type="button" className={`choice-card ${customerMode === "new" ? "active" : ""}`} onClick={() => resetForCustomerMode("new")}>
               <strong>Nieuwe klant of machine aanmaken</strong>
               <span>Gebruik deze route als het dossier nog niet in het systeem staat.</span>
             </button>
           </div>
-
-          {startMode === "existing" ? (
+          {customerMode === "existing" ? (
             <div className="form-grid-wide" style={{ marginTop: "1rem" }}>
               <div className="field autocomplete">
                 <label htmlFor="customer-search">Zoek klant</label>
@@ -499,19 +367,16 @@ export function InspectionForm({
                     setSelectedCustomerId("");
                     setSelectedMachineId("");
                     setMachineQuery("");
+                    setCustomerMenuOpen(true);
                   }}
+                  onFocus={() => setCustomerMenuOpen(true)}
                   placeholder="Typ de eerste letters van de klant"
                   autoComplete="off"
                 />
-                {filteredCustomers.length > 0 && customerQuery ? (
+                {filteredCustomers.length > 0 && customerQuery && customerMenuOpen ? (
                   <div className="autocomplete-menu">
                     {filteredCustomers.map((customer) => (
-                      <button
-                        className="autocomplete-item"
-                        key={customer.id}
-                        type="button"
-                        onClick={() => chooseCustomer(customer)}
-                      >
+                      <button className="autocomplete-item" key={customer.id} type="button" onClick={() => chooseCustomer(customer)}>
                         <strong>{customer.companyName}</strong>
                         <span>{customer.contactName || customer.email}</span>
                       </button>
@@ -519,8 +384,8 @@ export function InspectionForm({
                   </div>
                 ) : null}
               </div>
-              <div className="field">
-                <label>Gekozen klant</label>
+              <div className="compact-card">
+                <div className="eyebrow">Gekozen klant</div>
                 <div className="info-card">
                   <strong>{selectedCustomer?.companyName || "Nog geen klant gekozen"}</strong>
                   <span>{selectedCustomer?.contactName || "Kies eerst een klant om verder te gaan."}</span>
@@ -539,10 +404,9 @@ export function InspectionForm({
         <section className="inspection-card inspection-card-full">
           <div className="eyebrow">Stap 2</div>
           <h2>Klantgegevens</h2>
-          <div className="form-grid-wide">
-            {form.machineFields
-              .filter((field) => field.key.startsWith("customer_"))
-              .map((field) => (
+          <div className="form-block">
+            <div className="form-grid-wide">
+              {form.machineFields.filter((field) => field.key.startsWith("customer_")).map((field) => (
                 <div className="field" key={field.key}>
                   <label htmlFor={field.key}>{field.label}</label>
                   <input
@@ -555,6 +419,7 @@ export function InspectionForm({
                   />
                 </div>
               ))}
+            </div>
           </div>
         </section>
       ) : null}
@@ -564,164 +429,184 @@ export function InspectionForm({
           <div className="eyebrow">Stap 3</div>
           <h2>Machine kiezen of aanmaken</h2>
           {selectedCustomer ? (
-            <div className="info-card" style={{ marginBottom: "1rem" }}>
-              <strong>{selectedCustomer.companyName}</strong>
-              <span>Kies hieronder een bestaande machine of zet een nieuwe erin.</span>
+            <div className="compact-card" style={{ marginBottom: "1rem" }}>
+              <div className="eyebrow">Gekozen klant</div>
+              <div className="info-card">
+                <strong>{selectedCustomer.companyName}</strong>
+                <span>Kies hieronder een bestaande machine of zet een nieuwe erin.</span>
+              </div>
             </div>
           ) : null}
           <div className="choice-grid">
-            <button
-              type="button"
-              className={`choice-card ${machineMode === "existing" ? "active" : ""}`}
-              onClick={() => handleMachineMode("existing")}
-            >
+            <button type="button" className={`choice-card ${machineMode === "existing" ? "active" : ""}`} onClick={() => resetForMachineMode("existing")}>
               <strong>Bestaande machine</strong>
               <span>Handig als je eerdere keuringsgegevens wilt overnemen.</span>
             </button>
-            <button
-              type="button"
-              className={`choice-card ${machineMode === "new" ? "active" : ""}`}
-              onClick={() => handleMachineMode("new")}
-            >
+            <button type="button" className={`choice-card ${machineMode === "new" ? "active" : ""}`} onClick={() => resetForMachineMode("new")}>
               <strong>Nieuwe machine</strong>
               <span>Voer een nieuwe machine in voor deze klant.</span>
             </button>
           </div>
 
           {machineMode === "existing" ? (
-            <div className="form-grid-wide" style={{ marginTop: "1rem" }}>
-              <div className="field autocomplete">
-                <label htmlFor="machine-search">Zoek machine</label>
-                <input
-                  id="machine-search"
-                  value={machineQuery}
-                  onChange={(event) => {
-                    setMachineQuery(event.target.value);
-                    setSelectedMachineId("");
-                  }}
-                  placeholder="Zoek op intern nummer, merk of type"
-                  autoComplete="off"
-                />
-                {filteredMachines.length > 0 && machineQuery ? (
-                  <div className="autocomplete-menu">
-                    {filteredMachines.map((machine) => (
-                      <button
-                        className="autocomplete-item"
-                        key={machine.id}
-                        type="button"
-                        onClick={() => chooseMachine(machine)}
-                      >
-                        <strong>
-                          {machine.internalNumber || machine.machineNumber} · {machine.brand}
-                        </strong>
-                        <span>{machine.model}</span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-              <div className="field">
-                <label>Gekozen machine</label>
-                <div className="info-card">
-                  <strong>
-                    {selectedMachine
-                      ? `${selectedMachine.brand} ${selectedMachine.model}`.trim()
-                      : "Nog geen machine gekozen"}
-                  </strong>
-                  <span>
-                    {selectedMachine
-                      ? `Intern nummer ${selectedMachine.internalNumber || selectedMachine.machineNumber}`
-                      : "Kies eerst een machine of schakel naar nieuwe machine."}
-                  </span>
+            <>
+              <div className="form-block" style={{ marginTop: "1rem" }}>
+                <div className="field autocomplete">
+                  <label htmlFor="machine-search">Zoek machine</label>
+                  <input
+                    id="machine-search"
+                    value={machineQuery}
+                    onChange={(event) => {
+                      setMachineQuery(event.target.value);
+                      setSelectedMachineId("");
+                      setMachineMenuOpen(true);
+                    }}
+                    onFocus={() => setMachineMenuOpen(true)}
+                    placeholder="Zoek op intern nummer, merk of type"
+                    autoComplete="off"
+                  />
+                  {filteredMachines.length > 0 && machineQuery && machineMenuOpen ? (
+                    <div className="autocomplete-menu">
+                      {filteredMachines.map((machine) => (
+                        <button className="autocomplete-item" key={machine.id} type="button" onClick={() => chooseMachine(machine)}>
+                          <strong>{machine.internalNumber || machine.machineNumber} - {machine.brand}</strong>
+                          <span>{machine.model}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               </div>
-            </div>
+
+              <div className="compact-card" style={{ marginTop: "1rem" }}>
+                <div className="eyebrow">Gekozen machine</div>
+                <div className="read-only-grid">
+                  <div className="info-card">
+                    <strong>{selectedMachine ? `${selectedMachine.brand} ${selectedMachine.model}`.trim() : "Nog geen machine gekozen"}</strong>
+                    <span>Machine</span>
+                  </div>
+                  <div className="info-card">
+                    <strong>{selectedMachine?.internalNumber || selectedMachine?.machineNumber || "-"}</strong>
+                    <span>Intern nummer</span>
+                  </div>
+                  <div className="info-card">
+                    <strong>{selectedMachine?.serialNumber || "-"}</strong>
+                    <span>Serienummer</span>
+                  </div>
+                  <div className="info-card">
+                    <strong>{selectedMachine?.machineNumber || "-"}</strong>
+                    <span>Machinedossier</span>
+                  </div>
+                </div>
+              </div>
+            </>
           ) : null}
 
-          <div className="form-grid-wide" style={{ marginTop: "1rem" }}>
-            <div className="field">
-              <label htmlFor="machine-type">Keuringstype</label>
-              <select
-                id="machine-type"
-                name="machine_type_display"
-                value={type}
-                onChange={(event) => {
-                  const nextType = event.target.value as MachineType;
-                  setType(nextType);
-                  setChecklist(buildDefaultChecklist(nextType));
-                }}
-              >
-                {machineTypeOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+          <div className="form-block" style={{ marginTop: "1rem" }}>
+            <div className="form-grid-wide">
+              <div className="field">
+                <label htmlFor="machine-type">Keuringstype</label>
+                <select
+                  id="machine-type"
+                  name="machine_type_display"
+                  value={type}
+                  onChange={(event) => {
+                    const nextType = event.target.value as MachineType;
+                    setType(nextType);
+                    setChecklist(buildDefaultChecklist(nextType));
+                  }}
+                >
+                  {machineTypeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {form.machineFields
+                .filter((field) => !field.key.startsWith("customer_") && visibleField(field.key) && field.key !== "inspection_date")
+                .map((field) =>
+                  machineMode === "new" ? (
+                    <div className="field" key={field.key}>
+                      <label htmlFor={field.key}>{field.label}</label>
+                      <input
+                        id={field.key}
+                        name={field.key}
+                        type={field.type ?? "text"}
+                        value={values[field.key] ?? ""}
+                        placeholder={field.placeholder}
+                        onChange={(event) => setFieldValue(field.key, event.target.value)}
+                      />
+                    </div>
+                  ) : (
+                    <div className="info-card" key={field.key}>
+                      <strong>{values[field.key] || "-"}</strong>
+                      <span>{field.label}</span>
+                    </div>
+                  )
+                )}
             </div>
-
-            {form.machineFields
-              .filter(
-                (field) =>
-                  !field.key.startsWith("customer_") &&
-                  visibleField(field.key) &&
-                  !["inspection_date"].includes(field.key)
-              )
-              .map((field) => (
-                <div className="field" key={field.key}>
-                  <label htmlFor={field.key}>{field.label}</label>
-                  <input
-                    id={field.key}
-                    name={field.key}
-                    type={field.type ?? "text"}
-                    value={values[field.key] ?? ""}
-                    placeholder={field.placeholder}
-                    onChange={(event) => setFieldValue(field.key, event.target.value)}
-                  />
-                </div>
-              ))}
           </div>
         </section>
       ) : null}
 
       {step === 4 ? (
         <>
-          <section className="inspection-card">
+          <section className="inspection-card inspection-card-full form-screen">
             <div className="eyebrow">{form.title}</div>
             <h2>Gegevens</h2>
             <div className="keurnummer-banner">
               <span>Keurnummer</span>
               <strong>Wordt automatisch aangemaakt bij opslaan</strong>
             </div>
-            <div className="form-grid-wide">
-              {form.machineFields
-                .filter(
-                  (field) =>
-                    visibleField(field.key) &&
-                    !field.key.startsWith("customer_") &&
-                    field.key !== "inspection_date"
-                )
-                .map((field) => (
-                  <div className="field" key={field.key}>
-                    <label htmlFor={field.key}>{field.label}</label>
-                    <input
-                      id={field.key}
-                      name={field.key}
-                      type={field.type ?? "text"}
-                      value={values[field.key] ?? ""}
-                      placeholder={field.placeholder}
-                      onChange={(event) => setFieldValue(field.key, event.target.value)}
-                    />
-                  </div>
-                ))}
-              <div className="field">
-                <label htmlFor="inspection_date">Keuringsdatum</label>
-                <input
-                  id="inspection_date"
-                  name="inspection_date"
-                  type="date"
-                  value={values.inspection_date ?? ""}
-                  onChange={(event) => setFieldValue("inspection_date", event.target.value)}
-                />
+            <div className="compact-card" style={{ marginBottom: "1rem" }}>
+              <div className="eyebrow">Geselecteerde gegevens</div>
+              <div className="read-only-grid">
+                <div className="info-card">
+                  <strong>{values.customer_name || "-"}</strong>
+                  <span>Gekozen klant</span>
+                </div>
+                <div className="info-card">
+                  <strong>{[values.brand, values.model].filter(Boolean).join(" ") || "-"}</strong>
+                  <span>Gekozen machine</span>
+                </div>
+                <div className="info-card">
+                  <strong>{values.internal_number || "-"}</strong>
+                  <span>Intern nummer</span>
+                </div>
+                <div className="info-card">
+                  <strong>{selectedMachine?.machineNumber || values.serial_number || "-"}</strong>
+                  <span>Machinedossier</span>
+                </div>
+              </div>
+            </div>
+            <div className="form-block">
+              <div className="form-grid-wide">
+                {form.machineFields
+                  .filter((field) => visibleField(field.key) && !field.key.startsWith("customer_") && field.key !== "inspection_date")
+                  .map((field) => (
+                    <div className="field" key={field.key}>
+                      <label htmlFor={field.key}>{field.label}</label>
+                      <input
+                        id={field.key}
+                        name={field.key}
+                        type={field.type ?? "text"}
+                        value={values[field.key] ?? ""}
+                        placeholder={field.placeholder}
+                        onChange={(event) => setFieldValue(field.key, event.target.value)}
+                      />
+                    </div>
+                  ))}
+                <div className="field">
+                  <label htmlFor="inspection_date">Keuringsdatum</label>
+                  <input
+                    id="inspection_date"
+                    name="inspection_date"
+                    type="date"
+                    value={values.inspection_date ?? ""}
+                    onChange={(event) => setFieldValue("inspection_date", event.target.value)}
+                  />
+                </div>
               </div>
             </div>
           </section>
@@ -740,20 +625,12 @@ export function InspectionForm({
                         <strong>{item.label}</strong>
                         <div className="status-options">
                           {form.checklistOptions.map((option) => (
-                            <label
-                              className={`status-chip ${checklist[item.key] === option ? "active" : ""}`}
-                              key={option}
-                            >
+                            <label className={`status-chip ${checklist[item.key] === option ? "active" : ""}`} key={option}>
                               <input
                                 type="radio"
                                 name={item.key}
                                 checked={checklist[item.key] === option}
-                                onChange={() =>
-                                  setChecklist((current) => ({
-                                    ...current,
-                                    [item.key]: option
-                                  }))
-                                }
+                                onChange={() => setChecklist((current) => ({ ...current, [item.key]: option }))}
                               />
                               {option === "nvt" ? "n.v.t." : option}
                             </label>
@@ -770,80 +647,65 @@ export function InspectionForm({
           <section className="inspection-card">
             <div className="eyebrow">Afronding</div>
             <h2>Notities</h2>
-            <div className="field">
-              <label htmlFor="findings">Bevindingen</label>
-              <textarea
-                id="findings"
-                name="findings"
-                value={values.findings ?? ""}
-                onChange={(event) => setFieldValue("findings", event.target.value)}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="recommendations">Aanbevelingen</label>
-              <textarea
-                id="recommendations"
-                name="recommendations"
-                value={values.recommendations ?? ""}
-                onChange={(event) => setFieldValue("recommendations", event.target.value)}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="conclusion">Conclusie</label>
-              <textarea
-                id="conclusion"
-                name="conclusion"
-                value={values.conclusion ?? ""}
-                onChange={(event) => setFieldValue("conclusion", event.target.value)}
-              />
+            <div className="form-block">
+              <div className="field">
+                <label htmlFor="findings">Bevindingen</label>
+                <textarea id="findings" name="findings" value={values.findings ?? ""} onChange={(event) => setFieldValue("findings", event.target.value)} />
+              </div>
+              <div className="field">
+                <label htmlFor="recommendations">Aanbevelingen</label>
+                <textarea id="recommendations" name="recommendations" value={values.recommendations ?? ""} onChange={(event) => setFieldValue("recommendations", event.target.value)} />
+              </div>
+              <div className="field">
+                <label htmlFor="conclusion">Conclusie</label>
+                <textarea id="conclusion" name="conclusion" value={values.conclusion ?? ""} onChange={(event) => setFieldValue("conclusion", event.target.value)} />
+              </div>
             </div>
           </section>
 
           <section className="inspection-card">
             <div className="eyebrow">Opslaan</div>
             <h2>Resultaat en foto&apos;s</h2>
-            <div className="field">
-              <label>Resultaat</label>
-              <div className="status-options">
-                {form.conclusionLabels.map((label) => (
-                  <label className="status-chip" key={label}>
-                    <input type="checkbox" name="result_labels" value={label} />
-                    {label}
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="field">
-              <label className="status-chip" htmlFor="send_pdf_to_customer">
-                <input id="send_pdf_to_customer" type="checkbox" name="send_pdf_to_customer" />
-                Mail de PDF ook naar de klant
-              </label>
-            </div>
-            <div className="field">
-              <label htmlFor="photos">Foto&apos;s</label>
-              <input id="photos" type="file" accept="image/*" multiple onChange={handlePhotoChange} />
-              {photos.length > 0 ? (
-                <div className="photo-strip">
-                  {photos.map((photo) => (
-                    <div className="photo-chip" key={photo.previewUrl}>
-                      <div
-                        className="photo-thumb"
-                        style={{ backgroundImage: `url(${photo.previewUrl})` }}
-                        aria-hidden="true"
-                      />
-                      <div>
-                        <strong>{photo.file.name}</strong>
-                        <span>{photo.sizeLabel}</span>
-                      </div>
-                    </div>
+            <div className="form-block">
+              <div className="field">
+                <label>Resultaat</label>
+                <div className="status-options">
+                  {form.conclusionLabels.map((label) => (
+                    <label className="status-chip" key={label}>
+                      <input type="checkbox" name="result_labels" value={label} />
+                      {label}
+                    </label>
                   ))}
                 </div>
-              ) : null}
-            </div>
-            <div className="list compact-list">
-              <div className="list-item">
-                <span>Volgende keurdatum</span>
-                <strong>{nextInspectionDate || "Kies eerst een keuringsdatum"}</strong>
+              </div>
+              <div className="field">
+                <label className="status-chip" htmlFor="send_pdf_to_customer">
+                  <input id="send_pdf_to_customer" type="checkbox" name="send_pdf_to_customer" />
+                  Mail de PDF ook naar de klant
+                </label>
+              </div>
+              <div className="field">
+                <label htmlFor="photos">Foto&apos;s</label>
+                <input id="photos" type="file" accept="image/*" multiple onChange={handlePhotoChange} />
+                {photos.length > 0 ? (
+                  <div className="photo-strip">
+                    {photos.map((photo) => (
+                      <div className="photo-chip" key={photo.previewUrl}>
+                        <div className="photo-thumb" style={{ backgroundImage: `url(${photo.previewUrl})` }} aria-hidden="true" />
+                        <div>
+                          <strong>{photo.file.name}</strong>
+                          <span>{photo.sizeLabel}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+              <div className="list compact-list">
+                <div className="list-item">
+                  <span>Volgende keurdatum</span>
+                  <strong>{nextInspectionDate || "Kies eerst een keuringsdatum"}</strong>
+                </div>
               </div>
             </div>
           </section>
@@ -851,8 +713,16 @@ export function InspectionForm({
       ) : null}
 
       <section className="inspection-card inspection-card-full">
-        {message ? (
-          <p className={`form-message ${message.type}`}>{message.text}</p>
+        {message ? <p className={`form-message ${message.type}`}>{message.text}</p> : null}
+        {savedInspection ? (
+          <div className="actions" style={{ marginTop: 0 }}>
+            <Link className="button-secondary" href={`/keuringen/${savedInspection.id}`} target="_blank">
+              Keuring openen
+            </Link>
+            <Link className="button-secondary" href="/keuringen">
+              Alle keuringen
+            </Link>
+          </div>
         ) : null}
         <div className="wizard-actions">
           <button className="button-secondary" type="button" onClick={previousStep} disabled={step === 1 || isPending}>
@@ -864,7 +734,7 @@ export function InspectionForm({
             </button>
           ) : (
             <button className="button" type="submit" disabled={isPending}>
-              {isPending ? "Bezig met opslaan..." : "Keuring afronden"}
+              {isPending ? "Bezig met opslaan..." : "Keuring opslaan"}
             </button>
           )}
         </div>

@@ -3,6 +3,17 @@ import { getFormDefinition } from "@/lib/form-definitions";
 import { createInspection } from "@/lib/inspection-service";
 import type { ChecklistOption, MachineType } from "@/lib/types";
 
+function buildMachineDossier(serialNumber: string, internalNumber: string) {
+  const serial = serialNumber.trim();
+  const internal = internalNumber.trim();
+
+  if (serial && internal) {
+    return `${serial}-${internal}`;
+  }
+
+  return serial || internal;
+}
+
 function parseChecklist(
   rawChecklist: string,
   machineType: MachineType
@@ -22,6 +33,9 @@ export async function POST(request: Request) {
     const machineType = String(formData.get("machine_type") || "") as MachineType;
     const checklist = String(formData.get("checklist") || "");
     const internalNumber = String(formData.get("internal_number") || "");
+    const serialNumber = String(
+      formData.get("serial_number") || formData.get("vehicle_serial_number") || ""
+    );
     const inspectionDate = String(formData.get("inspection_date") || "");
 
     if (!machineType || !checklist) {
@@ -66,12 +80,10 @@ export async function POST(request: Request) {
         email: String(formData.get("customer_email") || "")
       },
       machine: {
-        machineNumber: internalNumber,
+        machineNumber: buildMachineDossier(serialNumber, internalNumber),
         brand: String(formData.get("brand") || formData.get("vehicle_brand") || ""),
         model: String(formData.get("model") || formData.get("vehicle_type") || ""),
-        serialNumber: String(
-          formData.get("serial_number") || formData.get("vehicle_serial_number") || ""
-        ),
+        serialNumber,
         buildYear: String(
           formData.get("build_year") || formData.get("vehicle_build_year") || ""
         ),
@@ -94,7 +106,11 @@ export async function POST(request: Request) {
       )
     });
 
-    return NextResponse.json({ ok: true, inspectionNumber: inspection.inspectionNumber });
+    return NextResponse.json({
+      ok: true,
+      inspectionId: inspection.id,
+      inspectionNumber: inspection.inspectionNumber
+    });
   } catch {
     return NextResponse.json(
       { ok: false, message: "Opslaan is niet gelukt. Probeer het opnieuw." },
