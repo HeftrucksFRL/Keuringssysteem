@@ -12,6 +12,7 @@
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.49.4",
+    "adm-zip": "^0.5.16",
     "clsx": "^2.1.1",
     "docx": "^9.5.1",
     "lucide-react": "^0.511.0",
