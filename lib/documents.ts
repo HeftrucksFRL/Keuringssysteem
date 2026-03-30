@@ -272,10 +272,17 @@ export async function generateInspectionDocuments(
   const borderBlue = rgb(0.85, 0.9, 0.95);
   const darkText = rgb(0.07, 0.09, 0.13);
   const mutedText = rgb(0.32, 0.38, 0.45);
-  const pageWidth = 595;
-  const pageHeight = 842;
-  const left = 40;
-  const contentWidth = 515;
+  const fallbackLogoImage = await pdfDocument.embedPng(logoBytes);
+  const fallbackBmwtImage = await pdfDocument.embedJpg(bmwtBytes);
+  const form = getFormDefinition(inspection.machineType);
+  const pageWidth = 595.32;
+  const pageHeight = 841.92;
+  const contentLeft = 56;
+  const contentRight = 539;
+  const contentWidth = contentRight - contentLeft;
+  const contentTop = 664;
+  const contentBottom = 110;
+  const sectionGap = 14;
 
   function wrapText(text: string, fontSize: number, maxWidth: number) {
     const value = (text || "-").replace(/\r/g, "");
@@ -325,203 +332,303 @@ export async function generateInspectionDocuments(
         width: pageWidth,
         height: pageHeight
       });
+      return;
     }
 
+    page.drawImage(fallbackLogoImage, {
+      x: 42,
+      y: 760,
+      width: 188,
+      height: 54
+    });
+    page.drawImage(fallbackBmwtImage, {
+      x: 462,
+      y: 760,
+      width: 88,
+      height: 54
+    });
     page.drawLine({
       start: { x: 40, y: 86 },
       end: { x: 555, y: 86 },
       thickness: 1,
       color: brandBlue
     });
-    page.drawText("Keurmeester Age Terpstra | (31)653842843 | Info@heftrucks.frl", {
+    page.drawText("Keurmeester A. Terpstra", {
       x: 40,
-      y: 54,
+      y: 66,
       size: 10,
-      font: boldFont,
-      color: brandBlue
+      font: regularFont,
+      color: mutedText
+    });
+    page.drawText("Heftrucks.frl | info@heftrucks.frl | (31)6 53842843", {
+      x: 40,
+      y: 50,
+      size: 10,
+      font: regularFont,
+      color: mutedText
     });
   }
 
   let page = pdfDocument.addPage([pageWidth, pageHeight]);
   drawPageFrame(page);
-  let cursorY = 690;
+  let cursorY = contentTop;
 
   function nextPage() {
     page = pdfDocument.addPage([pageWidth, pageHeight]);
     drawPageFrame(page);
-    cursorY = 690;
+    cursorY = contentTop;
   }
 
   function ensureSpace(height: number) {
-    if (cursorY - height < 110) {
+    if (cursorY - height < contentBottom) {
       nextPage();
     }
   }
 
-  function drawSectionCard(title: string, content: string) {
-    const lines = wrapText(content, 10, 485);
-    const textHeight = Math.max(lines.length * 14, 16);
-    const sectionHeight = 42 + textHeight + 16;
-    ensureSpace(sectionHeight + 12);
+  function drawCardShell(height: number, options?: { headerTitle?: string }) {
+    ensureSpace(height);
 
     page.drawRectangle({
-      x: left,
-      y: cursorY - sectionHeight,
+      x: contentLeft,
+      y: cursorY - height,
       width: contentWidth,
-      height: sectionHeight,
+      height,
       color: rgb(1, 1, 1),
-      opacity: 0.92,
+      opacity: 0.95,
       borderColor: borderBlue,
       borderWidth: 1
     });
-    page.drawRectangle({
-      x: left,
-      y: cursorY - 24,
-      width: contentWidth,
-      height: 24,
-      color: softBlue
-    });
-    page.drawText(title, {
-      x: 54,
-      y: cursorY - 16,
-      size: 11,
-      font: boldFont,
-      color: brandBlue
-    });
+
+    if (options?.headerTitle) {
+      page.drawRectangle({
+        x: contentLeft,
+        y: cursorY - 24,
+        width: contentWidth,
+        height: 24,
+        color: softBlue
+      });
+      page.drawText(options.headerTitle, {
+        x: contentLeft + 14,
+        y: cursorY - 16,
+        size: 11,
+        font: boldFont,
+        color: brandBlue
+      });
+    }
+  }
+
+  function drawSectionCard(title: string, content: string) {
+    const lines = wrapText(content, 10, contentWidth - 28);
+    const textHeight = Math.max(lines.length * 14, 16);
+    const sectionHeight = 42 + textHeight + 16;
+    drawCardShell(sectionHeight, { headerTitle: title });
 
     let textY = cursorY - 42;
     lines.forEach((line) => {
       page.drawText(line || " ", {
-        x: 54,
+        x: contentLeft + 14,
         y: textY,
         size: 10,
         font: regularFont,
         color: darkText,
-        maxWidth: 485
+        maxWidth: contentWidth - 28
       });
       textY -= 14;
     });
 
-    cursorY -= sectionHeight + 12;
+    cursorY -= sectionHeight + sectionGap;
   }
 
-  page.drawRectangle({
-    x: left,
-    y: cursorY - 48,
-    width: contentWidth,
-    height: 48,
-    color: rgb(1, 1, 1),
-    opacity: 0.92,
-    borderColor: borderBlue,
-    borderWidth: 1
-  });
-  page.drawText("Keuringsrapport", {
-    x: 54,
-    y: cursorY - 18,
-    size: 18,
-    font: boldFont,
-    color: brandBlue
-  });
-  page.drawText(getFormDefinition(inspection.machineType).title, {
-    x: 250,
-    y: cursorY - 17,
-    size: 10.5,
-    font: regularFont,
-    color: mutedText
-  });
-  cursorY -= 64;
-
-  const summaries = summaryRows(inspection);
-  const summaryHeight = 30 + summaries.length * 18;
-  ensureSpace(summaryHeight + 12);
-  page.drawRectangle({
-    x: left,
-    y: cursorY - summaryHeight,
-    width: contentWidth,
-    height: summaryHeight,
-    color: rgb(1, 1, 1),
-    opacity: 0.92,
-    borderColor: borderBlue,
-    borderWidth: 1
-  });
-  page.drawRectangle({
-    x: left,
-    y: cursorY - 24,
-    width: contentWidth,
-    height: 24,
-    color: softBlue,
-    opacity: 0.96
-  });
-
-  let summaryY = cursorY - 36;
-  summaries.forEach(([label, value]) => {
-    page.drawText(label, {
-      x: 56,
-      y: summaryY,
-      size: 10,
+  function drawMetaCard() {
+    const cardHeight = 72;
+    drawCardShell(cardHeight);
+    page.drawText("Keuringsrapport", {
+      x: contentLeft + 14,
+      y: cursorY - 22,
+      size: 20,
       font: boldFont,
+      color: brandBlue
+    });
+    page.drawText(form.title, {
+      x: contentLeft + 14,
+      y: cursorY - 40,
+      size: 11,
+      font: regularFont,
       color: mutedText
     });
-    page.drawText(value || "-", {
-      x: 180,
-      y: summaryY,
-      size: 10,
-      font: regularFont,
-      color: darkText,
-      maxWidth: 350
-    });
-    summaryY -= 18;
-  });
-  cursorY -= summaryHeight + 14;
 
+    const metaItems = [
+      ["Keurnummer", inspection.inspectionNumber],
+      ["Datum", inspection.inspectionDate],
+      ["Status", inspectionStatusLabel(inspection)]
+    ] as const;
+    const columnWidth = 108;
+    metaItems.forEach(([label, value], index) => {
+      const x = contentRight - 14 - columnWidth * (metaItems.length - index);
+      page.drawText(label, {
+        x,
+        y: cursorY - 24,
+        size: 8.5,
+        font: boldFont,
+        color: mutedText
+      });
+      page.drawText(value, {
+        x,
+        y: cursorY - 40,
+        size: 10,
+        font: regularFont,
+        color: darkText,
+        maxWidth: columnWidth - 8
+      });
+    });
+
+    cursorY -= cardHeight + sectionGap;
+  }
+
+  function drawTwoColumnInfoCard() {
+    const infoRows: Array<[[string, string], [string, string]]> = [
+      [
+        ["Klant", inspection.customerSnapshot.customer_name ?? "-"],
+        [
+          "Machine",
+          `${inspection.machineSnapshot.brand ?? ""} ${inspection.machineSnapshot.model ?? ""}`.trim() ||
+            "-"
+        ]
+      ],
+      [
+        ["Intern nummer", inspection.machineSnapshot.internal_number ?? "-"],
+        ["Serienummer", inspection.machineSnapshot.serial_number ?? "-"]
+      ]
+    ];
+
+    const columnWidth = (contentWidth - 42) / 2;
+    const rightColumnX = contentLeft + 14 + columnWidth + 14;
+    const rowHeights = infoRows.map(([leftEntry, rightEntry]) => {
+      const leftLines = wrapText(leftEntry[1], 10, columnWidth);
+      const rightLines = wrapText(rightEntry[1], 10, columnWidth);
+      return Math.max(leftLines.length, rightLines.length) * 14 + 28;
+    });
+    const cardHeight = 32 + rowHeights.reduce((sum, height) => sum + height, 0);
+
+    drawCardShell(cardHeight, { headerTitle: "Klant en machine" });
+
+    let rowTop = cursorY - 38;
+    infoRows.forEach(([leftEntry, rightEntry], index) => {
+      const rowHeight = rowHeights[index];
+      if (index > 0) {
+        page.drawLine({
+          start: { x: contentLeft + 14, y: rowTop + 10 },
+          end: { x: contentRight - 14, y: rowTop + 10 },
+          thickness: 1,
+          color: borderBlue
+        });
+      }
+
+      const drawEntry = (x: number, label: string, value: string) => {
+        page.drawText(label, {
+          x,
+          y: rowTop - 2,
+          size: 9,
+          font: boldFont,
+          color: mutedText
+        });
+        let valueY = rowTop - 18;
+        wrapText(value, 10, columnWidth).forEach((line) => {
+          page.drawText(line, {
+            x,
+            y: valueY,
+            size: 10,
+            font: regularFont,
+            color: darkText,
+            maxWidth: columnWidth
+          });
+          valueY -= 14;
+        });
+      };
+
+      drawEntry(contentLeft + 14, leftEntry[0], leftEntry[1]);
+      drawEntry(rightColumnX, rightEntry[0], rightEntry[1]);
+      rowTop -= rowHeight;
+    });
+
+    cursorY -= cardHeight + sectionGap;
+  }
+
+  function drawChecklistHeader(title: string) {
+    const headerHeight = 30;
+    drawCardShell(headerHeight, { headerTitle: title });
+    cursorY -= headerHeight;
+  }
+
+  function drawChecklistRow(label: string, value: string) {
+    const labelWidth = contentWidth - 108;
+    const valueWidth = 66;
+    const labelLines = wrapText(label, 9.5, labelWidth);
+    const rowHeight = Math.max(labelLines.length * 13, 18) + 16;
+    ensureSpace(rowHeight);
+
+    page.drawRectangle({
+      x: contentLeft,
+      y: cursorY - rowHeight,
+      width: contentWidth,
+      height: rowHeight,
+      color: rgb(1, 1, 1),
+      opacity: 0.95,
+      borderColor: borderBlue,
+      borderWidth: 1
+    });
+
+    let textY = cursorY - 14;
+    labelLines.forEach((line) => {
+      page.drawText(line, {
+        x: contentLeft + 14,
+        y: textY,
+        size: 9.5,
+        font: regularFont,
+        color: darkText,
+        maxWidth: labelWidth
+      });
+      textY -= 13;
+    });
+
+    page.drawText(value, {
+      x: contentRight - valueWidth,
+      y: cursorY - 20,
+      size: 9.5,
+      font: boldFont,
+      color: darkText,
+      maxWidth: valueWidth - 6
+    });
+
+    cursorY -= rowHeight;
+  }
+
+  drawMetaCard();
+  drawTwoColumnInfoCard();
   drawSectionCard("Bevindingen", inspection.findings);
   drawSectionCard("Aanbevelingen", inspection.recommendations);
   drawSectionCard("Conclusie", inspection.conclusion);
 
-  const checklistLines = getFormDefinition(inspection.machineType).sections.flatMap((section) => [
-    section.title,
-    ...section.items.map(
-      (item) => `  ${item.label}: ${inspection.checklist[item.key] ?? "n.v.t."}`
-    )
-  ]);
-  const checklistHeight = 42 + checklistLines.length * 11 + 16;
-  ensureSpace(checklistHeight);
-  page.drawRectangle({
-    x: left,
-    y: cursorY - checklistHeight,
-    width: contentWidth,
-    height: checklistHeight,
-    color: rgb(1, 1, 1),
-    opacity: 0.92,
-    borderColor: borderBlue,
-    borderWidth: 1
-  });
-  page.drawRectangle({
-    x: left,
-    y: cursorY - 24,
-    width: contentWidth,
-    height: 24,
-    color: softBlue
-  });
-  page.drawText("Checklist", {
-    x: 54,
-    y: cursorY - 16,
-    size: 11,
-    font: boldFont,
-    color: brandBlue
-  });
+  let checklistStarted = false;
+  form.sections.forEach((section) => {
+    if (!checklistStarted) {
+      drawChecklistHeader("Checklist");
+      checklistStarted = true;
+    } else if (cursorY - 48 < contentBottom) {
+      nextPage();
+      drawChecklistHeader("Checklist vervolg");
+    }
 
-  let checklistY = cursorY - 38;
-  checklistLines.forEach((line) => {
-    page.drawText(line, {
-      x: 54,
-      y: checklistY,
-      size: 8.5,
-      font: line.startsWith("  ") ? regularFont : boldFont,
-      color: darkText,
-      maxWidth: 485,
+    drawChecklistHeader(section.title);
+    section.items.forEach((item) => {
+      if (cursorY - 44 < contentBottom) {
+        nextPage();
+        drawChecklistHeader("Checklist vervolg");
+        drawChecklistHeader(section.title);
+      }
+
+      drawChecklistRow(item.label, inspection.checklist[item.key] ?? "n.v.t.");
     });
-    checklistY -= 11;
   });
 
   const pdfBytes = await pdfDocument.save();
