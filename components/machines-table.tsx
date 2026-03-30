@@ -46,18 +46,20 @@ export function MachinesTable({
         />
       </div>
       <div className="table-like">
-        <div className="table-row table-head">
+        <div className="table-row table-head machines-table-row">
           <span>Nummer</span>
-          <span>Merk</span>
-          <span>Type</span>
+          <span>Merk / type</span>
           <span>Klant</span>
           <span>Soort</span>
         </div>
         {filteredMachines.map((machine) => (
-          <Link className="table-row table-row-link table-row-5" href={`/machines/${machine.id}`} key={machine.id}>
+          <Link
+            className="table-row table-row-link machines-table-row"
+            href={`/machines/${machine.id}`}
+            key={machine.id}
+          >
             <span>{machine.internalNumber || machine.machineNumber}</span>
-            <span>{machine.brand || "-"}</span>
-            <span>{machine.model || "-"}</span>
+            <span>{[machine.brand, machine.model].filter(Boolean).join(" ") || "-"}</span>
             <span>
               {customers.find((customer) => customer.id === machine.customerId)?.companyName ?? "-"}
             </span>

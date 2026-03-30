@@ -420,6 +420,14 @@ textarea {
   letter-spacing: 0.04em;
 }
 
+.table-head span {
+  white-space: nowrap;
+}
+
+.machines-table-row {
+  grid-template-columns: 0.9fr 1.35fr 1.4fr 0.8fr;
+}
+
 .inline-meta {
   display: flex;
   flex-wrap: wrap;
