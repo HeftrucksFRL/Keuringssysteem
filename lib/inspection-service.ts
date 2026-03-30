@@ -36,6 +36,26 @@ function nextInspectionNumber(existing: InspectionRecord[], inspectionDate: stri
   return String(next);
 }
 
+function buildMachineSnapshot(machine: {
+  machineNumber: string;
+  brand: string;
+  model: string;
+  serialNumber: string;
+  buildYear: string;
+  internalNumber: string;
+  configuration: Record<string, string>;
+}) {
+  return {
+    machine_number: machine.machineNumber,
+    brand: machine.brand,
+    model: machine.model,
+    serial_number: machine.serialNumber,
+    build_year: machine.buildYear,
+    internal_number: machine.internalNumber,
+    ...machine.configuration
+  };
+}
+
 function findOrCreateCustomer(
   data: AppDataSnapshot,
   input: CreateInspectionInput["customer"]
@@ -137,15 +157,7 @@ async function createDemoInspection(input: CreateInspectionInput) {
       customer_phone: customer.phone,
       customer_email: customer.email
     },
-    machineSnapshot: {
-      machine_number: machine.machineNumber,
-      brand: machine.brand,
-      model: machine.model,
-      serial_number: machine.serialNumber,
-      build_year: machine.buildYear,
-      internal_number: machine.internalNumber,
-      ...machine.configuration
-    },
+    machineSnapshot: buildMachineSnapshot(machine),
     checklist: input.checklist,
     findings: input.findings,
     recommendations: input.recommendations,
@@ -557,15 +569,15 @@ export async function createInspection(input: CreateInspectionInput) {
         customer_phone: input.customer.phone,
         customer_email: input.customer.email
       },
-      machine_snapshot: {
-        machine_number: input.machine.machineNumber,
+      machine_snapshot: buildMachineSnapshot({
+        machineNumber: input.machine.machineNumber,
         brand: input.machine.brand,
         model: input.machine.model,
-        serial_number: input.machine.serialNumber,
-        build_year: input.machine.buildYear,
-        internal_number: input.machine.internalNumber,
-        ...input.machine.details
-      },
+        serialNumber: input.machine.serialNumber,
+        buildYear: input.machine.buildYear,
+        internalNumber: input.machine.internalNumber,
+        configuration: input.machine.details
+      }),
       findings: input.findings,
       recommendations: input.recommendations,
       conclusion: input.conclusion
@@ -919,7 +931,7 @@ export async function updateMachine(input: {
 }) {
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
-    await supabase
+    const { data: updatedMachineRow } = await supabase
       .from("machines")
       .update({
         brand: input.brand,
@@ -928,14 +940,52 @@ export async function updateMachine(input: {
         build_year: Number(input.buildYear || 0) || null,
         internal_number: input.internalNumber
       })
-      .eq("id", input.id);
-    return;
+      .eq("id", input.id)
+      .select("*")
+      .maybeSingle();
+
+    if (!updatedMachineRow) {
+      return [];
+    }
+
+    const machine = mapMachineRow(updatedMachineRow);
+    const machineSnapshot = buildMachineSnapshot(machine);
+    const { data: draftRows } = await supabase
+      .from("inspections")
+      .update({
+        machine_snapshot: machineSnapshot
+      })
+      .eq("machine_id", input.id)
+      .eq("status", "draft")
+      .select("*");
+
+    const affectedInspectionIds: string[] = [];
+
+    for (const row of draftRows ?? []) {
+      const inspection = mapInspectionRow(row);
+      affectedInspectionIds.push(inspection.id);
+      const { data: attachmentRows } = await supabase
+        .from("inspection_attachments")
+        .select("id, kind, storage_path")
+        .eq("inspection_id", inspection.id);
+
+      await syncSupabaseInspectionDocuments(
+        inspection,
+        (attachmentRows ?? []).map((attachment) => ({
+          id: String(attachment.id),
+          kind: String(attachment.kind),
+          storage_path: String(attachment.storage_path)
+        }))
+      );
+    }
+
+    return affectedInspectionIds;
   }
 
   const data = await readAppData();
   const machine = data.machines.find((item) => item.id === input.id);
   if (!machine) {
-    return;
+    return [];
   }
 
   machine.brand = input.brand;
@@ -944,7 +994,22 @@ export async function updateMachine(input: {
   machine.buildYear = input.buildYear;
   machine.internalNumber = input.internalNumber;
   machine.updatedAt = nowIso();
+
+  const machineSnapshot = buildMachineSnapshot(machine);
+  const affectedInspectionIds: string[] = [];
+  for (const inspection of data.inspections) {
+    if (inspection.machineId !== input.id || inspection.status !== "draft") {
+      continue;
+    }
+
+    inspection.machineSnapshot = machineSnapshot;
+    inspection.updatedAt = nowIso();
+    affectedInspectionIds.push(inspection.id);
+    await syncDemoInspectionDocuments(data, inspection);
+  }
+
   await writeAppData(data);
+  return affectedInspectionIds;
 }
 
 export async function updateInspection(input: {

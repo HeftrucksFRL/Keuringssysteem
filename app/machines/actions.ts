@@ -7,7 +7,7 @@ import { updateMachine } from "@/lib/inspection-service";
 export async function updateMachineAction(formData: FormData) {
   const id = String(formData.get("id") || "");
 
-  await updateMachine({
+  const affectedInspectionIds = await updateMachine({
     id,
     brand: String(formData.get("brand") || ""),
     model: String(formData.get("model") || ""),
@@ -18,5 +18,9 @@ export async function updateMachineAction(formData: FormData) {
 
   revalidatePath("/machines");
   revalidatePath(`/machines/${id}`);
+  revalidatePath("/keuringen");
+  for (const inspectionId of affectedInspectionIds) {
+    revalidatePath(`/keuringen/${inspectionId}`);
+  }
   redirect(`/machines/${id}?saved=1`);
 }
