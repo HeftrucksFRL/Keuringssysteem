@@ -221,10 +221,27 @@ async function generateWordFromTemplate(inspection: InspectionRecord) {
   return zip.toBuffer();
 }
 
+function inspectionStatusLabel(inspection: InspectionRecord) {
+  if (inspection.status === "rejected") {
+    return "Afgekeurd";
+  }
+
+  if (inspection.status === "draft") {
+    return "Keuring in uitvoering";
+  }
+
+  if (inspection.status === "completed") {
+    return "Afgerond";
+  }
+
+  return "Goedgekeurd";
+}
+
 function summaryRows(inspection: InspectionRecord): Array<[string, string]> {
   return [
     ["Keurnummer", inspection.inspectionNumber],
     ["Datum", inspection.inspectionDate],
+    ["Status", inspectionStatusLabel(inspection)],
     ["Klant", inspection.customerSnapshot.customer_name ?? "-"],
     [
       "Machine",
@@ -247,6 +264,11 @@ export async function generateInspectionDocuments(
   const { logoBytes, bmwtBytes } = await loadReportAssets();
   const logoImage = await pdfDocument.embedPng(logoBytes);
   const bmwtImage = await pdfDocument.embedJpg(bmwtBytes);
+  const brandBlue = rgb(0, 0.44, 0.75);
+  const softBlue = rgb(0.93, 0.96, 0.99);
+  const borderBlue = rgb(0.85, 0.9, 0.95);
+  const darkText = rgb(0.07, 0.09, 0.13);
+  const mutedText = rgb(0.32, 0.38, 0.45);
 
   page.drawImage(logoImage, {
     x: 40,
@@ -267,7 +289,7 @@ export async function generateInspectionDocuments(
     y: 720,
     size: 22,
     font: boldFont,
-    color: rgb(0, 0.37, 0.66)
+    color: brandBlue
   });
 
   page.drawText(getFormDefinition(inspection.machineType).title, {
@@ -275,58 +297,104 @@ export async function generateInspectionDocuments(
     y: 698,
     size: 12,
     font: regularFont,
-    color: rgb(0.32, 0.38, 0.45)
+    color: mutedText
   });
 
   const summaries = summaryRows(inspection);
-  let summaryY = 658;
+  page.drawRectangle({
+    x: 40,
+    y: 538,
+    width: 515,
+    height: 138,
+    color: softBlue,
+    borderColor: borderBlue,
+    borderWidth: 1
+  });
+
+  let summaryY = 650;
   summaries.forEach(([label, value]) => {
     page.drawText(label, {
-      x: 40,
+      x: 56,
       y: summaryY,
       size: 10,
       font: boldFont,
-      color: rgb(0.32, 0.38, 0.45)
+      color: mutedText
     });
     page.drawText(value || "-", {
-      x: 165,
+      x: 180,
       y: summaryY,
       size: 10,
       font: regularFont,
-      color: rgb(0.07, 0.09, 0.13)
+      color: darkText,
+      maxWidth: 350
     });
     summaryY -= 18;
   });
 
-  const writeSection = (title: string, content: string, startY: number) => {
-    page.drawText(title, {
+  const writeSection = (
+    title: string,
+    content: string,
+    topY: number,
+    height: number
+  ) => {
+    page.drawRectangle({
       x: 40,
-      y: startY,
-      size: 12,
+      y: topY - height,
+      width: 515,
+      height,
+      borderColor: borderBlue,
+      borderWidth: 1
+    });
+    page.drawRectangle({
+      x: 40,
+      y: topY - 24,
+      width: 515,
+      height: 24,
+      color: softBlue
+    });
+    page.drawText(title, {
+      x: 54,
+      y: topY - 16,
+      size: 11,
       font: boldFont,
-      color: rgb(0, 0.37, 0.66)
+      color: brandBlue
     });
     page.drawText(content || "-", {
-      x: 40,
-      y: startY - 18,
+      x: 54,
+      y: topY - 42,
       size: 10,
       font: regularFont,
-      color: rgb(0.07, 0.09, 0.13),
-      maxWidth: 515,
+      color: darkText,
+      maxWidth: 485,
       lineHeight: 14
     });
   };
 
-  writeSection("Bevindingen", inspection.findings, 530);
-  writeSection("Aanbevelingen", inspection.recommendations, 448);
-  writeSection("Conclusie", inspection.conclusion, 366);
+  writeSection("Bevindingen", inspection.findings, 514, 70);
+  writeSection("Aanbevelingen", inspection.recommendations, 432, 70);
+  writeSection("Conclusie", inspection.conclusion, 350, 70);
 
-  page.drawText("Checklist", {
+  page.drawRectangle({
     x: 40,
-    y: 282,
-    size: 12,
+    y: 102,
+    width: 515,
+    height: 146,
+    borderColor: borderBlue,
+    borderWidth: 1
+  });
+  page.drawRectangle({
+    x: 40,
+    y: 224,
+    width: 515,
+    height: 24,
+    color: softBlue
+  });
+  page.drawText("Checklist", {
+    x: 54,
+    y: 232,
+    size: 11,
     font: boldFont,
-    color: rgb(0, 0.37, 0.66)
+    color: brandBlue
   });
   page.drawText(
     getFormDefinition(inspection.machineType).sections
@@ -335,15 +403,15 @@ export async function generateInspectionDocuments(
           (item) => `${section.title} - ${item.label}: ${inspection.checklist[item.key] ?? "n.v.t."}`
         )
       )
-      .slice(0, 8)
+      .slice(0, 7)
       .join("\n"),
     {
-      x: 40,
-      y: 264,
+      x: 54,
+      y: 208,
       size: 8.5,
       font: regularFont,
-      color: rgb(0.07, 0.09, 0.13),
-      maxWidth: 515,
+      color: darkText,
+      maxWidth: 485,
       lineHeight: 11
     }
   );
@@ -352,14 +420,14 @@ export async function generateInspectionDocuments(
     start: { x: 40, y: 86 },
     end: { x: 555, y: 86 },
     thickness: 1,
-    color: rgb(0, 0.44, 0.75)
+    color: brandBlue
   });
   page.drawText("Keurmeester Age Terpstra | (31)653842843 | Info@heftrucks.frl", {
     x: 40,
     y: 54,
     size: 10,
     font: boldFont,
-    color: rgb(0, 0.44, 0.75)
+    color: brandBlue
   });
 
   const pdfBytes = await pdfDocument.save();
