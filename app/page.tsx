@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { Route } from "next";
+import type { UrlObject } from "node:url";
 import {
   getCustomers,
   getDashboardData,
@@ -7,30 +7,41 @@ import {
   getPlanningItems
 } from "@/lib/inspection-service";
 
-export default async function HomePage() {
+export default async function HomePage({
+  searchParams
+}: {
+  searchParams?: Promise<{ saved?: string }>;
+}) {
   const dashboard = await getDashboardData();
+  const params = await searchParams;
   const planning = (await getPlanningItems()).slice(0, 3);
   const machines = await getMachines();
   const customers = await getCustomers();
 
-  const kpis: { label: string; value: string; helper: string; href: Route }[] = [
+  const kpis: { label: string; value: string; helper: string; href: UrlObject }[] = [
     {
       label: "Concept keuringen",
       value: String(dashboard.drafts),
       helper: "Nog niet afgerond",
-      href: "/keuringen"
+      href: { pathname: "/keuringen" }
     },
     {
       label: "Aantal keuringen deze maand",
       value: String(dashboard.inspectionsThisMonth),
       helper: "Alle keuringen",
-      href: "/keuringen"
+      href: { pathname: "/keuringen" }
     },
     {
       label: "Vervolgkeuringen gepland",
       value: String(dashboard.upcoming),
       helper: "Direct naar planning",
-      href: "/planning"
+      href: { pathname: "/planning" }
+    },
+    {
+      label: "Keuringen deze week",
+      value: String(dashboard.inspectionsThisWeek),
+      helper: "Open deze week",
+      href: { pathname: "/keuringen", query: { week: "current" } }
     }
   ];
 
@@ -40,6 +51,9 @@ export default async function HomePage() {
         <div className="eyebrow">Dashboard</div>
         <h1>Welkom terug</h1>
         <p>Kies hieronder wat je vandaag wilt doen.</p>
+        {params?.saved ? (
+          <p className="form-message success">Keuring {params.saved} is opgeslagen.</p>
+        ) : null}
         <div className="actions">
           <Link className="button" href="/keuringen/nieuw">
             Nieuwe keuring starten
@@ -68,6 +82,10 @@ export default async function HomePage() {
             <Link className="list-item" href="/keuringen/nieuw">
               <span>Nieuwe keuring</span>
               <strong>Open formulier</strong>
+            </Link>
+            <Link className="list-item" href={{ pathname: "/keuringen", query: { week: "current" } }}>
+              <span>Keuringen deze week</span>
+              <strong>{dashboard.inspectionsThisWeek}</strong>
             </Link>
             <Link className="list-item" href="/klanten">
               <span>Klanten</span>

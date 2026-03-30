@@ -668,6 +668,26 @@ textarea {
   border-color: #b9e9d2;
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 32, 0.42);
+}
+
+.modal-card {
+  width: min(560px, 100%);
+  padding: 1.2rem;
+  border-radius: 24px;
+  background: var(--panel);
+  border: 1px solid rgba(198, 211, 224, 0.9);
+  box-shadow: var(--shadow);
+}
+
 @media (max-width: 720px) {
   .page {
     width: min(100% - 1rem, 1200px);

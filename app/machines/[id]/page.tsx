@@ -3,10 +3,12 @@ import { notFound } from "next/navigation";
 import type { Route } from "next";
 import { updateMachineAction } from "@/app/machines/actions";
 import {
+  getAttachmentsForInspection,
   getCustomers,
   getMachineById,
   getMachineHistory
 } from "@/lib/inspection-service";
+import { fileUrl } from "@/lib/file-urls";
 import { titleCase } from "@/lib/utils";
 
 export default async function MachineDetailPage({
@@ -27,6 +29,14 @@ export default async function MachineDetailPage({
   const customers = await getCustomers();
   const customer = customers.find((item) => item.id === machine.customerId);
   const history = await getMachineHistory(machine.id);
+  const attachmentsByInspection = await Promise.all(
+    history.map(async (inspection) => ({
+      inspectionId: inspection.id,
+      pdf: (await getAttachmentsForInspection(inspection.id)).find(
+        (attachment) => attachment.kind === "pdf"
+      )
+    }))
+  );
 
   return (
     <>
@@ -128,7 +138,20 @@ export default async function MachineDetailPage({
                 {inspection.status === "rejected" ? "Afgekeurd" : "Goedgekeurd"}
               </span>
               <span>
-                <Link href={`/keuringen/${inspection.id}` as Route}>Open keuring</Link>
+                <div className="inline-meta">
+                  <Link href={`/keuringen/${inspection.id}` as Route}>Open keuring</Link>
+                  {attachmentsByInspection.find((item) => item.inspectionId === inspection.id)?.pdf ? (
+                    <a
+                      href={fileUrl(
+                        attachmentsByInspection.find((item) => item.inspectionId === inspection.id)!.pdf!.storagePath
+                      )}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      PDF rapport
+                    </a>
+                  ) : null}
+                </div>
               </span>
             </div>
           ))}

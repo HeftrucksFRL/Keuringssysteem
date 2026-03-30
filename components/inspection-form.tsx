@@ -19,7 +19,6 @@ interface Props {
 type Step = 1 | 2 | 3 | 4;
 type Mode = "existing" | "new";
 type Flash = { type: "success" | "error" | "info"; text: string } | null;
-type SavedInspection = { id: string; inspectionNumber: string } | null;
 type PhotoItem = { file: File; previewUrl: string; sizeLabel: string };
 
 const machineTypeOptions: { value: MachineType; label: string }[] = [
@@ -123,7 +122,6 @@ export function InspectionForm({
   const [values, setValues] = useState<Record<string, string>>({ inspection_date: new Date().toISOString().slice(0, 10) });
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [message, setMessage] = useState<Flash>(null);
-  const [savedInspection, setSavedInspection] = useState<SavedInspection>(null);
   const [checklist, setChecklist] = useState<Record<string, ChecklistOption>>(buildDefaultChecklist(defaultType));
 
   const form = useMemo(() => getFormDefinition(type), [type]);
@@ -156,6 +154,10 @@ export function InspectionForm({
   }, [customerMachines, machineQuery]);
 
   useEffect(() => setChecklist(buildDefaultChecklist(type)), [type]);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [step]);
 
   useEffect(() => {
     if (!selectedCustomer) return;
@@ -304,8 +306,7 @@ export function InspectionForm({
         return;
       }
 
-      setSavedInspection({ id: result.inspectionId, inspectionNumber: result.inspectionNumber });
-      setMessage({ type: "success", text: `Keuring ${result.inspectionNumber} is opgeslagen.` });
+      window.location.assign(`/?saved=${result.inspectionNumber}`);
     });
   }
 
@@ -325,6 +326,10 @@ export function InspectionForm({
       <section className="inspection-card inspection-card-full">
         <div className="eyebrow">Nieuwe keuring</div>
         <h2>Werk stap voor stap door de keuring heen</h2>
+        <div className="keurnummer-banner" style={{ marginTop: "1rem", marginBottom: 0 }}>
+          <span>Keurnummer</span>
+          <strong>Wordt automatisch aangemaakt bij opslaan</strong>
+        </div>
         <div className="stepper">
           {stepMeta.map((item) => (
             <button
@@ -504,25 +509,27 @@ export function InspectionForm({
 
           <div className="form-block" style={{ marginTop: "1rem" }}>
             <div className="form-grid-wide">
-              <div className="field">
-                <label htmlFor="machine-type">Keuringstype</label>
-                <select
-                  id="machine-type"
-                  name="machine_type_display"
-                  value={type}
-                  onChange={(event) => {
-                    const nextType = event.target.value as MachineType;
-                    setType(nextType);
-                    setChecklist(buildDefaultChecklist(nextType));
-                  }}
-                >
-                  {machineTypeOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {machineMode === "new" ? (
+                <div className="field">
+                  <label htmlFor="machine-type">Keuringstype</label>
+                  <select
+                    id="machine-type"
+                    name="machine_type_display"
+                    value={type}
+                    onChange={(event) => {
+                      const nextType = event.target.value as MachineType;
+                      setType(nextType);
+                      setChecklist(buildDefaultChecklist(nextType));
+                    }}
+                  >
+                    {machineTypeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
               {form.machineFields
                 .filter((field) => !field.key.startsWith("customer_") && visibleField(field.key) && field.key !== "inspection_date")
                 .map((field) =>
@@ -555,10 +562,6 @@ export function InspectionForm({
           <section className="inspection-card inspection-card-full form-screen">
             <div className="eyebrow">{form.title}</div>
             <h2>Gegevens</h2>
-            <div className="keurnummer-banner">
-              <span>Keurnummer</span>
-              <strong>Wordt automatisch aangemaakt bij opslaan</strong>
-            </div>
             <div className="compact-card" style={{ marginBottom: "1rem" }}>
               <div className="eyebrow">Geselecteerde gegevens</div>
               <div className="read-only-grid">
@@ -714,16 +717,6 @@ export function InspectionForm({
 
       <section className="inspection-card inspection-card-full">
         {message ? <p className={`form-message ${message.type}`}>{message.text}</p> : null}
-        {savedInspection ? (
-          <div className="actions" style={{ marginTop: 0 }}>
-            <Link className="button-secondary" href={`/keuringen/${savedInspection.id}`} target="_blank">
-              Keuring openen
-            </Link>
-            <Link className="button-secondary" href="/keuringen">
-              Alle keuringen
-            </Link>
-          </div>
-        ) : null}
         <div className="wizard-actions">
           <button className="button-secondary" type="button" onClick={previousStep} disabled={step === 1 || isPending}>
             Terug

@@ -143,28 +143,33 @@ export function PlanningCalendar({
         ))}
       </div>
       {selectedItem ? (
-        <div className="panel" style={{ marginTop: "1rem" }}>
-          <div className="eyebrow">Gekozen planning</div>
-          <h2>{selectedCustomer?.companyName ?? "Onbekende klant"}</h2>
-          <div className="list">
-            <div className="list-item">
-              <span>Machine</span>
-              <strong>
-                {selectedMachine?.brand ?? "Machine"} {selectedMachine?.model ?? ""}
-              </strong>
+        <div className="modal-backdrop" onClick={() => setSelectedItemId("")}>
+          <div className="modal-card" onClick={(event) => event.stopPropagation()}>
+            <div className="eyebrow">Geplande keuring</div>
+            <h2>{selectedCustomer?.companyName ?? "Onbekende klant"}</h2>
+            <div className="list">
+              <div className="list-item">
+                <span>Machine</span>
+                <strong>
+                  {selectedMachine?.brand ?? "Machine"} {selectedMachine?.model ?? ""}
+                </strong>
+              </div>
+              <div className="list-item">
+                <span>Datum</span>
+                <strong>{selectedItem.dueDate}</strong>
+              </div>
             </div>
-            <div className="list-item">
-              <span>Datum</span>
-              <strong>{selectedItem.dueDate}</strong>
+            <div className="actions">
+              <Link className="button-secondary" href={`/klanten/${selectedItem.customerId}`}>
+                Open klantkaart
+              </Link>
+              <Link className="button-secondary" href={`/machines/${selectedItem.machineId}`}>
+                Open machinekaart
+              </Link>
+              <button className="button" type="button" onClick={() => setSelectedItemId("")}>
+                Sluiten
+              </button>
             </div>
-          </div>
-          <div className="actions">
-            <Link className="button-secondary" href={`/klanten/${selectedItem.customerId}`}>
-              Open klantkaart
-            </Link>
-            <Link className="button-secondary" href={`/machines/${selectedItem.machineId}`}>
-              Open machinekaart
-            </Link>
           </div>
         </div>
       ) : null}

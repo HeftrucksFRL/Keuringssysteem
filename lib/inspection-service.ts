@@ -558,9 +558,23 @@ export async function getDashboardData() {
   const overdue = data.planningItems.filter((item) => item.state === "overdue").length;
   const drafts = data.inspections.filter((item) => item.status === "draft").length;
 
+  const now = new Date();
+  const monthPrefix = now.toISOString().slice(0, 7);
+  const monday = new Date(now);
+  const day = (monday.getDay() + 6) % 7;
+  monday.setDate(monday.getDate() - day);
+  monday.setHours(0, 0, 0, 0);
+  const sunday = new Date(monday);
+  sunday.setDate(sunday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
+
   return {
     drafts,
-    inspectionsThisMonth: data.inspections.filter((item) => item.inspectionDate.startsWith("2026-03")).length,
+    inspectionsThisMonth: data.inspections.filter((item) => item.inspectionDate.startsWith(monthPrefix)).length,
+    inspectionsThisWeek: data.inspections.filter((item) => {
+      const inspectionDate = new Date(item.inspectionDate);
+      return inspectionDate >= monday && inspectionDate <= sunday;
+    }).length,
     upcoming,
     overdue
   };
