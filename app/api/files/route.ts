@@ -3,6 +3,7 @@ import path from "node:path";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { hasSupabaseConfig } from "@/lib/env";
+import { getInspectionAttachments } from "@/lib/inspection-service";
 
 function resolveLocalPath(target: string) {
   const absolutePath = path.isAbsolute(target)
@@ -20,11 +21,12 @@ function resolveLocalPath(target: string) {
 function responseHeaders(
   mimeType: string,
   targetPath: string,
-  download: boolean
+  download: boolean,
+  fileName?: string
 ) {
   return {
     "Content-Type": mimeType,
-    "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${path.basename(
+    "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${fileName || path.basename(
       targetPath
     )}"`,
     "Cache-Control": "no-store, max-age=0, must-revalidate",
@@ -37,6 +39,9 @@ export async function GET(request: NextRequest) {
   const kind = request.nextUrl.searchParams.get("kind");
   const targetPath = request.nextUrl.searchParams.get("path");
   const download = request.nextUrl.searchParams.get("download") === "1";
+  const storedAttachment = (await getInspectionAttachments()).find(
+    (attachment) => attachment.storagePath === targetPath
+  );
 
   if (!kind || !targetPath) {
     return new NextResponse("Bestand niet gevonden.", { status: 404 });
@@ -56,7 +61,7 @@ export async function GET(request: NextRequest) {
         : "image/jpeg";
 
     return new NextResponse(content, {
-      headers: responseHeaders(mimeType, targetPath, download)
+      headers: responseHeaders(mimeType, targetPath, download, storedAttachment?.fileName)
     });
   }
 
@@ -82,7 +87,8 @@ export async function GET(request: NextRequest) {
               ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
               : "image/jpeg"),
         targetPath,
-        download
+        download,
+        storedAttachment?.fileName
       )
     });
   }

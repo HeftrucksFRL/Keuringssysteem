@@ -266,7 +266,7 @@ export async function generateInspectionDocuments(
   const boldFont = await pdfDocument.embedFont(StandardFonts.HelveticaBold);
   const regularFont = await pdfDocument.embedFont(StandardFonts.Helvetica);
   const { logoBytes, bmwtBytes } = await loadReportAssets();
-  const reportBaseName = `Keuringsrapport-${inspection.inspectionNumber}`;
+  const reportBaseName = `Keuringsrapport ${inspection.inspectionNumber}`;
   const brandBlue = rgb(0, 0.44, 0.75);
   const softBlue = rgb(0.93, 0.96, 0.99);
   const borderBlue = rgb(0.85, 0.9, 0.95);
@@ -440,18 +440,18 @@ export async function generateInspectionDocuments(
   }
 
   function drawMetaCard() {
-    const cardHeight = 72;
+    const cardHeight = 86;
     drawCardShell(cardHeight);
     page.drawText("Keuringsrapport", {
       x: contentLeft + 14,
-      y: cursorY - 22,
-      size: 20,
+      y: cursorY - 18,
+      size: 17,
       font: boldFont,
       color: brandBlue
     });
     page.drawText(form.title, {
       x: contentLeft + 14,
-      y: cursorY - 40,
+      y: cursorY - 38,
       size: 11,
       font: regularFont,
       color: mutedText
@@ -467,14 +467,14 @@ export async function generateInspectionDocuments(
       const x = contentRight - 14 - columnWidth * (metaItems.length - index);
       page.drawText(label, {
         x,
-        y: cursorY - 24,
+        y: cursorY - 54,
         size: 8.5,
         font: boldFont,
         color: mutedText
       });
       page.drawText(value, {
         x,
-        y: cursorY - 40,
+        y: cursorY - 70,
         size: 10,
         font: regularFont,
         color: darkText,
