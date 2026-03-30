@@ -1,25 +1,15 @@
 import "./globals.css";
-import Link from "next/link";
 import Image from "next/image";
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import type { Route } from "next";
 import { AuthStatus } from "@/components/auth-status";
+import { AppNavigation } from "@/components/app-navigation";
 import { RouteLoadingIndicator } from "@/components/route-loading-indicator";
 
 export const metadata: Metadata = {
   title: "Keuringssysteem | Heftrucks Friesland",
   description: "Digitale keuringsapp voor intern transportmaterieel."
 };
-
-const links: { href: Route; label: string }[] = [
-  { href: "/", label: "Dashboard" },
-  { href: "/keuringen/nieuw", label: "Nieuwe keuring" },
-  { href: "/klanten", label: "Klanten" },
-  { href: "/machines", label: "Machines" },
-  { href: "/planning", label: "Planning" },
-  { href: "/keuringen", label: "Keuringen" }
-];
 
 export default function RootLayout({
   children
@@ -36,20 +26,16 @@ export default function RootLayout({
               <Image
                 src="/logo-heftrucks-frl.png"
                 alt="Heftrucks Friesland"
-                width={220}
-                height={64}
+                width={180}
+                height={52}
                 priority
               />
               <span>Keuringssysteem</span>
             </div>
-            <nav className="topnav" aria-label="Hoofdnavigatie">
-              {links.map((link) => (
-                <Link key={link.href} href={link.href}>
-                  {link.label}
-                </Link>
-              ))}
-            </nav>
-            <AuthStatus />
+            <AppNavigation />
+            <div className="auth-slot">
+              <AuthStatus />
+            </div>
           </header>
           <main className="page">{children}</main>
         </div>
