@@ -17,6 +17,22 @@ function resolveLocalPath(target: string) {
   return normalized;
 }
 
+function responseHeaders(
+  mimeType: string,
+  targetPath: string,
+  download: boolean
+) {
+  return {
+    "Content-Type": mimeType,
+    "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${path.basename(
+      targetPath
+    )}"`,
+    "Cache-Control": "no-store, max-age=0, must-revalidate",
+    Pragma: "no-cache",
+    Expires: "0"
+  };
+}
+
 export async function GET(request: NextRequest) {
   const kind = request.nextUrl.searchParams.get("kind");
   const targetPath = request.nextUrl.searchParams.get("path");
@@ -40,12 +56,7 @@ export async function GET(request: NextRequest) {
         : "image/jpeg";
 
     return new NextResponse(content, {
-      headers: {
-        "Content-Type": mimeType,
-        "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${path.basename(
-          targetPath
-        )}"`
-      }
+      headers: responseHeaders(mimeType, targetPath, download)
     });
   }
 
@@ -63,18 +74,16 @@ export async function GET(request: NextRequest) {
     }
 
     return new NextResponse(data, {
-      headers: {
-        "Content-Type":
-          data.type ||
+      headers: responseHeaders(
+        data.type ||
           (targetPath.endsWith(".pdf")
             ? "application/pdf"
             : targetPath.endsWith(".docx")
               ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
               : "image/jpeg"),
-        "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${path.basename(
-          targetPath
-        )}"`
-      }
+        targetPath,
+        download
+      )
     });
   }
 

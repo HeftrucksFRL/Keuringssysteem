@@ -272,8 +272,9 @@ async function syncSupabaseInspectionDocuments(
   const supabase = createSupabaseAdmin();
   const documents = await generateInspectionDocuments(inspection);
   const yearPrefix = inspection.inspectionDate.slice(0, 4);
-  const pdfStoragePath = `${yearPrefix}/${inspection.inspectionNumber}/${documents.pdfFileName}`;
-  const wordStoragePath = `${yearPrefix}/${inspection.inspectionNumber}/${documents.wordFileName}`;
+  const versionToken = (inspection.updatedAt || nowIso()).replace(/[^0-9]/g, "").slice(0, 14);
+  const pdfStoragePath = `${yearPrefix}/${inspection.inspectionNumber}/${inspection.inspectionNumber}-${versionToken}.pdf`;
+  const wordStoragePath = `${yearPrefix}/${inspection.inspectionNumber}/${inspection.inspectionNumber}-${versionToken}.docx`;
 
   await supabase.storage
     .from("inspection-files")
