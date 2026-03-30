@@ -49,7 +49,7 @@ export default async function InspectionDetailPage({
               target="_blank"
               rel="noreferrer"
             >
-              PDF openen
+              Rapport openen
             </a>
           ) : null}
           {wordAttachment ? (

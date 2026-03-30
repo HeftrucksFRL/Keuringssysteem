@@ -1,8 +1,8 @@
-import { hasSupabaseConfig } from "@/lib/env";
+import { hasPublicSupabaseConfig } from "@/lib/env";
 
 export function fileUrl(storagePath: string) {
   const search = new URLSearchParams({
-    kind: hasSupabaseConfig() ? "storage" : "local",
+    kind: hasPublicSupabaseConfig() ? "storage" : "local",
     path: storagePath
   });
 
@@ -11,7 +11,7 @@ export function fileUrl(storagePath: string) {
 
 export function downloadUrl(storagePath: string) {
   const search = new URLSearchParams({
-    kind: hasSupabaseConfig() ? "storage" : "local",
+    kind: hasPublicSupabaseConfig() ? "storage" : "local",
     path: storagePath,
     download: "1"
   });

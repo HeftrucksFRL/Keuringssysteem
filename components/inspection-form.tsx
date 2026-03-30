@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { getFormDefinition } from "@/lib/form-definitions";
 import { addTwelveMonths } from "@/lib/utils";
 import type { CustomerRecord, InspectionRecord, MachineRecord } from "@/lib/domain";
@@ -108,6 +108,8 @@ export function InspectionForm({
   defaultCustomerId = "",
   defaultMachineId = ""
 }: Props) {
+  const formRef = useRef<HTMLFormElement | null>(null);
+  const topRef = useRef<HTMLDivElement | null>(null);
   const [isPending, startTransition] = useTransition();
   const [type, setType] = useState<MachineType>(defaultType);
   const [step, setStep] = useState<Step>(defaultMachineId ? 4 : defaultCustomerId ? 3 : 1);
@@ -156,7 +158,21 @@ export function InspectionForm({
   useEffect(() => setChecklist(buildDefaultChecklist(type)), [type]);
 
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    const activeElement = document.activeElement;
+    if (activeElement instanceof HTMLElement) {
+      activeElement.blur();
+    }
+
+    const scrollToTop = () => {
+      topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+
+    const frame = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(scrollToTop);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
   }, [step]);
 
   useEffect(() => {
@@ -318,7 +334,8 @@ export function InspectionForm({
   }
 
   return (
-    <form onSubmit={submitForm} className="inspection-layout">
+    <form ref={formRef} onSubmit={submitForm} className="inspection-layout">
+      <div ref={topRef} />
       {Object.entries(values).filter(([key]) => key.startsWith("customer_")).map(([key, value]) => (
         <input key={key} type="hidden" name={key} value={value} />
       ))}
@@ -498,10 +515,6 @@ export function InspectionForm({
                     <strong>{selectedMachine?.serialNumber || "-"}</strong>
                     <span>Serienummer</span>
                   </div>
-                  <div className="info-card">
-                    <strong>{selectedMachine?.machineNumber || "-"}</strong>
-                    <span>Machinedossier</span>
-                  </div>
                 </div>
               </div>
             </>
@@ -576,10 +589,6 @@ export function InspectionForm({
                 <div className="info-card">
                   <strong>{values.internal_number || "-"}</strong>
                   <span>Intern nummer</span>
-                </div>
-                <div className="info-card">
-                  <strong>{selectedMachine?.machineNumber || values.serial_number || "-"}</strong>
-                  <span>Machinedossier</span>
                 </div>
               </div>
             </div>
@@ -726,7 +735,12 @@ export function InspectionForm({
               Volgende stap
             </button>
           ) : (
-            <button className="button" type="submit" disabled={isPending}>
+            <button
+              className="button"
+              type="button"
+              disabled={isPending}
+              onClick={() => formRef.current?.requestSubmit()}
+            >
               {isPending ? "Bezig met opslaan..." : "Keuring opslaan"}
             </button>
           )}

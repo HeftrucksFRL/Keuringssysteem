@@ -142,13 +142,14 @@ export default async function MachineDetailPage({
                   <Link href={`/keuringen/${inspection.id}` as Route}>Open keuring</Link>
                   {attachmentsByInspection.find((item) => item.inspectionId === inspection.id)?.pdf ? (
                     <a
+                      className="button-secondary"
                       href={fileUrl(
                         attachmentsByInspection.find((item) => item.inspectionId === inspection.id)!.pdf!.storagePath
                       )}
                       target="_blank"
                       rel="noreferrer"
                     >
-                      PDF rapport
+                      Rapport openen
                     </a>
                   ) : null}
                 </div>

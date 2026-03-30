@@ -172,7 +172,7 @@ export function InspectionsTable({
                     target="_blank"
                     rel="noreferrer"
                   >
-                    PDF
+                    Rapport openen
                   </a>
                 ) : null}
                 <button

@@ -91,9 +91,9 @@ export default async function HomePage({
               <span>Klanten</span>
               <strong>Open klantbestand</strong>
             </Link>
-            <Link className="list-item" href="/keuringen">
-              <span>Recente keuringen</span>
-              <strong>Open overzicht</strong>
+            <Link className="list-item" href={{ pathname: "/planning" }}>
+              <span>Vervolgkeuringen deze week</span>
+              <strong>Open planning</strong>
             </Link>
           </div>
         </article>

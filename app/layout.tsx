@@ -4,6 +4,7 @@ import Image from "next/image";
 import type { Metadata } from "next";
 import type { Route } from "next";
 import { AuthStatus } from "@/components/auth-status";
+import { RouteLoadingIndicator } from "@/components/route-loading-indicator";
 
 export const metadata: Metadata = {
   title: "Keuringssysteem | Heftrucks Friesland",
@@ -26,6 +27,7 @@ export default function RootLayout({
     <html lang="nl">
       <body>
         <div className="shell">
+          <RouteLoadingIndicator />
           <header className="topbar">
             <div className="brand">
               <Image
