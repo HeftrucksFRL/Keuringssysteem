@@ -1,6 +1,7 @@
 import "./globals.css";
 import Link from "next/link";
 import Image from "next/image";
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import type { Route } from "next";
 import { AuthStatus } from "@/components/auth-status";
@@ -27,7 +28,9 @@ export default function RootLayout({
     <html lang="nl">
       <body>
         <div className="shell">
-          <RouteLoadingIndicator />
+          <Suspense fallback={null}>
+            <RouteLoadingIndicator />
+          </Suspense>
           <header className="topbar">
             <div className="brand">
               <Image
