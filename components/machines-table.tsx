@@ -2,19 +2,17 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import type { CustomerRecord, InspectionRecord, MachineRecord } from "@/lib/domain";
+import type { CustomerRecord, MachineRecord } from "@/lib/domain";
 import { titleCase } from "@/lib/utils";
 
 interface MachinesTableProps {
   machines: MachineRecord[];
   customers: CustomerRecord[];
-  inspections: InspectionRecord[];
 }
 
 export function MachinesTable({
   machines,
-  customers,
-  inspections
+  customers
 }: MachinesTableProps) {
   const [query, setQuery] = useState("");
 
@@ -50,26 +48,21 @@ export function MachinesTable({
       <div className="table-like">
         <div className="table-row table-head">
           <span>Nummer</span>
-          <span>Klant</span>
+          <span>Merk</span>
           <span>Type</span>
-          <span>Laatste keuring</span>
+          <span>Klant</span>
+          <span>Soort</span>
         </div>
         {filteredMachines.map((machine) => (
-          <div className="table-row" key={machine.id}>
-            <span>
-              <Link href={`/machines/${machine.id}`}>
-                {machine.internalNumber || machine.machineNumber}
-              </Link>
-            </span>
+          <Link className="table-row table-row-link table-row-5" href={`/machines/${machine.id}`} key={machine.id}>
+            <span>{machine.internalNumber || machine.machineNumber}</span>
+            <span>{machine.brand || "-"}</span>
+            <span>{machine.model || "-"}</span>
             <span>
               {customers.find((customer) => customer.id === machine.customerId)?.companyName ?? "-"}
             </span>
             <span>{titleCase(machine.machineType)}</span>
-            <span>
-              {inspections.find((inspection) => inspection.machineId === machine.id)
-                ?.inspectionDate ?? "-"}
-            </span>
-          </div>
+          </Link>
         ))}
       </div>
     </>

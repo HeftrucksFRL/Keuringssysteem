@@ -383,6 +383,14 @@ textarea {
   border: 1px solid #e3ebf3;
 }
 
+.table-row-5 {
+  grid-template-columns: 1fr 1fr 1fr 1.2fr 1fr;
+}
+
+.table-row-link {
+  cursor: pointer;
+}
+
 .table-head {
   color: var(--muted);
   font-size: 0.88rem;
@@ -395,6 +403,11 @@ textarea {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+.inline-meta > a,
+.inline-meta > button {
+  min-height: 42px;
 }
 
 .inspection-card-full {
@@ -590,6 +603,11 @@ textarea {
   border: 1px solid var(--border);
   border-radius: 16px;
   background: #f9fbfd;
+}
+
+.static-list-item:hover {
+  transform: none;
+  box-shadow: none;
 }
 
 .form-screen {

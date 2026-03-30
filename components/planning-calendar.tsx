@@ -148,13 +148,13 @@ export function PlanningCalendar({
             <div className="eyebrow">Geplande keuring</div>
             <h2>{selectedCustomer?.companyName ?? "Onbekende klant"}</h2>
             <div className="list">
-              <div className="list-item">
+              <div className="list-item static-list-item">
                 <span>Machine</span>
                 <strong>
                   {selectedMachine?.brand ?? "Machine"} {selectedMachine?.model ?? ""}
                 </strong>
               </div>
-              <div className="list-item">
+              <div className="list-item static-list-item">
                 <span>Datum</span>
                 <strong>{selectedItem.dueDate}</strong>
               </div>

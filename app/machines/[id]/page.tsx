@@ -42,9 +42,9 @@ export default async function MachineDetailPage({
     <>
       <section className="hero">
         <div className="eyebrow">Machinedossier</div>
-        <h1>{machine.machineNumber}</h1>
+        <h1>{[machine.brand, machine.model].filter(Boolean).join(" ") || "Machine"}</h1>
         <p>
-          {machine.brand} {machine.model} bij {customer?.companyName ?? "onbekende klant"}.
+          Intern nummer {machine.internalNumber || "-"} bij {customer?.companyName ?? "onbekende klant"}.
           Vanuit dit dossier kun je eerdere keuringen openen en de volgende inspectie voorbereiden.
         </p>
         {query?.saved ? <p className="form-message success">Machine opgeslagen.</p> : null}
@@ -64,7 +64,7 @@ export default async function MachineDetailPage({
           <input type="hidden" name="id" value={machine.id} />
           <div className="list" style={{ marginBottom: "1rem" }}>
             <div className="list-item">
-              <span>Type</span>
+              <span>Soort</span>
               <strong>{titleCase(machine.machineType)}</strong>
             </div>
           </div>
@@ -139,7 +139,9 @@ export default async function MachineDetailPage({
               </span>
               <span>
                 <div className="inline-meta">
-                  <Link href={`/keuringen/${inspection.id}` as Route}>Open keuring</Link>
+                  <Link className="button-secondary" href={`/keuringen/${inspection.id}` as Route}>
+                    Keuring openen
+                  </Link>
                   {attachmentsByInspection.find((item) => item.inspectionId === inspection.id)?.pdf ? (
                     <a
                       className="button-secondary"

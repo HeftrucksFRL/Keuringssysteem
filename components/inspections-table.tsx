@@ -152,9 +152,7 @@ export function InspectionsTable({
 
           return (
             <div className="table-row" key={inspection.id}>
-              <span>
-                <Link href={`/keuringen/${inspection.id}`}>{inspection.inspectionNumber}</Link>
-              </span>
+              <span>{inspection.inspectionNumber}</span>
               <span>
                 <strong>{customer?.companyName ?? "-"}</strong>
                 <br />
@@ -175,6 +173,9 @@ export function InspectionsTable({
                     Rapport openen
                   </a>
                 ) : null}
+                <Link className="button-secondary" href={`/keuringen/${inspection.id}`}>
+                  Keuring openen
+                </Link>
                 <button
                   className="button-secondary"
                   type="button"
