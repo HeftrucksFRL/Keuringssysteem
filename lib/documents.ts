@@ -1,7 +1,7 @@
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import AdmZip from "adm-zip";
-import { PDFDocument, PDFPage, StandardFonts, rgb } from "pdf-lib";
+import { PDFDocument, PDFEmbeddedPage, PDFPage, StandardFonts, rgb } from "pdf-lib";
 import { getFormDefinition } from "@/lib/form-definitions";
 import type { InspectionRecord } from "@/lib/domain";
 
@@ -44,6 +44,10 @@ async function loadReportAssets() {
 
 async function loadWordTemplatePath() {
   return firstExistingPath([path.join(process.cwd(), "Sjabloon keuringsformulier.docx")]);
+}
+
+async function loadPdfTemplatePath() {
+  return firstExistingPath([path.join(process.cwd(), "Sjabloon keuringsformulier.pdf")]);
 }
 
 function escapeXml(value: string) {
@@ -257,12 +261,11 @@ export async function generateInspectionDocuments(
   inspection: InspectionRecord,
   options: GenerateDocumentsOptions = {}
 ) {
+  const pdfTemplatePath = await loadPdfTemplatePath();
   const pdfDocument = await PDFDocument.create();
   const boldFont = await pdfDocument.embedFont(StandardFonts.HelveticaBold);
   const regularFont = await pdfDocument.embedFont(StandardFonts.Helvetica);
   const { logoBytes, bmwtBytes } = await loadReportAssets();
-  const logoImage = await pdfDocument.embedPng(logoBytes);
-  const bmwtImage = await pdfDocument.embedJpg(bmwtBytes);
   const reportBaseName = `Keuringsrapport-${inspection.inspectionNumber}`;
   const brandBlue = rgb(0, 0.44, 0.75);
   const softBlue = rgb(0.93, 0.96, 0.99);
@@ -308,20 +311,21 @@ export async function generateInspectionDocuments(
     return lines.length > 0 ? lines : ["-"];
   }
 
-  function drawPageFrame(page: PDFPage) {
-    page.drawImage(logoImage, {
-      x: 40,
-      y: 770,
-      width: 188,
-      height: 54
-    });
+  let templatePage: PDFEmbeddedPage | null = null;
+  if (pdfTemplatePath) {
+    const templateBytes = await readFile(pdfTemplatePath);
+    [templatePage] = await pdfDocument.embedPdf(templateBytes, [0]);
+  }
 
-    page.drawImage(bmwtImage, {
-      x: 462,
-      y: 770,
-      width: 88,
-      height: 54
-    });
+  function drawPageFrame(page: PDFPage) {
+    if (templatePage) {
+      page.drawPage(templatePage, {
+        x: 0,
+        y: 0,
+        width: pageWidth,
+        height: pageHeight
+      });
+    }
 
     page.drawLine({
       start: { x: 40, y: 86 },
@@ -340,12 +344,12 @@ export async function generateInspectionDocuments(
 
   let page = pdfDocument.addPage([pageWidth, pageHeight]);
   drawPageFrame(page);
-  let cursorY = 720;
+  let cursorY = 690;
 
   function nextPage() {
     page = pdfDocument.addPage([pageWidth, pageHeight]);
     drawPageFrame(page);
-    cursorY = 720;
+    cursorY = 690;
   }
 
   function ensureSpace(height: number) {
@@ -365,6 +369,8 @@ export async function generateInspectionDocuments(
       y: cursorY - sectionHeight,
       width: contentWidth,
       height: sectionHeight,
+      color: rgb(1, 1, 1),
+      opacity: 0.92,
       borderColor: borderBlue,
       borderWidth: 1
     });
@@ -399,22 +405,31 @@ export async function generateInspectionDocuments(
     cursorY -= sectionHeight + 12;
   }
 
+  page.drawRectangle({
+    x: left,
+    y: cursorY - 48,
+    width: contentWidth,
+    height: 48,
+    color: rgb(1, 1, 1),
+    opacity: 0.92,
+    borderColor: borderBlue,
+    borderWidth: 1
+  });
   page.drawText("Keuringsrapport", {
-    x: 40,
-    y: cursorY,
-    size: 22,
+    x: 54,
+    y: cursorY - 18,
+    size: 18,
     font: boldFont,
     color: brandBlue
   });
-
   page.drawText(getFormDefinition(inspection.machineType).title, {
-    x: 40,
-    y: cursorY - 22,
-    size: 12,
+    x: 250,
+    y: cursorY - 17,
+    size: 10.5,
     font: regularFont,
     color: mutedText
   });
-  cursorY -= 44;
+  cursorY -= 64;
 
   const summaries = summaryRows(inspection);
   const summaryHeight = 30 + summaries.length * 18;
@@ -424,12 +439,21 @@ export async function generateInspectionDocuments(
     y: cursorY - summaryHeight,
     width: contentWidth,
     height: summaryHeight,
-    color: softBlue,
+    color: rgb(1, 1, 1),
+    opacity: 0.92,
     borderColor: borderBlue,
     borderWidth: 1
   });
+  page.drawRectangle({
+    x: left,
+    y: cursorY - 24,
+    width: contentWidth,
+    height: 24,
+    color: softBlue,
+    opacity: 0.96
+  });
 
-  let summaryY = cursorY - 12;
+  let summaryY = cursorY - 36;
   summaries.forEach(([label, value]) => {
     page.drawText(label, {
       x: 56,
@@ -467,6 +491,8 @@ export async function generateInspectionDocuments(
     y: cursorY - checklistHeight,
     width: contentWidth,
     height: checklistHeight,
+    color: rgb(1, 1, 1),
+    opacity: 0.92,
     borderColor: borderBlue,
     borderWidth: 1
   });
