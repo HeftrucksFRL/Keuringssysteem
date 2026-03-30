@@ -261,6 +261,158 @@ async function createDemoInspection(input: CreateInspectionInput) {
   return inspection;
 }
 
+async function syncSupabaseInspectionDocuments(
+  inspection: InspectionRecord,
+  existingAttachments: Array<{
+    id: string;
+    kind: string;
+    storage_path: string;
+  }>
+) {
+  const supabase = createSupabaseAdmin();
+  const documents = await generateInspectionDocuments(inspection);
+  const yearPrefix = inspection.inspectionDate.slice(0, 4);
+  const pdfStoragePath = `${yearPrefix}/${inspection.inspectionNumber}/${documents.pdfFileName}`;
+  const wordStoragePath = `${yearPrefix}/${inspection.inspectionNumber}/${documents.wordFileName}`;
+
+  await supabase.storage
+    .from("inspection-files")
+    .upload(pdfStoragePath, documents.pdfBuffer, {
+      upsert: true,
+      contentType: "application/pdf"
+    });
+  await supabase.storage
+    .from("inspection-files")
+    .upload(wordStoragePath, documents.wordBuffer, {
+      upsert: true,
+      contentType:
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    });
+
+  await supabase
+    .from("inspections")
+    .update({
+      pdf_path: pdfStoragePath,
+      word_path: wordStoragePath
+    })
+    .eq("id", inspection.id);
+
+  const pdfAttachment = existingAttachments.find((attachment) => attachment.kind === "pdf");
+  const wordAttachment = existingAttachments.find((attachment) => attachment.kind === "word");
+
+  if (pdfAttachment) {
+    await supabase
+      .from("inspection_attachments")
+      .update({
+        storage_path: pdfStoragePath,
+        file_name: documents.pdfFileName,
+        mime_type: "application/pdf"
+      })
+      .eq("id", pdfAttachment.id);
+  } else {
+    await supabase.from("inspection_attachments").insert({
+      inspection_id: inspection.id,
+      storage_path: pdfStoragePath,
+      file_name: documents.pdfFileName,
+      mime_type: "application/pdf",
+      kind: "pdf"
+    });
+  }
+
+  if (wordAttachment) {
+    await supabase
+      .from("inspection_attachments")
+      .update({
+        storage_path: wordStoragePath,
+        file_name: documents.wordFileName,
+        mime_type:
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      })
+      .eq("id", wordAttachment.id);
+  } else {
+    await supabase.from("inspection_attachments").insert({
+      inspection_id: inspection.id,
+      storage_path: wordStoragePath,
+      file_name: documents.wordFileName,
+      mime_type:
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      kind: "word"
+    });
+  }
+
+  const stalePaths = existingAttachments
+    .filter((attachment) => attachment.kind === "pdf" || attachment.kind === "word")
+    .map((attachment) => attachment.storage_path)
+    .filter(
+      (storagePath) => storagePath !== pdfStoragePath && storagePath !== wordStoragePath
+    );
+
+  if (stalePaths.length > 0) {
+    await supabase.storage.from("inspection-files").remove(stalePaths);
+  }
+}
+
+async function syncDemoInspectionDocuments(
+  data: AppDataSnapshot,
+  inspection: InspectionRecord
+) {
+  const documents = await generateInspectionDocuments(inspection, {
+    persistToDisk: !process.env.VERCEL
+  });
+  inspection.pdfPath = documents.pdfPath;
+  inspection.wordPath = documents.wordPath;
+
+  const pdfStoragePath = documents.pdfPath
+    ? path.relative(process.cwd(), documents.pdfPath).replaceAll("\\", "/")
+    : "";
+  const wordStoragePath = documents.wordPath
+    ? path.relative(process.cwd(), documents.wordPath).replaceAll("\\", "/")
+    : "";
+
+  const pdfAttachment = data.attachments.find(
+    (attachment) => attachment.inspectionId === inspection.id && attachment.kind === "pdf"
+  );
+  const wordAttachment = data.attachments.find(
+    (attachment) => attachment.inspectionId === inspection.id && attachment.kind === "word"
+  );
+
+  if (pdfAttachment && pdfStoragePath) {
+    pdfAttachment.storagePath = pdfStoragePath;
+    pdfAttachment.fileName = documents.pdfFileName;
+    pdfAttachment.mimeType = "application/pdf";
+    pdfAttachment.createdAt = nowIso();
+  } else if (pdfStoragePath) {
+    data.attachments.unshift({
+      id: randomUUID(),
+      inspectionId: inspection.id,
+      kind: "pdf",
+      fileName: documents.pdfFileName,
+      storagePath: pdfStoragePath,
+      mimeType: "application/pdf",
+      createdAt: nowIso()
+    });
+  }
+
+  if (wordAttachment && wordStoragePath) {
+    wordAttachment.storagePath = wordStoragePath;
+    wordAttachment.fileName = documents.wordFileName;
+    wordAttachment.mimeType =
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    wordAttachment.createdAt = nowIso();
+  } else if (wordStoragePath) {
+    data.attachments.unshift({
+      id: randomUUID(),
+      inspectionId: inspection.id,
+      kind: "word",
+      fileName: documents.wordFileName,
+      storagePath: wordStoragePath,
+      mimeType:
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      createdAt: nowIso()
+    });
+  }
+}
+
 function createSupabaseAdmin() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
@@ -819,6 +971,29 @@ export async function updateInspection(input: {
         send_pdf_to_customer: input.sendPdfToCustomer
       })
       .eq("id", input.id);
+
+    const { data: updatedRow } = await supabase
+      .from("inspections")
+      .select("*")
+      .eq("id", input.id)
+      .maybeSingle();
+    if (!updatedRow) {
+      return;
+    }
+
+    const { data: attachmentRows } = await supabase
+      .from("inspection_attachments")
+      .select("id, kind, storage_path")
+      .eq("inspection_id", input.id);
+
+    await syncSupabaseInspectionDocuments(
+      mapInspectionRow(updatedRow),
+      (attachmentRows ?? []).map((row) => ({
+        id: String(row.id),
+        kind: String(row.kind),
+        storage_path: String(row.storage_path)
+      }))
+    );
     return;
   }
 
@@ -836,6 +1011,7 @@ export async function updateInspection(input: {
   inspection.status = input.status;
   inspection.sendPdfToCustomer = input.sendPdfToCustomer;
   inspection.updatedAt = nowIso();
+  await syncDemoInspectionDocuments(data, inspection);
   await writeAppData(data);
 }
 
