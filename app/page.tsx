@@ -1,9 +1,10 @@
 import Link from "next/link";
+import type { Route } from "next";
 import {
+  getCustomers,
   getDashboardData,
   getMachines,
-  getPlanningItems,
-  getCustomers
+  getPlanningItems
 } from "@/lib/inspection-service";
 
 export default async function HomePage() {
@@ -12,21 +13,24 @@ export default async function HomePage() {
   const machines = await getMachines();
   const customers = await getCustomers();
 
-  const kpis = [
+  const kpis: { label: string; value: string; helper: string; href: Route }[] = [
     {
-      label: "Openstaande concepten",
+      label: "Concept keuringen",
       value: String(dashboard.drafts),
-      helper: "Autosave en later afronden"
+      helper: "Nog niet afgerond",
+      href: "/keuringen"
     },
     {
-      label: "Keuringen deze maand",
+      label: "Aantal keuringen deze maand",
       value: String(dashboard.inspectionsThisMonth),
-      helper: "Alle types in één workflow"
+      helper: "Alle keuringen",
+      href: "/keuringen"
     },
     {
-      label: "Komende vervolgkeuringen",
+      label: "Vervolgkeuringen gepland",
       value: String(dashboard.upcoming),
-      helper: "Automatisch 12 maanden vooruit"
+      helper: "Direct naar planning",
+      href: "/planning"
     }
   ];
 
@@ -48,11 +52,11 @@ export default async function HomePage() {
 
       <section className="grid-3" style={{ marginTop: "1rem" }}>
         {kpis.map((kpi) => (
-          <article className="stat" key={kpi.label}>
+          <Link className="stat stat-link" href={kpi.href} key={kpi.label}>
             <span className="eyebrow">{kpi.label}</span>
             <strong>{kpi.value}</strong>
             <p className="muted">{kpi.helper}</p>
-          </article>
+          </Link>
         ))}
       </section>
 
@@ -75,12 +79,13 @@ export default async function HomePage() {
             </Link>
           </div>
         </article>
+
         <article className="panel">
           <div className="eyebrow">Machines</div>
-          <h2>Recent actief</h2>
+          <h2>Recent actieve machines</h2>
           <div className="list">
             {machines.slice(0, 4).map((machine) => (
-              <div className="list-item" key={machine.id}>
+              <Link className="list-item" key={machine.id} href={`/machines/${machine.id}`}>
                 <span>
                   <strong>{machine.internalNumber || machine.machineNumber}</strong>
                   <br />
@@ -90,7 +95,7 @@ export default async function HomePage() {
                   {customers.find((customer) => customer.id === machine.customerId)?.companyName ??
                     "-"}
                 </span>
-              </div>
+              </Link>
             ))}
           </div>
         </article>
@@ -106,36 +111,37 @@ export default async function HomePage() {
             <span>Status</span>
             <span>Actie</span>
           </div>
-          {planning.map((item) => (
-            <div className="table-row" key={item.id}>
-              <span>
-                <strong>
-                  {customers.find((customer) => customer.id === item.customerId)?.companyName ??
-                    "Onbekende klant"}
-                </strong>
-                <br />
-                {machines.find((machine) => machine.id === item.machineId)?.brand ?? "Machine"}{" "}
-                {machines.find((machine) => machine.id === item.machineId)?.model ?? ""}
-              </span>
-              <span>{item.dueDate}</span>
-              <span
-                className={`badge ${
-                  item.state === "overdue"
-                    ? "orange"
+          {planning.map((item) => {
+            const customer = customers.find((entry) => entry.id === item.customerId);
+            const machine = machines.find((entry) => entry.id === item.machineId);
+
+            return (
+              <Link className="table-row" href={`/keuringen/${item.inspectionId}`} key={item.id}>
+                <span>
+                  <strong>{customer?.companyName ?? "Onbekende klant"}</strong>
+                  <br />
+                  {machine?.brand ?? "Machine"} {machine?.model ?? ""}
+                </span>
+                <span>{item.dueDate}</span>
+                <span
+                  className={`badge ${
+                    item.state === "overdue"
+                      ? "orange"
+                      : item.state === "scheduled"
+                        ? "blue"
+                        : "green"
+                  }`}
+                >
+                  {item.state === "overdue"
+                    ? "Verlopen"
                     : item.state === "scheduled"
-                      ? "blue"
-                      : "green"
-                }`}
-              >
-                {item.state === "overdue"
-                  ? "Verlopen"
-                  : item.state === "scheduled"
-                    ? "Gepland"
-                    : "Aankomend"}
-              </span>
-              <span>Open dossier</span>
-            </div>
-          ))}
+                      ? "Gepland"
+                      : "Aankomend"}
+                </span>
+                <span>Open keuring</span>
+              </Link>
+            );
+          })}
         </div>
       </section>
     </>

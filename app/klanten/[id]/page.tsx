@@ -1,3 +1,5 @@
+import { fileUrl } from "@/lib/file-urls";
+import { getInspectionAttachments } from "@/lib/inspection-service";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { updateCustomerAction } from "@/app/klanten/actions";
@@ -8,11 +10,14 @@ import {
 } from "@/lib/inspection-service";
 
 export default async function CustomerDetailPage({
-  params
+  params,
+  searchParams
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ saved?: string }>;
 }) {
   const { id } = await params;
+  const query = await searchParams;
   const customer = await getCustomerById(id);
 
   if (!customer) {
@@ -23,6 +28,7 @@ export default async function CustomerDetailPage({
   const inspections = (await getInspections()).filter(
     (inspection) => inspection.customerId === customer.id
   );
+  const attachments = await getInspectionAttachments();
 
   return (
     <>
@@ -30,6 +36,7 @@ export default async function CustomerDetailPage({
         <div className="eyebrow">Klantkaart</div>
         <h1>{customer.companyName}</h1>
         <p>Beheer hier de klantgegevens, machines en start direct een nieuwe keuring.</p>
+        {query?.saved ? <p className="form-message success">Klant opgeslagen.</p> : null}
         <div className="actions">
           <Link className="button" href={`/keuringen/nieuw?customerId=${customer.id}`}>
             Nieuwe keuring starten
@@ -93,23 +100,44 @@ export default async function CustomerDetailPage({
         <div className="eyebrow">Historie</div>
         <h2>Recente keuringen</h2>
         <div className="table-like">
-          <div className="table-row table-head">
-            <span>Keurnummer</span>
-            <span>Machine</span>
-            <span>Datum</span>
-            <span>Status</span>
-          </div>
-          {inspections.map((inspection) => (
-            <div className="table-row" key={inspection.id}>
-              <span>{inspection.inspectionNumber}</span>
-              <span>{inspection.machineSnapshot.model || inspection.machineSnapshot.brand || "-"}</span>
-              <span>{inspection.inspectionDate}</span>
-              <span className={`badge ${inspection.status === "rejected" ? "orange" : "green"}`}>
-                {inspection.status === "rejected" ? "Afgekeurd" : "Goedgekeurd"}
-              </span>
-            </div>
-          ))}
+        <div className="table-row table-head">
+          <span>Keurnummer</span>
+          <span>Machine</span>
+          <span>Datum</span>
+          <span>Actie</span>
         </div>
+        {inspections.map((inspection) => (
+          <div className="table-row" key={inspection.id}>
+            <span>{inspection.inspectionNumber}</span>
+            <span>{inspection.machineSnapshot.model || inspection.machineSnapshot.brand || "-"}</span>
+            <span>{inspection.inspectionDate}</span>
+            <span>
+              {attachments.find(
+                (attachment) =>
+                  attachment.inspectionId === inspection.id && attachment.kind === "pdf"
+              ) ? (
+                <a
+                  className="button-secondary"
+                  href={fileUrl(
+                    attachments.find(
+                      (attachment) =>
+                        attachment.inspectionId === inspection.id && attachment.kind === "pdf"
+                    )!.storagePath
+                  )}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Rapport openen
+                </a>
+              ) : (
+                <span className={`badge ${inspection.status === "rejected" ? "orange" : "green"}`}>
+                  {inspection.status === "rejected" ? "Afgekeurd" : "Goedgekeurd"}
+                </span>
+              )}
+            </span>
+          </div>
+        ))}
+      </div>
       </section>
     </>
   );

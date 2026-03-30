@@ -742,6 +742,44 @@ export async function updatePlanningItem(input: {
   await writeAppData(data);
 }
 
+export async function updateMachine(input: {
+  id: string;
+  brand: string;
+  model: string;
+  serialNumber: string;
+  buildYear: string;
+  internalNumber: string;
+}) {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    await supabase
+      .from("machines")
+      .update({
+        brand: input.brand,
+        model: input.model,
+        serial_number: input.serialNumber,
+        build_year: Number(input.buildYear || 0) || null,
+        internal_number: input.internalNumber
+      })
+      .eq("id", input.id);
+    return;
+  }
+
+  const data = await readAppData();
+  const machine = data.machines.find((item) => item.id === input.id);
+  if (!machine) {
+    return;
+  }
+
+  machine.brand = input.brand;
+  machine.model = input.model;
+  machine.serialNumber = input.serialNumber;
+  machine.buildYear = input.buildYear;
+  machine.internalNumber = input.internalNumber;
+  machine.updatedAt = nowIso();
+  await writeAppData(data);
+}
+
 export async function resendInspectionMail(inspectionId: string) {
   const inspection = await getInspectionById(inspectionId);
   if (!inspection) {

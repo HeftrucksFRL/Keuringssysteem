@@ -43,7 +43,12 @@ export default async function InspectionDetailPage({
         </p>
         <div className="actions">
           {pdfAttachment ? (
-            <a className="button-secondary" href={fileUrl(pdfAttachment.storagePath)}>
+            <a
+              className="button-secondary"
+              href={fileUrl(pdfAttachment.storagePath)}
+              target="_blank"
+              rel="noreferrer"
+            >
               PDF openen
             </a>
           ) : null}

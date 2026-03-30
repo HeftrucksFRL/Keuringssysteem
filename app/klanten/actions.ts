@@ -1,11 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { updateCustomer, updatePlanningItem } from "@/lib/inspection-service";
 
 export async function updateCustomerAction(formData: FormData) {
+  const id = String(formData.get("id") || "");
   await updateCustomer({
-    id: String(formData.get("id") || ""),
+    id,
     companyName: String(formData.get("companyName") || ""),
     address: String(formData.get("address") || ""),
     contactName: String(formData.get("contactName") || ""),
@@ -14,7 +16,8 @@ export async function updateCustomerAction(formData: FormData) {
   });
 
   revalidatePath("/klanten");
-  revalidatePath(`/klanten/${String(formData.get("id") || "")}`);
+  revalidatePath(`/klanten/${id}`);
+  redirect(`/klanten/${id}?saved=1`);
 }
 
 export async function movePlanningItemAction(formData: FormData) {

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Route } from "next";
+import { updateMachineAction } from "@/app/machines/actions";
 import {
   getCustomers,
   getMachineById,
@@ -9,11 +10,14 @@ import {
 import { titleCase } from "@/lib/utils";
 
 export default async function MachineDetailPage({
-  params
+  params,
+  searchParams
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ saved?: string }>;
 }) {
   const { id } = await params;
+  const query = await searchParams;
   const machine = await getMachineById(id);
 
   if (!machine) {
@@ -33,30 +37,55 @@ export default async function MachineDetailPage({
           {machine.brand} {machine.model} bij {customer?.companyName ?? "onbekende klant"}.
           Vanuit dit dossier kun je eerdere keuringen openen en de volgende inspectie voorbereiden.
         </p>
+        {query?.saved ? <p className="form-message success">Machine opgeslagen.</p> : null}
+        <div className="actions">
+          <Link
+            className="button"
+            href={`/keuringen/nieuw?customerId=${machine.customerId}&machineId=${machine.id}` as Route}
+          >
+            Start nieuwe keuring
+          </Link>
+        </div>
       </section>
 
       <section className="grid-2" style={{ marginTop: "1rem" }}>
-        <article className="panel">
+        <form action={updateMachineAction} className="panel">
           <div className="eyebrow">Machinekaart</div>
-          <div className="list">
+          <input type="hidden" name="id" value={machine.id} />
+          <div className="list" style={{ marginBottom: "1rem" }}>
             <div className="list-item">
               <span>Type</span>
               <strong>{titleCase(machine.machineType)}</strong>
             </div>
-            <div className="list-item">
-              <span>Serienummer</span>
-              <strong>{machine.serialNumber || "-"}</strong>
+          </div>
+          <div className="form-grid-wide">
+            <div className="field">
+              <label htmlFor="brand">Merk</label>
+              <input id="brand" name="brand" defaultValue={machine.brand} />
             </div>
-            <div className="list-item">
-              <span>Bouwjaar</span>
-              <strong>{machine.buildYear || "-"}</strong>
+            <div className="field">
+              <label htmlFor="model">Type</label>
+              <input id="model" name="model" defaultValue={machine.model} />
             </div>
-            <div className="list-item">
-              <span>Intern nummer</span>
-              <strong>{machine.internalNumber || "-"}</strong>
+            <div className="field">
+              <label htmlFor="serialNumber">Serienummer</label>
+              <input id="serialNumber" name="serialNumber" defaultValue={machine.serialNumber} />
+            </div>
+            <div className="field">
+              <label htmlFor="buildYear">Bouwjaar</label>
+              <input id="buildYear" name="buildYear" defaultValue={machine.buildYear} />
+            </div>
+            <div className="field">
+              <label htmlFor="internalNumber">Intern nummer</label>
+              <input id="internalNumber" name="internalNumber" defaultValue={machine.internalNumber} />
             </div>
           </div>
-        </article>
+          <div className="actions">
+            <button className="button" type="submit">
+              Machine opslaan
+            </button>
+          </div>
+        </form>
 
         <article className="panel">
           <div className="eyebrow">Klant</div>

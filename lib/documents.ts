@@ -1,9 +1,10 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import {
   Document,
   HeadingLevel,
+  ImageRun,
   Packer,
   Paragraph,
   Table,
@@ -60,6 +61,24 @@ export async function generateInspectionDocuments(
   const page = pdfDocument.addPage([595, 842]);
   const boldFont = await pdfDocument.embedFont(StandardFonts.HelveticaBold);
   const regularFont = await pdfDocument.embedFont(StandardFonts.Helvetica);
+  const logoBytes = await readFile(path.join(process.cwd(), "public", "logo-heftrucks-frl.png"));
+  const bmwtBytes = await readFile(path.join(process.cwd(), "public", "bmwt-logo.jpg"));
+  const logoImage = await pdfDocument.embedPng(logoBytes);
+  const bmwtImage = await pdfDocument.embedJpg(bmwtBytes);
+
+  page.drawImage(logoImage, {
+    x: 40,
+    y: 780,
+    width: 150,
+    height: 44
+  });
+
+  page.drawImage(bmwtImage, {
+    x: 470,
+    y: 780,
+    width: 76,
+    height: 44
+  });
 
   const lines = [
     "Heftrucks Friesland | BMWT keuringsrapport",
@@ -78,7 +97,7 @@ export async function generateInspectionDocuments(
     inspection.conclusion || "-"
   ];
 
-  let y = 800;
+  let y = 742;
   lines.forEach((line, index) => {
     page.drawText(line, {
       x: 40,
@@ -90,6 +109,27 @@ export async function generateInspectionDocuments(
     y -= index === 0 ? 28 : 18;
   });
 
+  page.drawLine({
+    start: { x: 40, y: 86 },
+    end: { x: 555, y: 86 },
+    thickness: 1,
+    color: rgb(0.78, 0.84, 0.89)
+  });
+  page.drawText("Keurmeester A. Terpstra", {
+    x: 40,
+    y: 66,
+    size: 10,
+    font: regularFont,
+    color: rgb(0.32, 0.38, 0.45)
+  });
+  page.drawText("Heftrucks.frl | info@heftrucks.frl | (31)6 53842843", {
+    x: 40,
+    y: 50,
+    size: 10,
+    font: regularFont,
+    color: rgb(0.32, 0.38, 0.45)
+  });
+
   const pdfBytes = await pdfDocument.save();
 
   const wordDocument = new Document({
@@ -97,7 +137,22 @@ export async function generateInspectionDocuments(
       {
         children: [
           new Paragraph({
-            text: "Heftrucks Friesland | BMWT keuringsrapport",
+            children: [
+              new ImageRun({
+                data: logoBytes,
+                type: "png",
+                transformation: { width: 170, height: 48 }
+              }),
+              new TextRun("   "),
+              new ImageRun({
+                data: bmwtBytes,
+                type: "jpg",
+                transformation: { width: 80, height: 46 }
+              })
+            ]
+          }),
+          new Paragraph({
+            text: "Keuringsrapport",
             heading: HeadingLevel.TITLE
           }),
           new Paragraph(`Keurnummer: ${inspection.inspectionNumber}`),
@@ -117,7 +172,10 @@ export async function generateInspectionDocuments(
           new Paragraph({ text: "Aanbevelingen", heading: HeadingLevel.HEADING_2 }),
           new Paragraph(inspection.recommendations || "-"),
           new Paragraph({ text: "Conclusie", heading: HeadingLevel.HEADING_2 }),
-          new Paragraph(inspection.conclusion || "-")
+          new Paragraph(inspection.conclusion || "-"),
+          new Paragraph(" "),
+          new Paragraph("Keurmeester A. Terpstra"),
+          new Paragraph("Heftrucks.frl | info@heftrucks.frl | (31)6 53842843")
         ]
       }
     ]

@@ -196,6 +196,14 @@ textarea {
   border: 1px solid var(--border);
 }
 
+.stat-link {
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.stat-link:hover {
+  transform: translateY(-2px);
+}
+
 .field {
   display: grid;
   gap: 0.45rem;
@@ -430,6 +438,109 @@ textarea {
   gap: 0.55rem;
 }
 
+.search-bar {
+  margin: 0 0 1rem;
+}
+
+.search-bar input {
+  width: 100%;
+  min-height: 52px;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: #f9fbfd;
+}
+
+.stepper {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.step-chip,
+.choice-card {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: #f8fbfd;
+  cursor: pointer;
+}
+
+.step-chip {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.9rem 1rem;
+}
+
+.step-chip span,
+.choice-card span,
+.info-card span {
+  color: var(--muted);
+}
+
+.step-chip.active,
+.choice-card.active {
+  border-color: #75aede;
+  background: #eaf4fe;
+}
+
+.step-chip.done {
+  border-color: #b9e9d2;
+  background: #effaf4;
+}
+
+.choice-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.choice-card {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem;
+}
+
+.info-card {
+  display: grid;
+  gap: 0.35rem;
+  min-height: 52px;
+  padding: 0.95rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: #f9fbfd;
+}
+
+.wizard-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.form-message {
+  margin: 0 0 1rem;
+  padding: 0.9rem 1rem;
+  border-radius: 16px;
+  font-weight: 700;
+}
+
+.form-message.success {
+  background: #dff6ec;
+  color: var(--success);
+}
+
+.form-message.error {
+  background: #fde8e6;
+  color: var(--danger);
+}
+
+.form-message.info {
+  background: #eaf4fe;
+  color: var(--accent-deep);
+}
+
 .calendar-head {
   display: flex;
   justify-content: space-between;
@@ -521,5 +632,9 @@ textarea {
 
   .calendar-grid {
     grid-template-columns: 1fr;
+  }
+
+  .wizard-actions {
+    flex-direction: column;
   }
 }

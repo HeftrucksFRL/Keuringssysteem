@@ -8,12 +8,34 @@ const commonCustomerFields = [
   { key: "customer_email", label: "E-mailadres", type: "email" as const }
 ];
 
+function withHourReading(
+  type: FormDefinition["type"],
+  fields: FormDefinition["machineFields"]
+) {
+  if (type === "batterij_lader" || type === "stellingmateriaal") {
+    return fields;
+  }
+
+  const hourField = { key: "hour_reading", label: "Urenstand", type: "number" as const };
+  const inspectionDateIndex = fields.findIndex((field) => field.key === "inspection_date");
+
+  if (inspectionDateIndex === -1) {
+    return [...fields, hourField];
+  }
+
+  return [
+    ...fields.slice(0, inspectionDateIndex),
+    hourField,
+    ...fields.slice(inspectionDateIndex)
+  ];
+}
+
 export const formDefinitions: FormDefinition[] = [
   {
     type: "verreiker",
     title: "Verreiker",
     machineLabel: "Verreiker",
-    machineFields: [
+    machineFields: withHourReading("verreiker", [
       ...commonCustomerFields,
       { key: "brand", label: "Merk" },
       { key: "build_year", label: "Bouwjaar", type: "number" },
@@ -22,7 +44,7 @@ export const formDefinitions: FormDefinition[] = [
       { key: "serial_number", label: "Serienummer" },
       { key: "inspection_date", label: "Keuringsdatum", type: "date" },
       { key: "sticker_number", label: "Stickernummer" }
-    ],
+    ]),
     checklistOptions: ["goed", "slecht", "nvt"],
     conclusionLabels: ["Goedgekeurd", "Afgekeurd"],
     sections: [
@@ -141,7 +163,7 @@ export const formDefinitions: FormDefinition[] = [
     type: "stellingmateriaal",
     title: "Stellingmateriaal",
     machineLabel: "Stelling",
-    machineFields: [
+    machineFields: withHourReading("stellingmateriaal", [
       ...commonCustomerFields,
       { key: "brand", label: "Merk" },
       { key: "build_year", label: "Bouwjaar", type: "number" },
@@ -150,7 +172,7 @@ export const formDefinitions: FormDefinition[] = [
       { key: "inspection_date", label: "Keuringsdatum", type: "date" },
       { key: "sticker_number", label: "Stickernummer" },
       { key: "racking_type", label: "Soort stelling" }
-    ],
+    ]),
     checklistOptions: ["goed", "matig", "slecht", "nvt"],
     conclusionLabels: ["Goedgekeurd", "Afgekeurd"],
     sections: [
@@ -243,7 +265,7 @@ export const formDefinitions: FormDefinition[] = [
     type: "palletwagen_stapelaar",
     title: "Palletwagen / heffer / stapelaar",
     machineLabel: "Machine",
-    machineFields: [
+    machineFields: withHourReading("palletwagen_stapelaar", [
       ...commonCustomerFields,
       { key: "inspector", label: "Keurmeester" },
       { key: "brand", label: "Merk" },
@@ -253,7 +275,7 @@ export const formDefinitions: FormDefinition[] = [
       { key: "serial_number", label: "Serienummer" },
       { key: "inspection_date", label: "Keuringsdatum", type: "date" },
       { key: "sticker_number", label: "Stickernummer" }
-    ],
+    ]),
     checklistOptions: ["goed", "slecht", "nvt"],
     conclusionLabels: ["Goedgekeurd", "Afgekeurd"],
     sections: [
@@ -354,7 +376,7 @@ export const formDefinitions: FormDefinition[] = [
     type: "shovel",
     title: "Shovel",
     machineLabel: "Shovel",
-    machineFields: [
+    machineFields: withHourReading("shovel", [
       ...commonCustomerFields,
       { key: "brand", label: "Merk" },
       { key: "build_year", label: "Bouwjaar", type: "number" },
@@ -363,7 +385,7 @@ export const formDefinitions: FormDefinition[] = [
       { key: "serial_number", label: "Serienummer" },
       { key: "inspection_date", label: "Keuringsdatum", type: "date" },
       { key: "sticker_number", label: "Stickernummer" }
-    ],
+    ]),
     checklistOptions: ["goed", "slecht", "nvt"],
     conclusionLabels: ["Goedgekeurd", "Afgekeurd"],
     sections: [
@@ -463,7 +485,7 @@ export const formDefinitions: FormDefinition[] = [
     type: "hoogwerker",
     title: "Hoogwerker",
     machineLabel: "Hoogwerker",
-    machineFields: [
+    machineFields: withHourReading("hoogwerker", [
       ...commonCustomerFields,
       { key: "brand", label: "Merk" },
       { key: "build_year", label: "Bouwjaar", type: "number" },
@@ -480,7 +502,7 @@ export const formDefinitions: FormDefinition[] = [
       { key: "max_outreach", label: "Werkbak max. vlucht" },
       { key: "max_height", label: "Werkbak max. vloerhoogte" },
       { key: "max_persons", label: "Aantal personen", type: "number" }
-    ],
+    ]),
     checklistOptions: ["goed", "slecht", "nvt"],
     conclusionLabels: ["Goedgekeurd", "Afgekeurd"],
     sections: [
@@ -711,7 +733,7 @@ export const formDefinitions: FormDefinition[] = [
     type: "batterij_lader",
     title: "Batterij en laders",
     machineLabel: "Voertuig / batterij / lader",
-    machineFields: [
+    machineFields: withHourReading("batterij_lader", [
       ...commonCustomerFields,
       { key: "vehicle_brand", label: "Merk voertuig" },
       { key: "vehicle_type", label: "Type voertuig" },
@@ -732,7 +754,7 @@ export const formDefinitions: FormDefinition[] = [
       { key: "charger_sticker_number", label: "Stickernummer lader" },
       { key: "double_insulated", label: "Dubbel geisoleerd" },
       { key: "inspection_date", label: "Keuringsdatum", type: "date" }
-    ],
+    ]),
     checklistOptions: ["goed", "slecht", "nvt"],
     conclusionLabels: [
       "Batterij goedgekeurd",
@@ -788,7 +810,7 @@ export const formDefinitions: FormDefinition[] = [
     type: "graafmachine",
     title: "Graafmachine",
     machineLabel: "Graafmachine",
-    machineFields: [
+    machineFields: withHourReading("graafmachine", [
       ...commonCustomerFields,
       { key: "brand", label: "Merk" },
       { key: "build_year", label: "Bouwjaar", type: "number" },
@@ -797,7 +819,7 @@ export const formDefinitions: FormDefinition[] = [
       { key: "serial_number", label: "Serienummer" },
       { key: "inspection_date", label: "Keuringsdatum", type: "date" },
       { key: "sticker_number", label: "Stickernummer" }
-    ],
+    ]),
     checklistOptions: ["goed", "slecht", "nvt"],
     conclusionLabels: ["Goedgekeurd", "Afgekeurd"],
     sections: [
@@ -909,7 +931,7 @@ export const formDefinitions: FormDefinition[] = [
     type: "heftruck_reachtruck",
     title: "Heftruck / reachtruck",
     machineLabel: "Machine",
-    machineFields: [
+    machineFields: withHourReading("heftruck_reachtruck", [
       ...commonCustomerFields,
       { key: "brand", label: "Merk" },
       { key: "model", label: "Type" },
@@ -919,7 +941,7 @@ export const formDefinitions: FormDefinition[] = [
       { key: "serial_number", label: "Serienummer" },
       { key: "inspection_date", label: "Keuringsdatum", type: "date" },
       { key: "sticker_number", label: "Stickernummer" }
-    ],
+    ]),
     checklistOptions: ["goed", "slecht", "nvt"],
     conclusionLabels: ["Goedgekeurd", "Afgekeurd"],
     sections: [
