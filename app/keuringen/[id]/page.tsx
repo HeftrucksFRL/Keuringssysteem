@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Route } from "next";
+import { updateInspectionAction } from "@/app/keuringen/actions";
 import {
   getAttachmentsForInspection,
   getCustomers,
@@ -12,11 +13,14 @@ import { getFormDefinition } from "@/lib/form-definitions";
 import { downloadUrl, fileUrl } from "@/lib/file-urls";
 
 export default async function InspectionDetailPage({
-  params
+  params,
+  searchParams
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ saved?: string }>;
 }) {
   const { id } = await params;
+  const query = await searchParams;
   const inspection = await getInspectionById(id);
 
   if (!inspection) {
@@ -41,6 +45,7 @@ export default async function InspectionDetailPage({
         <p>
           {customer?.companyName ?? "-"} | {machine?.brand ?? ""} {machine?.model ?? ""}
         </p>
+        {query?.saved ? <p className="form-message success">Keuring opgeslagen.</p> : null}
         <div className="actions">
           {pdfAttachment ? (
             <a
@@ -82,7 +87,15 @@ export default async function InspectionDetailPage({
             </div>
             <div className="list-item">
               <span>Status</span>
-              <strong>{inspection.status === "rejected" ? "Afgekeurd" : "Goedgekeurd"}</strong>
+              <strong>
+                {inspection.status === "rejected"
+                  ? "Afgekeurd"
+                  : inspection.status === "draft"
+                    ? "Concept"
+                    : inspection.status === "completed"
+                      ? "Afgerond"
+                      : "Goedgekeurd"}
+              </strong>
             </div>
             <div className="list-item">
               <span>Mail klant</span>
@@ -91,12 +104,54 @@ export default async function InspectionDetailPage({
           </div>
         </article>
 
-        <article className="panel">
-          <div className="eyebrow">Afsluiting</div>
-          <p><strong>Bevindingen</strong><br />{inspection.findings || "-"}</p>
-          <p><strong>Aanbevelingen</strong><br />{inspection.recommendations || "-"}</p>
-          <p><strong>Conclusie</strong><br />{inspection.conclusion || "-"}</p>
-        </article>
+        <form action={updateInspectionAction} className="panel">
+          <input type="hidden" name="id" value={inspection.id} />
+          <div className="eyebrow">Aanpassen</div>
+          <h2>Keuring bijwerken</h2>
+          <div className="form-grid-wide">
+            <div className="field">
+              <label htmlFor="inspectionDate">Keuringsdatum</label>
+              <input id="inspectionDate" name="inspectionDate" type="date" defaultValue={inspection.inspectionDate} />
+            </div>
+            <div className="field">
+              <label htmlFor="status">Status</label>
+              <select id="status" name="status" defaultValue={inspection.status}>
+                <option value="draft">Concept</option>
+                <option value="approved">Goedgekeurd</option>
+                <option value="rejected">Afgekeurd</option>
+                <option value="completed">Afgerond</option>
+              </select>
+            </div>
+          </div>
+          <div className="field">
+            <label htmlFor="findings">Bevindingen</label>
+            <textarea id="findings" name="findings" defaultValue={inspection.findings} />
+          </div>
+          <div className="field">
+            <label htmlFor="recommendations">Aanbevelingen</label>
+            <textarea id="recommendations" name="recommendations" defaultValue={inspection.recommendations} />
+          </div>
+          <div className="field">
+            <label htmlFor="conclusion">Conclusie</label>
+            <textarea id="conclusion" name="conclusion" defaultValue={inspection.conclusion} />
+          </div>
+          <div className="field">
+            <label className="status-chip" htmlFor="sendPdfToCustomer">
+              <input
+                id="sendPdfToCustomer"
+                name="sendPdfToCustomer"
+                type="checkbox"
+                defaultChecked={inspection.sendPdfToCustomer}
+              />
+              PDF naar klant mailen
+            </label>
+          </div>
+          <div className="actions">
+            <button className="button" type="submit">
+              Keuring opslaan
+            </button>
+          </div>
+        </form>
       </section>
 
       {photos.length > 0 ? (

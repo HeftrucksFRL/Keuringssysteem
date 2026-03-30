@@ -149,10 +149,19 @@ export function InspectionsTable({
           const pdfAttachment = attachments.find(
             (attachment) => attachment.inspectionId === inspection.id && attachment.kind === "pdf"
           );
+          const statusClass =
+            inspection.status === "rejected"
+              ? "red"
+              : inspection.status === "draft"
+                ? "orange"
+                : "green";
 
           return (
             <div className="table-row" key={inspection.id}>
-              <span>{inspection.inspectionNumber}</span>
+              <span>
+                <span className={`status-dot ${statusClass}`} aria-hidden="true" />
+                {inspection.inspectionNumber}
+              </span>
               <span>
                 <strong>{customer?.companyName ?? "-"}</strong>
                 <br />
@@ -160,9 +169,6 @@ export function InspectionsTable({
               </span>
               <span>{inspection.inspectionDate}</span>
               <span className="inline-meta">
-                <span className={`badge ${inspection.status === "rejected" ? "orange" : "green"}`}>
-                  {inspection.status === "rejected" ? "Afgekeurd" : "Goedgekeurd"}
-                </span>
                 {pdfAttachment ? (
                   <a
                     className="button-secondary"

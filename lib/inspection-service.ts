@@ -794,6 +794,51 @@ export async function updateMachine(input: {
   await writeAppData(data);
 }
 
+export async function updateInspection(input: {
+  id: string;
+  inspectionDate: string;
+  findings: string;
+  recommendations: string;
+  conclusion: string;
+  status: InspectionRecord["status"];
+  sendPdfToCustomer: boolean;
+}) {
+  const nextInspectionDate = addTwelveMonths(input.inspectionDate);
+
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    await supabase
+      .from("inspections")
+      .update({
+        inspection_date: input.inspectionDate,
+        next_inspection_date: nextInspectionDate,
+        findings: input.findings,
+        recommendations: input.recommendations,
+        conclusion: input.conclusion,
+        status: input.status,
+        send_pdf_to_customer: input.sendPdfToCustomer
+      })
+      .eq("id", input.id);
+    return;
+  }
+
+  const data = await readAppData();
+  const inspection = data.inspections.find((item) => item.id === input.id);
+  if (!inspection) {
+    return;
+  }
+
+  inspection.inspectionDate = input.inspectionDate;
+  inspection.nextInspectionDate = nextInspectionDate;
+  inspection.findings = input.findings;
+  inspection.recommendations = input.recommendations;
+  inspection.conclusion = input.conclusion;
+  inspection.status = input.status;
+  inspection.sendPdfToCustomer = input.sendPdfToCustomer;
+  inspection.updatedAt = nowIso();
+  await writeAppData(data);
+}
+
 export async function resendInspectionMail(
   inspectionId: string,
   options?: {

@@ -367,6 +367,27 @@ textarea {
   color: var(--warning);
 }
 
+.status-dot {
+  display: inline-flex;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  margin-right: 0.55rem;
+  vertical-align: middle;
+}
+
+.status-dot.green {
+  background: var(--success);
+}
+
+.status-dot.orange {
+  background: var(--warning);
+}
+
+.status-dot.red {
+  background: var(--danger);
+}
+
 .table-like {
   display: grid;
   gap: 0.6rem;
@@ -384,7 +405,7 @@ textarea {
 }
 
 .table-row-5 {
-  grid-template-columns: 1fr 1fr 1fr 1.2fr 1fr;
+  grid-template-columns: 0.95fr 0.95fr 0.95fr 1.35fr 0.9fr;
 }
 
 .table-row-link {
