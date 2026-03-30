@@ -1,5 +1,6 @@
 import "./globals.css";
 import Link from "next/link";
+import Image from "next/image";
 import type { Metadata } from "next";
 import type { Route } from "next";
 import { AuthStatus } from "@/components/auth-status";
@@ -27,7 +28,13 @@ export default function RootLayout({
         <div className="shell">
           <header className="topbar">
             <div className="brand">
-              <strong>Heftrucks.frl</strong>
+              <Image
+                src="/heftrucks-friesland-logo.svg"
+                alt="Heftrucks Friesland"
+                width={220}
+                height={56}
+                priority
+              />
               <span>Keuringssysteem</span>
             </div>
             <nav className="topnav" aria-label="Hoofdnavigatie">

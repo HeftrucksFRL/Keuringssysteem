@@ -1,0 +1,104 @@
+import { NextResponse } from "next/server";
+import { getFormDefinition } from "@/lib/form-definitions";
+import { createInspection } from "@/lib/inspection-service";
+import type { ChecklistOption, MachineType } from "@/lib/types";
+
+function parseChecklist(
+  rawChecklist: string,
+  machineType: MachineType
+): Record<string, ChecklistOption> {
+  const parsed = JSON.parse(rawChecklist) as Record<string, ChecklistOption>;
+  const definition = getFormDefinition(machineType);
+  const allowed = new Set(definition.checklistOptions);
+
+  return Object.fromEntries(
+    Object.entries(parsed).filter(([, value]) => allowed.has(value))
+  ) as Record<string, ChecklistOption>;
+}
+
+export async function POST(request: Request) {
+  try {
+    const formData = await request.formData();
+    const machineType = String(formData.get("machine_type") || "") as MachineType;
+    const checklist = String(formData.get("checklist") || "");
+    const internalNumber = String(formData.get("internal_number") || "");
+    const inspectionDate = String(formData.get("inspection_date") || "");
+
+    if (!machineType || !checklist) {
+      return NextResponse.json(
+        { ok: false, message: "De keuring kon niet worden verwerkt." },
+        { status: 400 }
+      );
+    }
+
+    if (!String(formData.get("customer_name") || "").trim()) {
+      return NextResponse.json(
+        { ok: false, message: "Vul eerst de klant in." },
+        { status: 400 }
+      );
+    }
+
+    if (!internalNumber.trim()) {
+      return NextResponse.json(
+        { ok: false, message: "Vul het intern nummer van de machine in." },
+        { status: 400 }
+      );
+    }
+
+    const photos = formData
+      .getAll("photos")
+      .filter((value): value is File => value instanceof File && value.size > 0);
+
+    const definition = getFormDefinition(machineType);
+    const machineDetails = Object.fromEntries(
+      definition.machineFields
+        .map((field) => [field.key, String(formData.get(field.key) || "")])
+        .filter(([key]) => !key.startsWith("customer_"))
+    );
+
+    const inspection = await createInspection({
+      machineType,
+      customer: {
+        companyName: String(formData.get("customer_name") || ""),
+        address: String(formData.get("customer_address") || ""),
+        contactName: String(formData.get("customer_contact") || ""),
+        phone: String(formData.get("customer_phone") || ""),
+        email: String(formData.get("customer_email") || "")
+      },
+      machine: {
+        machineNumber: internalNumber,
+        brand: String(formData.get("brand") || formData.get("vehicle_brand") || ""),
+        model: String(formData.get("model") || formData.get("vehicle_type") || ""),
+        serialNumber: String(
+          formData.get("serial_number") || formData.get("vehicle_serial_number") || ""
+        ),
+        buildYear: String(
+          formData.get("build_year") || formData.get("vehicle_build_year") || ""
+        ),
+        internalNumber,
+        details: machineDetails
+      },
+      inspectionDate,
+      checklist: parseChecklist(checklist, machineType),
+      findings: String(formData.get("findings") || ""),
+      recommendations: String(formData.get("recommendations") || ""),
+      conclusion: String(formData.get("conclusion") || ""),
+      resultLabels: formData.getAll("result_labels").map(String),
+      sendPdfToCustomer: formData.get("send_pdf_to_customer") === "on",
+      photos: await Promise.all(
+        photos.map(async (photo) => ({
+          fileName: photo.name,
+          contentType: photo.type,
+          buffer: Buffer.from(await photo.arrayBuffer())
+        }))
+      )
+    });
+
+    return NextResponse.json({ ok: true, inspectionNumber: inspection.inspectionNumber });
+  } catch {
+    return NextResponse.json(
+      { ok: false, message: "Opslaan is niet gelukt. Probeer het opnieuw." },
+      { status: 500 }
+    );
+  }
+}

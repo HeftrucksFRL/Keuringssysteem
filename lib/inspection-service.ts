@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import { buildCustomerMail, buildInternalMail } from "@/lib/mail";
@@ -657,4 +658,187 @@ export async function getMachineHistory(machineId: string) {
 export async function getAttachmentsForInspection(inspectionId: string) {
   const attachments = await getInspectionAttachments();
   return attachments.filter((attachment) => attachment.inspectionId === inspectionId);
+}
+
+export async function getCustomerById(id: string) {
+  const customers = await getCustomers();
+  return customers.find((customer) => customer.id === id) ?? null;
+}
+
+export async function getMachinesForCustomer(customerId: string) {
+  const machines = await getMachines();
+  return machines.filter((machine) => machine.customerId === customerId);
+}
+
+export async function updateCustomer(input: {
+  id: string;
+  companyName: string;
+  address: string;
+  contactName: string;
+  phone: string;
+  email: string;
+}) {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    await supabase
+      .from("customers")
+      .update({
+        company_name: input.companyName,
+        address_line_1: input.address,
+        contact_name: input.contactName,
+        phone: input.phone,
+        email: input.email
+      })
+      .eq("id", input.id);
+
+    return;
+  }
+
+  const data = await readAppData();
+  const customer = data.customers.find((item) => item.id === input.id);
+  if (!customer) {
+    return;
+  }
+
+  customer.companyName = input.companyName;
+  customer.address = input.address;
+  customer.contactName = input.contactName;
+  customer.phone = input.phone;
+  customer.email = input.email;
+  customer.updatedAt = nowIso();
+  await writeAppData(data);
+}
+
+export async function updatePlanningItem(input: {
+  id: string;
+  dueDate: string;
+}) {
+  const state =
+    new Date(input.dueDate) < new Date()
+      ? "overdue"
+      : ("scheduled" as const);
+
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    await supabase
+      .from("planning_items")
+      .update({
+        due_date: input.dueDate,
+        state
+      })
+      .eq("id", input.id);
+    return;
+  }
+
+  const data = await readAppData();
+  const item = data.planningItems.find((planningItem) => planningItem.id === input.id);
+  if (!item) {
+    return;
+  }
+
+  item.dueDate = input.dueDate;
+  item.state = state;
+  item.updatedAt = nowIso();
+  await writeAppData(data);
+}
+
+export async function resendInspectionMail(inspectionId: string) {
+  const inspection = await getInspectionById(inspectionId);
+  if (!inspection) {
+    throw new Error("Keuring niet gevonden");
+  }
+
+  const customer = await getCustomerById(inspection.customerId);
+  if (!customer) {
+    throw new Error("Klant niet gevonden");
+  }
+
+  const attachments = await getAttachmentsForInspection(inspection.id);
+  const pdfAttachment = attachments.find((attachment) => attachment.kind === "pdf");
+  const wordAttachment = attachments.find((attachment) => attachment.kind === "word");
+
+  async function readAttachment(storagePath: string) {
+    if (hasSupabaseConfig()) {
+      const supabase = createSupabaseAdmin();
+      const { data } = await supabase.storage
+        .from("inspection-files")
+        .download(storagePath);
+      return data ? Buffer.from(await data.arrayBuffer()) : null;
+    }
+
+    return readFile(path.isAbsolute(storagePath) ? storagePath : path.join(process.cwd(), storagePath));
+  }
+
+  const sendResult = await sendInspectionEmails(
+    inspection,
+    customer.email,
+    customer.contactName,
+    customer.companyName,
+    {
+      pdf:
+        pdfAttachment
+          ? {
+              filename: pdfAttachment.fileName,
+              content: (await readAttachment(pdfAttachment.storagePath)) as Buffer
+            }
+          : undefined,
+      word:
+        wordAttachment
+          ? {
+              filename: wordAttachment.fileName,
+              content: (await readAttachment(wordAttachment.storagePath)) as Buffer
+            }
+          : undefined
+    }
+  );
+
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    await supabase.from("mail_events").insert([
+      {
+        inspection_id: inspection.id,
+        recipient: appConfig.mailInternalTo,
+        subject: `Opnieuw verzonden ${inspection.inspectionNumber}`,
+        channel: "internal",
+        delivery_status: sendResult.internal
+      },
+      ...(inspection.sendPdfToCustomer
+        ? [
+            {
+              inspection_id: inspection.id,
+              recipient: customer.email,
+              subject: `Opnieuw verzonden ${inspection.inspectionNumber}`,
+              channel: "customer",
+              delivery_status:
+                sendResult.customer === "not_requested" ? "skipped" : sendResult.customer
+            }
+          ]
+        : [])
+    ]);
+    return;
+  }
+
+  const data = await readAppData();
+  data.mailEvents.unshift({
+    id: randomUUID(),
+    inspectionId: inspection.id,
+    recipient: appConfig.mailInternalTo,
+    subject: `Opnieuw verzonden ${inspection.inspectionNumber}`,
+    channel: "internal",
+    deliveryStatus: sendResult.internal,
+    createdAt: nowIso()
+  });
+  if (inspection.sendPdfToCustomer) {
+    data.mailEvents.unshift({
+      id: randomUUID(),
+      inspectionId: inspection.id,
+      recipient: customer.email,
+      subject: `Opnieuw verzonden ${inspection.inspectionNumber}`,
+      channel: "customer",
+      deliveryStatus:
+        sendResult.customer === "not_requested" ? "skipped" : sendResult.customer,
+      createdAt: nowIso()
+    });
+  }
+  await writeAppData(data);
 }

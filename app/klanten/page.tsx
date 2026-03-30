@@ -1,4 +1,5 @@
 import { getCustomers, getInspections, getMachines } from "@/lib/inspection-service";
+import Link from "next/link";
 
 export default async function CustomersPage() {
   const customers = await getCustomers();
@@ -18,7 +19,9 @@ export default async function CustomersPage() {
         </div>
         {customers.map((customer) => (
           <div className="table-row" key={customer.id}>
-            <span>{customer.companyName}</span>
+            <span>
+              <Link href={`/klanten/${customer.id}`}>{customer.companyName}</Link>
+            </span>
             <span>{customer.contactName}</span>
             <span>{machines.filter((machine) => machine.customerId === customer.id).length}</span>
             <span>

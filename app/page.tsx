@@ -1,6 +1,4 @@
 import Link from "next/link";
-import { previewNextInspectionNumber } from "@/lib/inspection-number";
-import { formDefinitions } from "@/lib/form-definitions";
 import {
   getDashboardData,
   getMachines,
@@ -35,19 +33,15 @@ export default async function HomePage() {
   return (
     <>
       <section className="hero">
-        <div className="eyebrow">Mobile-first keuringsapp</div>
-        <h1>Digitale keuringen voor intern transportmaterieel</h1>
-        <p>
-          Deze basis is opgezet voor Next.js op Vercel en Supabase als database,
-          storage en workflow-backend. De structuur volgt de aangeleverde formulieren
-          en ondersteunt PDF, Word, mail, planning en historie.
-        </p>
+        <div className="eyebrow">Dashboard</div>
+        <h1>Welkom terug</h1>
+        <p>Kies hieronder wat je vandaag wilt doen.</p>
         <div className="actions">
           <Link className="button" href="/keuringen/nieuw">
             Nieuwe keuring starten
           </Link>
-          <Link className="button-secondary" href="/architectuur">
-            Architectuur bekijken
+          <Link className="button-secondary" href="/planning">
+            Planning openen
           </Link>
         </div>
       </section>
@@ -64,20 +58,38 @@ export default async function HomePage() {
 
       <section className="grid-2" style={{ marginTop: "1rem" }}>
         <article className="panel">
-          <div className="eyebrow">Keurnummerlogica</div>
-          <h2>Oplopend per jaar, ongeacht type</h2>
-          <p className="muted">
-            Voorbeeld voor 2026: <strong>{previewNextInspectionNumber(2026, 26041)}</strong>.
-            Voor 2027 start de reeks automatisch op <strong>{previewNextInspectionNumber(2027)}</strong>.
-          </p>
+          <div className="eyebrow">Vandaag</div>
+          <h2>Snel naar je werk</h2>
+          <div className="list">
+            <Link className="list-item" href="/keuringen/nieuw">
+              <span>Nieuwe keuring</span>
+              <strong>Open formulier</strong>
+            </Link>
+            <Link className="list-item" href="/klanten">
+              <span>Klanten</span>
+              <strong>Open klantbestand</strong>
+            </Link>
+            <Link className="list-item" href="/keuringen">
+              <span>Recente keuringen</span>
+              <strong>Open overzicht</strong>
+            </Link>
+          </div>
         </article>
         <article className="panel">
-          <div className="eyebrow">Ondersteunde keuringssoorten</div>
+          <div className="eyebrow">Machines</div>
+          <h2>Recent actief</h2>
           <div className="list">
-            {formDefinitions.map((form) => (
-              <div className="list-item" key={form.type}>
-                <span>{form.title}</span>
-                <span className="badge blue">{form.sections.length} secties</span>
+            {machines.slice(0, 4).map((machine) => (
+              <div className="list-item" key={machine.id}>
+                <span>
+                  <strong>{machine.internalNumber || machine.machineNumber}</strong>
+                  <br />
+                  {machine.brand} {machine.model}
+                </span>
+                <span className="badge blue">
+                  {customers.find((customer) => customer.id === machine.customerId)?.companyName ??
+                    "-"}
+                </span>
               </div>
             ))}
           </div>
