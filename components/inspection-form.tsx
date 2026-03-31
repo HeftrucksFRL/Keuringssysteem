@@ -701,7 +701,7 @@ export function InspectionForm({
               </div>
               <div className="actions" style={{ marginTop: "0.75rem" }}>
                 <button className="button-secondary" type="button" onClick={saveDraft}>
-                  Tussentijds opslaan
+                  Gegevens opslaan
                 </button>
               </div>
             </div>
@@ -854,7 +854,7 @@ export function InspectionForm({
               disabled={isPending}
               onClick={() => formRef.current?.requestSubmit()}
             >
-              {isPending ? "Bezig met opslaan..." : "Keuring opslaan"}
+              {isPending ? "Bezig met opslaan..." : "Keuring afronden"}
             </button>
           )}
         </div>
