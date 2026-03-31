@@ -4,6 +4,7 @@ export interface CustomerRecord {
   id: string;
   companyName: string;
   address: string;
+  city?: string;
   contactName: string;
   phone: string;
   email: string;

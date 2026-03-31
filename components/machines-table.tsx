@@ -45,25 +45,22 @@ export function MachinesTable({
           placeholder="Zoek op intern nummer, merk, type of serienummer"
         />
       </div>
-      <div className="table-like">
-        <div className="table-row table-head machines-table-row">
-          <span>Nummer</span>
-          <span>Merk / type</span>
-          <span>Klant</span>
-          <span>Soort</span>
-        </div>
+      <div className="dataset-list">
         {filteredMachines.map((machine) => (
           <Link
-            className="table-row table-row-link machines-table-row"
+            className="dataset-row"
             href={`/machines/${machine.id}`}
             key={machine.id}
           >
-            <span>{machine.internalNumber || machine.machineNumber}</span>
-            <span>{[machine.brand, machine.model].filter(Boolean).join(" ") || "-"}</span>
+            <strong>
+              {[machine.brand, machine.model].filter(Boolean).join(" ") || "Machine"} ·{" "}
+              {machine.internalNumber || machine.machineNumber}
+            </strong>
+            <span>Serienr: {machine.serialNumber || "-"}</span>
             <span>
-              {customers.find((customer) => customer.id === machine.customerId)?.companyName ?? "-"}
+              {customers.find((customer) => customer.id === machine.customerId)?.companyName ?? "-"} ·{" "}
+              {titleCase(machine.machineType)}
             </span>
-            <span>{titleCase(machine.machineType)}</span>
           </Link>
         ))}
       </div>

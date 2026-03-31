@@ -136,13 +136,7 @@ export function InspectionsTable({
           </div>
         </div>
       ) : null}
-      <div className="table-like">
-        <div className="table-row table-head">
-          <span>Keurnummer</span>
-          <span>Klant / machine</span>
-          <span>Datum</span>
-          <span>Acties</span>
-        </div>
+      <div className="dataset-list">
         {filteredInspections.map((inspection) => {
           const customer = customers.find((item) => item.id === inspection.customerId);
           const machine = machines.find((item) => item.id === inspection.machineId);
@@ -157,16 +151,14 @@ export function InspectionsTable({
                 : "green";
 
           return (
-            <div className="table-row" key={inspection.id}>
-              <span>
+            <div className="dataset-row" key={inspection.id}>
+              <strong>
                 <span className={`status-dot ${statusClass}`} aria-hidden="true" />
                 {inspection.inspectionNumber}
-              </span>
               <span>
-                <strong>{customer?.companyName ?? "-"}</strong>
-                <br />
-                {machine?.brand ?? "Machine"} {machine?.model ?? ""}
+                {customer?.companyName ?? "-"} · {machine?.brand ?? "Machine"} {machine?.model ?? ""}
               </span>
+              </strong>
               <span>{inspection.inspectionDate}</span>
               <span className="inline-meta">
                 {pdfAttachment ? (

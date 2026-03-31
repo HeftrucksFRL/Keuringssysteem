@@ -40,25 +40,16 @@ export function CustomersTable({
           placeholder="Zoek op klantnaam, contact of e-mail"
         />
       </div>
-      <div className="table-like">
-        <div className="table-row table-head">
-          <span>Naam</span>
-          <span>Contact</span>
-          <span>Machines</span>
-          <span>Laatste keuring</span>
-        </div>
+      <div className="dataset-list">
         {filteredCustomers.map((customer) => (
-          <div className="table-row" key={customer.id}>
-            <span>
-              <Link href={`/klanten/${customer.id}`}>{customer.companyName}</Link>
-            </span>
+          <Link className="dataset-row" href={`/klanten/${customer.id}`} key={customer.id}>
+            <strong>{customer.companyName}</strong>
             <span>{customer.contactName || customer.email || "-"}</span>
-            <span>{machines.filter((machine) => machine.customerId === customer.id).length}</span>
             <span>
-              {inspections.find((inspection) => inspection.customerId === customer.id)
-                ?.inspectionDate ?? "-"}
+              {machines.filter((machine) => machine.customerId === customer.id).length} machines · Laatste keuring{" "}
+              {inspections.find((inspection) => inspection.customerId === customer.id)?.inspectionDate ?? "-"}
             </span>
-          </div>
+          </Link>
         ))}
       </div>
     </>

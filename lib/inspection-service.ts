@@ -446,6 +446,7 @@ function mapCustomerRow(row: Record<string, unknown>): CustomerRecord {
     id: String(row.id),
     companyName: String(row.company_name ?? ""),
     address: String(row.address_line_1 ?? ""),
+    city: String(row.city ?? ""),
     contactName: String(row.contact_name ?? ""),
     phone: String(row.phone ?? ""),
     email: String(row.email ?? ""),
