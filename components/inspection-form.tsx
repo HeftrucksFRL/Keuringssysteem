@@ -67,6 +67,31 @@ function machineValues(machine?: MachineRecord | null) {
   };
 }
 
+function latestInspectionForMachine(inspections: InspectionRecord[], machineId: string) {
+  return [...inspections]
+    .filter((inspection) => inspection.machineId === machineId)
+    .sort((left, right) => {
+      const leftDate = `${left.inspectionDate}|${left.updatedAt}`;
+      const rightDate = `${right.inspectionDate}|${right.updatedAt}`;
+      return rightDate.localeCompare(leftDate);
+    })[0];
+}
+
+function machineSnapshotOverrides(snapshot: Record<string, string>) {
+  const blockedKeys = new Set([
+    "machine_number",
+    "brand",
+    "model",
+    "serial_number",
+    "build_year",
+    "internal_number"
+  ]);
+
+  return Object.fromEntries(
+    Object.entries(snapshot).filter(([key]) => !blockedKeys.has(key))
+  );
+}
+
 async function compressImage(file: File) {
   const url = URL.createObjectURL(file);
   const image = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -179,14 +204,16 @@ export function InspectionForm({
     setType(selectedMachine.machineType);
     setValues((current) => ({ ...current, ...machineValues(selectedMachine), ...selectedMachine.configuration }));
     setMachineQuery([selectedMachine.internalNumber || selectedMachine.machineNumber, selectedMachine.brand, selectedMachine.model].filter(Boolean).join(" "));
-    const previousInspection = inspections.find((inspection) => inspection.machineId === selectedMachine.id);
+    const previousInspection = latestInspectionForMachine(inspections, selectedMachine.id);
     if (!previousInspection) {
       setChecklist(buildDefaultChecklist(selectedMachine.machineType));
       return;
     }
     setValues((current) => ({
       ...current,
-      ...previousInspection.machineSnapshot,
+      ...machineSnapshotOverrides(previousInspection.machineSnapshot),
+      ...machineValues(selectedMachine),
+      ...selectedMachine.configuration,
       findings: previousInspection.findings,
       recommendations: previousInspection.recommendations,
       conclusion: previousInspection.conclusion,

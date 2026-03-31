@@ -1276,13 +1276,41 @@ export async function updateInspection(input: {
       return;
     }
 
+    const inspection = mapInspectionRow(updatedRow);
+    if (inspection.status === "draft") {
+      const [customer, machine] = await Promise.all([
+        getCustomerById(inspection.customerId),
+        getMachineById(inspection.machineId)
+      ]);
+
+      if (customer || machine) {
+        const nextCustomerSnapshot = customer
+          ? buildCustomerSnapshot(customer)
+          : inspection.customerSnapshot;
+        const nextMachineSnapshot = machine
+          ? buildMachineSnapshot(machine)
+          : inspection.machineSnapshot;
+
+        await supabase
+          .from("inspections")
+          .update({
+            customer_snapshot: nextCustomerSnapshot,
+            machine_snapshot: nextMachineSnapshot
+          })
+          .eq("id", input.id);
+
+        inspection.customerSnapshot = nextCustomerSnapshot;
+        inspection.machineSnapshot = nextMachineSnapshot;
+      }
+    }
+
     const { data: attachmentRows } = await supabase
       .from("inspection_attachments")
       .select("id, kind, storage_path")
       .eq("inspection_id", input.id);
 
     await syncSupabaseInspectionDocuments(
-      mapInspectionRow(updatedRow),
+      inspection,
       (attachmentRows ?? []).map((row) => ({
         id: String(row.id),
         kind: String(row.kind),
@@ -1305,6 +1333,16 @@ export async function updateInspection(input: {
   inspection.conclusion = input.conclusion;
   inspection.status = input.status;
   inspection.sendPdfToCustomer = input.sendPdfToCustomer;
+  if (inspection.status === "draft") {
+    const customer = data.customers.find((item) => item.id === inspection.customerId);
+    const machine = data.machines.find((item) => item.id === inspection.machineId);
+    if (customer) {
+      inspection.customerSnapshot = buildCustomerSnapshot(customer);
+    }
+    if (machine) {
+      inspection.machineSnapshot = buildMachineSnapshot(machine);
+    }
+  }
   inspection.updatedAt = nowIso();
   await syncDemoInspectionDocuments(data, inspection);
   await writeAppData(data);
