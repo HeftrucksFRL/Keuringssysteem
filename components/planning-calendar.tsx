@@ -367,6 +367,10 @@ export function PlanningCalendar({
           <div className="modal-card" onClick={(event) => event.stopPropagation()}>
             <div className="eyebrow">Geplande keuring</div>
             <h2>{selectedGroup.customer?.companyName ?? "Onbekende klant"}</h2>
+            <p className="muted" style={{ marginTop: "-0.35rem", marginBottom: "1rem" }}>
+              {[selectedGroup.customer?.address, selectedGroup.customer?.city].filter(Boolean).join(", ") || "Adres onbekend"}
+              {selectedGroup.customer?.phone ? ` | ${selectedGroup.customer.phone}` : ""}
+            </p>
             <div className="list">
               <div className="list-item static-list-item">
                 <span>Plaats</span>
