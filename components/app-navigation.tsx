@@ -4,10 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   ClipboardCheck,
+  Forklift,
   FolderKanban,
   LayoutDashboard,
   Menu,
-  Truck,
   Users,
   Wrench
 } from "lucide-react";
@@ -21,7 +21,7 @@ const links: Array<{
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/keuringen/nieuw", label: "Nieuw", icon: ClipboardCheck },
   { href: "/klanten", label: "Klanten", icon: Users },
-  { href: "/machines", label: "Machines", icon: Truck },
+  { href: "/machines", label: "Machines", icon: Forklift },
   { href: "/planning", label: "Planning", icon: FolderKanban },
   { href: "/keuringen", label: "Keuringen", icon: Wrench }
 ];
