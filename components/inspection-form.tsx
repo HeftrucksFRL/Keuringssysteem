@@ -699,11 +699,6 @@ export function InspectionForm({
                   <span>Intern nummer</span>
                 </div>
               </div>
-              <div className="actions" style={{ marginTop: "0.75rem" }}>
-                <button className="button-secondary" type="button" onClick={saveDraft}>
-                  Gegevens opslaan
-                </button>
-              </div>
             </div>
             <div className="form-block">
               <div className="form-grid-wide">
@@ -732,6 +727,11 @@ export function InspectionForm({
                     onChange={(event) => setFieldValue("inspection_date", event.target.value)}
                   />
                 </div>
+              </div>
+              <div className="actions" style={{ marginTop: "0.75rem" }}>
+                <button className="button-secondary" type="button" onClick={saveDraft}>
+                  Gegevens opslaan
+                </button>
               </div>
             </div>
           </section>
