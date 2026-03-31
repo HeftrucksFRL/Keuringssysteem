@@ -56,6 +56,22 @@ function buildMachineSnapshot(machine: {
   };
 }
 
+function buildCustomerSnapshot(customer: {
+  companyName: string;
+  address: string;
+  contactName: string;
+  phone: string;
+  email: string;
+}) {
+  return {
+    customer_name: customer.companyName,
+    customer_address: customer.address,
+    customer_contact: customer.contactName,
+    customer_phone: customer.phone,
+    customer_email: customer.email
+  };
+}
+
 function findOrCreateCustomer(
   data: AppDataSnapshot,
   input: CreateInspectionInput["customer"]
@@ -150,13 +166,7 @@ async function createDemoInspection(input: CreateInspectionInput) {
       ? "rejected"
       : "approved",
     sendPdfToCustomer: input.sendPdfToCustomer,
-    customerSnapshot: {
-      customer_name: customer.companyName,
-      customer_address: customer.address,
-      customer_contact: customer.contactName,
-      customer_phone: customer.phone,
-      customer_email: customer.email
-    },
+    customerSnapshot: buildCustomerSnapshot(customer),
     machineSnapshot: buildMachineSnapshot(machine),
     checklist: input.checklist,
     findings: input.findings,
@@ -563,13 +573,7 @@ export async function createInspection(input: CreateInspectionInput) {
         : "approved",
       send_pdf_to_customer: input.sendPdfToCustomer,
       checklist: input.checklist,
-      customer_snapshot: {
-        customer_name: input.customer.companyName,
-        customer_address: input.customer.address,
-        customer_contact: input.customer.contactName,
-        customer_phone: input.customer.phone,
-        customer_email: input.customer.email
-      },
+      customer_snapshot: buildCustomerSnapshot(input.customer),
       machine_snapshot: buildMachineSnapshot({
         machineNumber: input.machine.machineNumber,
         brand: input.machine.brand,
@@ -850,10 +854,73 @@ export async function getMachinesForCustomer(customerId: string) {
   return machines.filter((machine) => machine.customerId === customerId);
 }
 
+export async function createCustomer(input: {
+  companyName: string;
+  address: string;
+  contactName: string;
+  phone: string;
+  email: string;
+  city?: string;
+}) {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data } = await supabase
+      .from("customers")
+      .upsert(
+        {
+          company_name: input.companyName,
+          address_line_1: input.address,
+          city: input.city ?? "",
+          contact_name: input.contactName,
+          phone: input.phone,
+          email: input.email
+        },
+        { onConflict: "company_name" }
+      )
+      .select()
+      .single();
+
+    return data ? mapCustomerRow(data).id : "";
+  }
+
+  const data = await readAppData();
+  const existing = data.customers.find(
+    (customer) => customer.companyName.toLowerCase() === input.companyName.toLowerCase()
+  );
+
+  if (existing) {
+    existing.address = input.address;
+    existing.city = input.city ?? "";
+    existing.contactName = input.contactName;
+    existing.phone = input.phone;
+    existing.email = input.email;
+    existing.updatedAt = nowIso();
+    await writeAppData(data);
+    return existing.id;
+  }
+
+  const customer: CustomerRecord = {
+    id: randomUUID(),
+    companyName: input.companyName,
+    address: input.address,
+    city: input.city ?? "",
+    contactName: input.contactName,
+    phone: input.phone,
+    email: input.email,
+    createdAt: nowIso(),
+    updatedAt: nowIso()
+  };
+
+  data.customers.unshift(customer);
+  await writeAppData(data);
+  return customer.id;
+}
+
 export async function updateCustomer(input: {
   id: string;
   companyName: string;
   address: string;
+  city?: string;
   contactName: string;
   phone: string;
   email: string;
@@ -865,6 +932,7 @@ export async function updateCustomer(input: {
       .update({
         company_name: input.companyName,
         address_line_1: input.address,
+        city: input.city ?? "",
         contact_name: input.contactName,
         phone: input.phone,
         email: input.email
@@ -882,11 +950,89 @@ export async function updateCustomer(input: {
 
   customer.companyName = input.companyName;
   customer.address = input.address;
+  customer.city = input.city ?? "";
   customer.contactName = input.contactName;
   customer.phone = input.phone;
   customer.email = input.email;
   customer.updatedAt = nowIso();
   await writeAppData(data);
+}
+
+export async function createMachine(input: {
+  customerId: string;
+  machineType: CreateInspectionInput["machineType"];
+  brand: string;
+  model: string;
+  serialNumber: string;
+  buildYear: string;
+  internalNumber: string;
+}) {
+  const machineNumber =
+    input.internalNumber.trim() ||
+    input.serialNumber.trim() ||
+    `${input.brand.trim()}-${input.model.trim()}`.replace(/\s+/g, "-").toLowerCase() ||
+    randomUUID().slice(0, 8);
+
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data } = await supabase
+      .from("machines")
+      .upsert(
+        {
+          customer_id: input.customerId,
+          machine_number: machineNumber,
+          machine_type: input.machineType,
+          brand: input.brand,
+          model: input.model,
+          serial_number: input.serialNumber,
+          build_year: Number(input.buildYear || 0) || null,
+          internal_number: input.internalNumber,
+          configuration: {}
+        },
+        { onConflict: "machine_number" }
+      )
+      .select()
+      .single();
+
+    return data ? mapMachineRow(data).id : "";
+  }
+
+  const data = await readAppData();
+  const existing = data.machines.find(
+    (machine) => machine.machineNumber.toLowerCase() === machineNumber.toLowerCase()
+  );
+
+  if (existing) {
+    existing.customerId = input.customerId;
+    existing.machineType = input.machineType;
+    existing.brand = input.brand;
+    existing.model = input.model;
+    existing.serialNumber = input.serialNumber;
+    existing.buildYear = input.buildYear;
+    existing.internalNumber = input.internalNumber;
+    existing.updatedAt = nowIso();
+    await writeAppData(data);
+    return existing.id;
+  }
+
+  const machine: MachineRecord = {
+    id: randomUUID(),
+    customerId: input.customerId,
+    machineNumber,
+    machineType: input.machineType,
+    brand: input.brand,
+    model: input.model,
+    serialNumber: input.serialNumber,
+    buildYear: input.buildYear,
+    internalNumber: input.internalNumber,
+    configuration: {},
+    createdAt: nowIso(),
+    updatedAt: nowIso()
+  };
+
+  data.machines.unshift(machine);
+  await writeAppData(data);
+  return machine.id;
 }
 
 export async function updatePlanningItem(input: {
@@ -1004,6 +1150,88 @@ export async function updateMachine(input: {
     }
 
     inspection.machineSnapshot = machineSnapshot;
+    inspection.updatedAt = nowIso();
+    affectedInspectionIds.push(inspection.id);
+    await syncDemoInspectionDocuments(data, inspection);
+  }
+
+  await writeAppData(data);
+  return affectedInspectionIds;
+}
+
+export async function assignMachineToCustomer(input: {
+  machineId: string;
+  customerId: string;
+}) {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data: customerRow } = await supabase
+      .from("customers")
+      .select("*")
+      .eq("id", input.customerId)
+      .maybeSingle();
+    const { data: machineRow } = await supabase
+      .from("machines")
+      .update({ customer_id: input.customerId })
+      .eq("id", input.machineId)
+      .select("*")
+      .maybeSingle();
+
+    if (!customerRow || !machineRow) {
+      return [];
+    }
+
+    const customer = mapCustomerRow(customerRow);
+    const { data: draftRows } = await supabase
+      .from("inspections")
+      .update({
+        customer_id: input.customerId,
+        customer_snapshot: buildCustomerSnapshot(customer)
+      })
+      .eq("machine_id", input.machineId)
+      .eq("status", "draft")
+      .select("*");
+
+    const affectedInspectionIds: string[] = [];
+    for (const row of draftRows ?? []) {
+      const inspection = mapInspectionRow(row);
+      affectedInspectionIds.push(inspection.id);
+      const { data: attachmentRows } = await supabase
+        .from("inspection_attachments")
+        .select("id, kind, storage_path")
+        .eq("inspection_id", inspection.id);
+
+      await syncSupabaseInspectionDocuments(
+        inspection,
+        (attachmentRows ?? []).map((attachment) => ({
+          id: String(attachment.id),
+          kind: String(attachment.kind),
+          storage_path: String(attachment.storage_path)
+        }))
+      );
+    }
+
+    return affectedInspectionIds;
+  }
+
+  const data = await readAppData();
+  const customer = data.customers.find((item) => item.id === input.customerId);
+  const machine = data.machines.find((item) => item.id === input.machineId);
+  if (!customer || !machine) {
+    return [];
+  }
+
+  machine.customerId = input.customerId;
+  machine.updatedAt = nowIso();
+
+  const affectedInspectionIds: string[] = [];
+  for (const inspection of data.inspections) {
+    if (inspection.machineId !== input.machineId || inspection.status !== "draft") {
+      continue;
+    }
+
+    inspection.customerId = input.customerId;
+    inspection.customerSnapshot = buildCustomerSnapshot(customer);
     inspection.updatedAt = nowIso();
     affectedInspectionIds.push(inspection.id);
     await syncDemoInspectionDocuments(data, inspection);

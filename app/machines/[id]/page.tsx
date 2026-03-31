@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Route } from "next";
-import { updateMachineAction } from "@/app/machines/actions";
+import {
+  assignMachineToCustomerAction,
+  updateMachineAction
+} from "@/app/machines/actions";
+import { CustomerPicker } from "@/components/customer-picker";
 import {
   getAttachmentsForInspection,
   getCustomers,
@@ -16,7 +20,7 @@ export default async function MachineDetailPage({
   searchParams
 }: {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ saved?: string }>;
+  searchParams?: Promise<{ saved?: string; created?: string; assigned?: string }>;
 }) {
   const { id } = await params;
   const query = await searchParams;
@@ -48,12 +52,17 @@ export default async function MachineDetailPage({
           Vanuit dit dossier kun je eerdere keuringen openen en de volgende inspectie voorbereiden.
         </p>
         {query?.saved ? <p className="form-message success">Machine opgeslagen.</p> : null}
+        {query?.created ? <p className="form-message success">Machine toegevoegd.</p> : null}
+        {query?.assigned ? <p className="form-message success">Machine gekoppeld aan klant.</p> : null}
         <div className="actions">
           <Link
             className="button"
             href={`/keuringen/nieuw?customerId=${machine.customerId}&machineId=${machine.id}` as Route}
           >
             Start nieuwe keuring
+          </Link>
+          <Link className="button-secondary" href={`/machines/nieuw?customerId=${machine.customerId}`}>
+            Machine toevoegen
           </Link>
         </div>
       </section>
@@ -117,6 +126,20 @@ export default async function MachineDetailPage({
               <strong>{customer?.phone ?? "-"}</strong>
             </div>
           </div>
+          <form action={assignMachineToCustomerAction} style={{ marginTop: "1rem" }}>
+            <input type="hidden" name="machineId" value={machine.id} />
+            <CustomerPicker
+              customers={customers}
+              defaultCustomerId={machine.customerId}
+              label="Toevoegen aan klant"
+              required
+            />
+            <div className="actions">
+              <button className="button-secondary" type="submit">
+                Machine koppelen
+              </button>
+            </div>
+          </form>
         </article>
       </section>
 

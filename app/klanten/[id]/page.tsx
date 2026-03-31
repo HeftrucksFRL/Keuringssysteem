@@ -14,7 +14,7 @@ export default async function CustomerDetailPage({
   searchParams
 }: {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ saved?: string }>;
+  searchParams?: Promise<{ saved?: string; created?: string }>;
 }) {
   const { id } = await params;
   const query = await searchParams;
@@ -37,9 +37,13 @@ export default async function CustomerDetailPage({
         <h1>{customer.companyName}</h1>
         <p>Beheer hier de klantgegevens, machines en start direct een nieuwe keuring.</p>
         {query?.saved ? <p className="form-message success">Klant opgeslagen.</p> : null}
+        {query?.created ? <p className="form-message success">Klant toegevoegd.</p> : null}
         <div className="actions">
           <Link className="button" href={`/keuringen/nieuw?customerId=${customer.id}`}>
             Nieuwe keuring starten
+          </Link>
+          <Link className="button-secondary" href={`/machines/nieuw?customerId=${customer.id}`}>
+            Machine toevoegen
           </Link>
         </div>
       </section>
@@ -61,6 +65,10 @@ export default async function CustomerDetailPage({
             <div className="field">
               <label htmlFor="address">Adres</label>
               <input id="address" name="address" defaultValue={customer.address} />
+            </div>
+            <div className="field">
+              <label htmlFor="city">Plaats</label>
+              <input id="city" name="city" defaultValue={customer.city} />
             </div>
             <div className="field">
               <label htmlFor="phone">Telefoon</label>

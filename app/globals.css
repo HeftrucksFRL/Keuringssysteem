@@ -614,6 +614,19 @@ textarea {
   color: var(--muted);
 }
 
+.selected-summary {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.8rem 0.9rem;
+  border-radius: 14px;
+  border: 1px solid #dce8f4;
+  background: #f5f9fd;
+}
+
+.selected-summary span {
+  color: var(--muted);
+}
+
 .keurnummer-banner {
   display: grid;
   gap: 0.35rem;
