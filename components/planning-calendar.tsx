@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { CustomerRecord, MachineRecord, PlanningRecord } from "@/lib/domain";
 
 interface PlanningCalendarProps {
   items: PlanningRecord[];
   customers: CustomerRecord[];
   machines: MachineRecord[];
+  initialMonth?: string;
 }
 
 function monthLabel(date: Date) {
@@ -56,6 +57,42 @@ function isoDate(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
+function monthKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function parseMonthKey(value?: string) {
+  if (!value || !/^\d{4}-\d{2}$/.test(value)) {
+    return new Date();
+  }
+
+  const [year, month] = value.split("-").map(Number);
+  return new Date(year, month - 1, 1);
+}
+
+function placeLabel(customer?: CustomerRecord) {
+  const city = customer?.city?.trim();
+  if (city) {
+    return city;
+  }
+
+  const address = customer?.address?.trim() ?? "";
+  if (!address) {
+    return "Onbekende plaats";
+  }
+
+  const parts = address
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length > 1) {
+    return parts[parts.length - 1];
+  }
+
+  return address;
+}
+
 function stateLabel(state: PlanningRecord["state"]) {
   if (state === "overdue") return "Verlopen";
   if (state === "scheduled") return "Gepland";
@@ -65,12 +102,23 @@ function stateLabel(state: PlanningRecord["state"]) {
 export function PlanningCalendar({
   items,
   customers,
-  machines
+  machines,
+  initialMonth
 }: PlanningCalendarProps) {
-  const [anchorDate, setAnchorDate] = useState(new Date());
+  const [anchorDate, setAnchorDate] = useState(() => parseMonthKey(initialMonth));
   const [query, setQuery] = useState("");
   const [sortByPlace, setSortByPlace] = useState(true);
   const [selectedGroupKey, setSelectedGroupKey] = useState("");
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const url = new URL(window.location.href);
+    url.searchParams.set("month", monthKey(anchorDate));
+    window.history.replaceState(null, "", url);
+  }, [anchorDate]);
 
   const calendarDays = useMemo(() => {
     const first = startOfGrid(anchorDate);
@@ -100,7 +148,7 @@ export function PlanningCalendar({
         const customer = customers.find((entry) => entry.id === item.customerId);
         const machine = machines.find((entry) => entry.id === item.machineId);
         const key = `${item.customerId}-${item.dueDate}`;
-        const place = customer?.city || customer?.address || "Onbekende plaats";
+        const place = placeLabel(customer);
 
         if (!grouped.has(key)) {
           grouped.set(key, {

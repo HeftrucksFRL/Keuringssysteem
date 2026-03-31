@@ -78,7 +78,7 @@ export function AppNavigation() {
       </nav>
 
       <nav className="bottom-nav" aria-label="Snelle navigatie">
-        {links.slice(0, 5).map((link) => {
+        {links.map((link) => {
           const Icon = link.icon;
           return (
             <Link
