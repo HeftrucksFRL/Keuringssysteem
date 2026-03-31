@@ -14,6 +14,7 @@ import {
   getMachineById,
   getMachineHistory
 } from "@/lib/inspection-service";
+import { getFormDefinition } from "@/lib/form-definitions";
 import { fileUrl } from "@/lib/file-urls";
 import { titleCase } from "@/lib/utils";
 
@@ -35,6 +36,12 @@ export default async function MachineDetailPage({
   const customers = await getCustomers();
   const customer = customers.find((item) => item.id === machine.customerId);
   const history = await getMachineHistory(machine.id);
+  const form = getFormDefinition(machine.machineType);
+  const extraFields = form.machineFields.filter(
+    (field) =>
+      !field.key.startsWith("customer_") &&
+      !["brand", "model", "build_year", "internal_number", "serial_number", "inspection_date", "sticker_number", "machine_number"].includes(field.key)
+  );
   const attachmentsByInspection = await Promise.all(
     history.map(async (inspection) => ({
       inspectionId: inspection.id,
@@ -86,6 +93,7 @@ export default async function MachineDetailPage({
         <form action={updateMachineAction} className="panel">
           <div className="eyebrow">Machinekaart</div>
           <input type="hidden" name="id" value={machine.id} />
+          <input type="hidden" name="machineType" value={machine.machineType} />
           <div className="list" style={{ marginBottom: "1rem" }}>
             <div className="list-item">
               <span>Soort</span>
@@ -113,6 +121,17 @@ export default async function MachineDetailPage({
               <label htmlFor="internalNumber">Intern nummer</label>
               <input id="internalNumber" name="internalNumber" defaultValue={machine.internalNumber} />
             </div>
+            {extraFields.map((field) => (
+              <div className="field" key={field.key}>
+                <label htmlFor={field.key}>{field.label}</label>
+                <input
+                  id={field.key}
+                  name={field.key}
+                  type={field.type ?? "text"}
+                  defaultValue={machine.configuration[field.key] ?? ""}
+                />
+              </div>
+            ))}
           </div>
           <div className="actions">
             <button className="button" type="submit">

@@ -1273,11 +1273,13 @@ export async function updatePlanningItem(input: {
 
 export async function updateMachine(input: {
   id: string;
+  machineType: CreateInspectionInput["machineType"];
   brand: string;
   model: string;
   serialNumber: string;
   buildYear: string;
   internalNumber: string;
+  details: Record<string, string>;
 }) {
   const machineNumber =
     input.internalNumber.trim() ||
@@ -1314,7 +1316,8 @@ export async function updateMachine(input: {
         serial_number: input.serialNumber,
         build_year: Number(input.buildYear || 0) || null,
         internal_number: input.internalNumber,
-        configuration: {}
+        machine_type: input.machineType,
+        configuration: sanitizeMachineConfiguration(input.details)
       })
       .eq("id", input.id)
       .select("*")
@@ -1391,7 +1394,8 @@ export async function updateMachine(input: {
   machine.buildYear = input.buildYear;
   machine.internalNumber = input.internalNumber;
   machine.machineNumber = machineNumber;
-  machine.configuration = {};
+  machine.machineType = input.machineType;
+  machine.configuration = sanitizeMachineConfiguration(input.details);
   machine.updatedAt = nowIso();
 
   for (const duplicate of duplicateMachines) {

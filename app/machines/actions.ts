@@ -9,6 +9,7 @@ import {
   deleteMachine,
   updateMachine
 } from "@/lib/inspection-service";
+import { getFormDefinition } from "@/lib/form-definitions";
 
 export async function createMachineAction(formData: FormData) {
   const id = await createMachine({
@@ -31,14 +32,30 @@ export async function createMachineAction(formData: FormData) {
 
 export async function updateMachineAction(formData: FormData) {
   const id = String(formData.get("id") || "");
+  const machineType = String(formData.get("machineType") || "heftruck_reachtruck") as Parameters<
+    typeof updateMachine
+  >[0]["machineType"];
+  const definition = getFormDefinition(machineType);
+  const extraDetails = Object.fromEntries(
+    definition.machineFields
+      .filter(
+        (field) =>
+          !field.key.startsWith("customer_") &&
+          !["brand", "model", "build_year", "internal_number", "serial_number", "inspection_date", "sticker_number", "machine_number"].includes(field.key)
+      )
+      .map((field) => [field.key, String(formData.get(field.key) || "")])
+      .filter(([, value]) => value.trim())
+  );
 
   const affectedInspectionIds = await updateMachine({
     id,
+    machineType,
     brand: String(formData.get("brand") || ""),
     model: String(formData.get("model") || ""),
     serialNumber: String(formData.get("serialNumber") || ""),
     buildYear: String(formData.get("buildYear") || ""),
-    internalNumber: String(formData.get("internalNumber") || "")
+    internalNumber: String(formData.get("internalNumber") || ""),
+    details: extraDetails
   });
 
   revalidatePath("/machines");
