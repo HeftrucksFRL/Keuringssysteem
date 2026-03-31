@@ -138,8 +138,20 @@ export default async function CustomerDetailPage({
                   Rapport openen
                 </a>
               ) : (
-                <span className={`badge ${inspection.status === "rejected" ? "orange" : "green"}`}>
-                  {inspection.status === "rejected" ? "Afgekeurd" : "Goedgekeurd"}
+                <span
+                  className={`badge ${
+                    inspection.status === "rejected"
+                      ? "orange"
+                      : inspection.status === "draft"
+                        ? "orange"
+                        : "green"
+                  }`}
+                >
+                  {inspection.status === "rejected"
+                    ? "Afgekeurd"
+                    : inspection.status === "draft"
+                      ? "In behandeling"
+                      : "Goedgekeurd"}
                 </span>
               )}
             </span>

@@ -787,7 +787,7 @@ export function InspectionForm({
                 <textarea id="recommendations" name="recommendations" value={values.recommendations ?? ""} onChange={(event) => setFieldValue("recommendations", event.target.value)} />
               </div>
               <div className="field">
-                <label htmlFor="conclusion">Conclusie</label>
+                <label htmlFor="conclusion">Extra opmerkingen</label>
                 <textarea id="conclusion" name="conclusion" value={values.conclusion ?? ""} onChange={(event) => setFieldValue("conclusion", event.target.value)} />
               </div>
             </div>

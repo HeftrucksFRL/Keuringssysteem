@@ -102,6 +102,20 @@ function nextInspectionNumber(existing: InspectionRecord[], inspectionDate: stri
   return String(next);
 }
 
+function statusFromResultLabels(resultLabels: string[]) {
+  const normalizedLabels = resultLabels.map((label) => label.toLowerCase());
+
+  if (normalizedLabels.some((label) => label.includes("afgekeurd"))) {
+    return "rejected" as const;
+  }
+
+  if (normalizedLabels.some((label) => label.includes("behandeling"))) {
+    return "draft" as const;
+  }
+
+  return "approved" as const;
+}
+
 function buildMachineSnapshot(machine: {
   machineNumber: string;
   brand: string;
@@ -250,9 +264,7 @@ async function createDemoInspection(input: CreateInspectionInput) {
     machineType: input.machineType,
     inspectionDate: input.inspectionDate,
     nextInspectionDate,
-    status: input.resultLabels.some((label) => label.toLowerCase().includes("afgekeurd"))
-      ? "rejected"
-      : "approved",
+    status: statusFromResultLabels(input.resultLabels),
     sendPdfToCustomer: input.sendPdfToCustomer,
     customerSnapshot: buildCustomerSnapshot(customer),
     machineSnapshot: buildMachineSnapshot(machine),
@@ -696,9 +708,7 @@ export async function createInspection(input: CreateInspectionInput) {
       machine_id: machineRow?.id,
       machine_type: input.machineType,
       inspection_date: input.inspectionDate,
-      status: input.resultLabels.some((label) => label.toLowerCase().includes("afgekeurd"))
-        ? "rejected"
-        : "approved",
+      status: statusFromResultLabels(input.resultLabels),
       send_pdf_to_customer: input.sendPdfToCustomer,
       checklist: input.checklist,
       customer_snapshot: buildCustomerSnapshot(input.customer),

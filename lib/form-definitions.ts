@@ -46,7 +46,7 @@ export const formDefinitions: FormDefinition[] = [
       { key: "sticker_number", label: "Stickernummer" }
     ]),
     checklistOptions: ["goed", "slecht", "nvt"],
-    conclusionLabels: ["Goedgekeurd", "Afgekeurd"],
+    conclusionLabels: ["Goedgekeurd", "Afgekeurd", "In behandeling"],
     sections: [
       {
         key: "algemeen",
@@ -174,7 +174,7 @@ export const formDefinitions: FormDefinition[] = [
       { key: "racking_type", label: "Soort stelling" }
     ]),
     checklistOptions: ["goed", "matig", "slecht", "nvt"],
-    conclusionLabels: ["Goedgekeurd", "Afgekeurd"],
+    conclusionLabels: ["Goedgekeurd", "Afgekeurd", "In behandeling"],
     sections: [
       {
         key: "gebouwvloer",
@@ -277,7 +277,7 @@ export const formDefinitions: FormDefinition[] = [
       { key: "sticker_number", label: "Stickernummer" }
     ]),
     checklistOptions: ["goed", "slecht", "nvt"],
-    conclusionLabels: ["Goedgekeurd", "Afgekeurd"],
+    conclusionLabels: ["Goedgekeurd", "Afgekeurd", "In behandeling"],
     sections: [
       {
         key: "chassis_constructie",
@@ -387,7 +387,7 @@ export const formDefinitions: FormDefinition[] = [
       { key: "sticker_number", label: "Stickernummer" }
     ]),
     checklistOptions: ["goed", "slecht", "nvt"],
-    conclusionLabels: ["Goedgekeurd", "Afgekeurd"],
+    conclusionLabels: ["Goedgekeurd", "Afgekeurd", "In behandeling"],
     sections: [
       {
         key: "algemeen",
@@ -504,7 +504,7 @@ export const formDefinitions: FormDefinition[] = [
       { key: "max_persons", label: "Aantal personen", type: "number" }
     ]),
     checklistOptions: ["goed", "slecht", "nvt"],
-    conclusionLabels: ["Goedgekeurd", "Afgekeurd"],
+    conclusionLabels: ["Goedgekeurd", "Afgekeurd", "In behandeling"],
     sections: [
       {
         key: "algemeen",
@@ -760,7 +760,8 @@ export const formDefinitions: FormDefinition[] = [
       "Batterij goedgekeurd",
       "Batterij afgekeurd",
       "Lader goedgekeurd",
-      "Lader afgekeurd"
+      "Lader afgekeurd",
+      "In behandeling"
     ],
     sections: [
       {
@@ -821,7 +822,7 @@ export const formDefinitions: FormDefinition[] = [
       { key: "sticker_number", label: "Stickernummer" }
     ]),
     checklistOptions: ["goed", "slecht", "nvt"],
-    conclusionLabels: ["Goedgekeurd", "Afgekeurd"],
+    conclusionLabels: ["Goedgekeurd", "Afgekeurd", "In behandeling"],
     sections: [
       {
         key: "algemeen",
@@ -943,7 +944,7 @@ export const formDefinitions: FormDefinition[] = [
       { key: "sticker_number", label: "Stickernummer" }
     ]),
     checklistOptions: ["goed", "slecht", "nvt"],
-    conclusionLabels: ["Goedgekeurd", "Afgekeurd"],
+    conclusionLabels: ["Goedgekeurd", "Afgekeurd", "In behandeling"],
     sections: [
       {
         key: "chassis_constructie",

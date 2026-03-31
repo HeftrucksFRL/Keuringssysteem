@@ -191,8 +191,20 @@ export default async function MachineDetailPage({
             <div className="table-row" key={inspection.id}>
               <span>{inspection.inspectionNumber}</span>
               <span>{inspection.inspectionDate}</span>
-              <span className={`badge ${inspection.status === "rejected" ? "orange" : "green"}`}>
-                {inspection.status === "rejected" ? "Afgekeurd" : "Goedgekeurd"}
+              <span
+                className={`badge ${
+                  inspection.status === "rejected"
+                    ? "orange"
+                    : inspection.status === "draft"
+                      ? "orange"
+                      : "green"
+                }`}
+              >
+                {inspection.status === "rejected"
+                  ? "Afgekeurd"
+                  : inspection.status === "draft"
+                    ? "In behandeling"
+                    : "Goedgekeurd"}
               </span>
               <span>
                 <div className="inline-meta">

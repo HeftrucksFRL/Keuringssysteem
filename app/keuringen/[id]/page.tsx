@@ -91,7 +91,7 @@ export default async function InspectionDetailPage({
                 {inspection.status === "rejected"
                   ? "Afgekeurd"
                   : inspection.status === "draft"
-                    ? "Concept"
+                    ? "In behandeling"
                     : inspection.status === "completed"
                       ? "Afgerond"
                       : "Goedgekeurd"}
@@ -116,7 +116,7 @@ export default async function InspectionDetailPage({
             <div className="field">
               <label htmlFor="status">Status</label>
               <select id="status" name="status" defaultValue={inspection.status}>
-                <option value="draft">Concept</option>
+                <option value="draft">In behandeling</option>
                 <option value="approved">Goedgekeurd</option>
                 <option value="rejected">Afgekeurd</option>
                 <option value="completed">Afgerond</option>
@@ -132,7 +132,7 @@ export default async function InspectionDetailPage({
             <textarea id="recommendations" name="recommendations" defaultValue={inspection.recommendations} />
           </div>
           <div className="field">
-            <label htmlFor="conclusion">Conclusie</label>
+            <label htmlFor="conclusion">Extra opmerkingen</label>
             <textarea id="conclusion" name="conclusion" defaultValue={inspection.conclusion} />
           </div>
           <div className="field">
