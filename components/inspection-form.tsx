@@ -32,13 +32,6 @@ const machineTypeOptions: { value: MachineType; label: string }[] = [
   { value: "stellingmateriaal", label: "Stellingmateriaal" }
 ];
 
-const stepMeta = [
-  { step: 1 as Step, label: "Stap 1", title: "Start" },
-  { step: 2 as Step, label: "Stap 2", title: "Klant" },
-  { step: 3 as Step, label: "Stap 3", title: "Machine" },
-  { step: 4 as Step, label: "Stap 4", title: "Keuring" }
-];
-
 function visibleField(key: string) {
   return !key.includes("sticker") && key !== "machine_number";
 }
@@ -326,13 +319,6 @@ export function InspectionForm({
     });
   }
 
-  function canJumpToStep(targetStep: Step) {
-    if (targetStep <= step) return true;
-    if (targetStep === 2) return customerMode === "new" || Boolean(selectedCustomerId);
-    if (targetStep === 3) return Boolean(values.customer_name);
-    return Boolean(values.customer_name) && Boolean(values.internal_number);
-  }
-
   return (
     <form ref={formRef} onSubmit={submitForm} className="inspection-layout">
       <div ref={topRef} />
@@ -340,33 +326,15 @@ export function InspectionForm({
         <input key={key} type="hidden" name={key} value={value} />
       ))}
 
-      <section className="inspection-card inspection-card-full">
-        <div className="eyebrow">Nieuwe keuring</div>
-        <h2>Werk stap voor stap door de keuring heen</h2>
-        <div className="keurnummer-banner" style={{ marginTop: "1rem", marginBottom: 0 }}>
-          <span>Keurnummer</span>
-          <strong>Wordt automatisch aangemaakt bij opslaan</strong>
-        </div>
-        <div className="stepper">
-          {stepMeta.map((item) => (
-            <button
-              key={item.step}
-              type="button"
-              className={`step-chip ${step === item.step ? "active" : step > item.step ? "done" : ""}`}
-              onClick={() => canJumpToStep(item.step) && setStep(item.step)}
-              disabled={!canJumpToStep(item.step)}
-            >
-              <span>{item.label}</span>
-              <strong>{item.title}</strong>
-            </button>
-          ))}
-        </div>
+      <section className="keurnummer-banner inspection-card-full">
+        <span>Keurnummer</span>
+        <strong>Wordt automatisch aangemaakt bij opslaan</strong>
       </section>
 
       {step === 1 ? (
         <section className="inspection-card inspection-card-full">
           <div className="eyebrow">Stap 1</div>
-          <h2>Hoe wil je starten?</h2>
+          <h2>Start keuring</h2>
           <div className="choice-grid">
             <button type="button" className={`choice-card ${customerMode === "existing" ? "active" : ""}`} onClick={() => resetForCustomerMode("existing")}>
               <strong>Bestaande klant of machine zoeken</strong>
