@@ -1233,16 +1233,31 @@ export async function updateMachine(input: {
   buildYear: string;
   internalNumber: string;
 }) {
+  const machineNumber =
+    input.internalNumber.trim() ||
+    input.serialNumber.trim() ||
+    `${input.brand.trim()}-${input.model.trim()}`.replace(/\s+/g, "-").toLowerCase() ||
+    input.id;
+
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
+    const { data: existingMachineRow } = await supabase
+      .from("machines")
+      .select("*")
+      .eq("id", input.id)
+      .maybeSingle();
+
+    const existingMachine = existingMachineRow ? mapMachineRow(existingMachineRow) : null;
     const { data: updatedMachineRow } = await supabase
       .from("machines")
       .update({
+        machine_number: machineNumber,
         brand: input.brand,
         model: input.model,
         serial_number: input.serialNumber,
         build_year: Number(input.buildYear || 0) || null,
-        internal_number: input.internalNumber
+        internal_number: input.internalNumber,
+        configuration: sanitizeMachineConfiguration(existingMachine?.configuration ?? {})
       })
       .eq("id", input.id)
       .select("*")
@@ -1254,18 +1269,17 @@ export async function updateMachine(input: {
 
     const machine = mapMachineRow(updatedMachineRow);
     const machineSnapshot = buildMachineSnapshot(machine);
-    const { data: draftRows } = await supabase
+    const { data: inspectionRows } = await supabase
       .from("inspections")
       .update({
         machine_snapshot: machineSnapshot
       })
       .eq("machine_id", input.id)
-      .eq("status", "draft")
       .select("*");
 
     const affectedInspectionIds: string[] = [];
 
-    for (const row of draftRows ?? []) {
+    for (const row of inspectionRows ?? []) {
       const inspection = mapInspectionRow(row);
       affectedInspectionIds.push(inspection.id);
       const { data: attachmentRows } = await supabase
@@ -1297,12 +1311,14 @@ export async function updateMachine(input: {
   machine.serialNumber = input.serialNumber;
   machine.buildYear = input.buildYear;
   machine.internalNumber = input.internalNumber;
+  machine.machineNumber = machineNumber;
+  machine.configuration = sanitizeMachineConfiguration(machine.configuration);
   machine.updatedAt = nowIso();
 
   const machineSnapshot = buildMachineSnapshot(machine);
   const affectedInspectionIds: string[] = [];
   for (const inspection of data.inspections) {
-    if (inspection.machineId !== input.id || inspection.status !== "draft") {
+    if (inspection.machineId !== input.id) {
       continue;
     }
 
