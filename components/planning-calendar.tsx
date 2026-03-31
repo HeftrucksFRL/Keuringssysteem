@@ -149,6 +149,7 @@ export function PlanningCalendar({
   }, [customers, items, machines, query, sortByPlace, visibleIsoDays]);
 
   const selectedGroup = groupedItems.find((group) => group.key === selectedGroupKey) ?? null;
+  const selectedPrimaryMachine = selectedGroup?.machineList[0] ?? null;
 
   return (
     <div className="panel">
@@ -221,7 +222,7 @@ export function PlanningCalendar({
         </button>
       </div>
 
-      <div className="agenda-list">
+      <div className="agenda-list mobile-agenda">
         {visibleDays.map((day) => {
           const dayKey = day.toISOString().slice(0, 10);
           const dayItems = groupedItems.filter((group) => sameDay(group.dueDate, dayKey));
@@ -253,6 +254,43 @@ export function PlanningCalendar({
                   </button>
                 ))
               )}
+            </section>
+          );
+        })}
+      </div>
+
+      <div className={`desktop-agenda desktop-agenda-${view}`}>
+        {visibleDays.map((day) => {
+          const dayKey = day.toISOString().slice(0, 10);
+          const dayItems = groupedItems.filter((group) => sameDay(group.dueDate, dayKey));
+
+          return (
+            <section className="desktop-agenda-column" key={dayKey}>
+              <div className="desktop-agenda-head">
+                <strong>{formatDateLabel(day)}</strong>
+                <span>{dayItems.length} afspraak{dayItems.length === 1 ? "" : "ken"}</span>
+              </div>
+
+              <div className="desktop-agenda-body">
+                {dayItems.length === 0 ? (
+                  <div className="desktop-agenda-empty">Geen afspraken</div>
+                ) : (
+                  dayItems.map((group) => (
+                    <button
+                      key={group.key}
+                      className={`desktop-agenda-item ${group.state}`}
+                      type="button"
+                      onClick={() => setSelectedGroupKey(group.key)}
+                    >
+                      <strong>{group.customer?.companyName ?? "Onbekende klant"}</strong>
+                      <span>{group.place}</span>
+                      <span>
+                        {group.machineList.length} machine{group.machineList.length === 1 ? "" : "s"} · {stateLabel(group.state)}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
             </section>
           );
         })}
@@ -297,9 +335,16 @@ export function PlanningCalendar({
             </div>
 
             <div className="actions">
-              <Link className="button-secondary" href={`/klanten/${selectedGroup.customer?.id ?? ""}`}>
-                Open klantkaart
-              </Link>
+              {selectedGroup.customer?.id ? (
+                <Link className="button-secondary" href={`/klanten/${selectedGroup.customer.id}`}>
+                  Open klantkaart
+                </Link>
+              ) : null}
+              {selectedPrimaryMachine ? (
+                <Link className="button-secondary" href={`/machines/${selectedPrimaryMachine.id}`}>
+                  Open machinekaart
+                </Link>
+              ) : null}
               <button className="button" type="button" onClick={() => setSelectedGroupKey("")}>
                 Sluiten
               </button>

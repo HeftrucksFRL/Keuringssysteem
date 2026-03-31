@@ -851,6 +851,10 @@ textarea {
   gap: 0.75rem;
 }
 
+.desktop-agenda {
+  display: none;
+}
+
 .agenda-day {
   display: grid;
   gap: 0.55rem;
@@ -907,6 +911,76 @@ textarea {
 
 .agenda-main span {
   color: var(--muted);
+}
+
+.desktop-agenda-week {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.desktop-agenda-day {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.desktop-agenda-column {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.desktop-agenda-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.2rem 0.2rem 0.6rem;
+  color: var(--muted);
+}
+
+.desktop-agenda-body {
+  display: grid;
+  gap: 0.75rem;
+  min-height: 280px;
+  padding: 0.75rem;
+  border-radius: 20px;
+  background: #f8fbfd;
+  border: 1px solid #dfe8f2;
+  align-content: start;
+}
+
+.desktop-agenda-item,
+.desktop-agenda-empty {
+  padding: 0.9rem 1rem;
+  border-radius: 16px;
+  border: 1px solid #dde7f0;
+  background: #fff;
+}
+
+.desktop-agenda-item {
+  display: grid;
+  gap: 0.3rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.desktop-agenda-item span,
+.desktop-agenda-empty {
+  color: var(--muted);
+}
+
+.desktop-agenda-item.scheduled {
+  border-left: 5px solid var(--accent);
+}
+
+.desktop-agenda-item.overdue {
+  border-left: 5px solid var(--warning);
+}
+
+.desktop-agenda-item.upcoming {
+  border-left: 5px solid var(--success);
+}
+
+.desktop-agenda-empty {
+  background: #f8fbfd;
 }
 
 .active-toggle {
@@ -1049,12 +1123,21 @@ textarea {
   }
 
   .calendar-head {
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
-  }
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+    }
+  
+    .calendar-controls {
+      justify-items: end;
+    }
 
-  .calendar-controls {
-    justify-items: end;
+    .mobile-agenda {
+      display: none;
+    }
+
+    .desktop-agenda {
+      display: grid;
+      gap: 0.85rem;
+    }
   }
-}
