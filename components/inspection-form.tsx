@@ -52,10 +52,6 @@ function visibleField(key: string) {
   return !key.includes("sticker") && key !== "machine_number";
 }
 
-function visibleExistingMachineField(key: string) {
-  return ["brand", "model", "internal_number", "serial_number"].includes(key);
-}
-
 function buildDefaultChecklist(type: MachineType) {
   const definition = getFormDefinition(type);
   const defaultOption = definition.checklistOptions[0];
@@ -179,6 +175,7 @@ export function InspectionForm({
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [message, setMessage] = useState<Flash>(null);
   const [checklist, setChecklist] = useState<Record<string, ChecklistOption>>(buildDefaultChecklist(defaultType));
+  const [draftNotice, setDraftNotice] = useState("");
 
   const form = useMemo(() => getFormDefinition(type), [type]);
   const selectedCustomer = customers.find((item) => item.id === selectedCustomerId) ?? null;
@@ -313,6 +310,7 @@ export function InspectionForm({
   }, [selectedMachine, inspections]);
 
   function setFieldValue(key: string, value: string) {
+    setDraftNotice("");
     setValues((current) => ({ ...current, [key]: value }));
   }
 
@@ -325,6 +323,7 @@ export function InspectionForm({
     setCustomerMenuOpen(false);
     setMachineMenuOpen(false);
     setMachineMode("existing");
+    setDraftNotice("");
     setValues((current) => ({ ...current, ...customerValues(customer), ...machineValues(null), findings: "", recommendations: "", conclusion: "" }));
     setChecklist(buildDefaultChecklist(type));
     setStep(2);
@@ -339,6 +338,7 @@ export function InspectionForm({
     setCustomerMenuOpen(false);
     setMachineMenuOpen(false);
     setMachineMode("new");
+    setDraftNotice("");
     setValues((current) => ({ ...current, ...customerValues(null), ...machineValues(null), findings: "", recommendations: "", conclusion: "" }));
     setChecklist(buildDefaultChecklist(type));
   }
@@ -347,6 +347,7 @@ export function InspectionForm({
     setMachineMode("existing");
     setSelectedMachineId(machine.id);
     setMachineMenuOpen(false);
+    setDraftNotice("");
   }
 
   function resetForMachineMode(mode: Mode) {
@@ -354,6 +355,7 @@ export function InspectionForm({
     setSelectedMachineId("");
     setMachineQuery("");
     setMachineMenuOpen(false);
+    setDraftNotice("");
     setValues((current) => ({ ...current, ...machineValues(null) }));
     setChecklist(buildDefaultChecklist(type));
   }
@@ -457,6 +459,7 @@ export function InspectionForm({
     };
 
     window.localStorage.setItem(draftStorageKey, JSON.stringify(draft));
+    setDraftNotice("Gegevens bijgewerkt");
     setMessage({ type: "success", text: "Concept tussentijds opgeslagen." });
   }
 
@@ -632,8 +635,8 @@ export function InspectionForm({
           ) : null}
 
           <div className="form-block" style={{ marginTop: "1rem" }}>
-            <div className="form-grid-wide">
-              {machineMode === "new" ? (
+            {machineMode === "new" ? (
+              <div className="form-grid-wide">
                 <div className="field">
                   <label htmlFor="machine-type">Keuringstype</label>
                   <select
@@ -644,6 +647,7 @@ export function InspectionForm({
                       const nextType = event.target.value as MachineType;
                       setType(nextType);
                       setChecklist(buildDefaultChecklist(nextType));
+                      setDraftNotice("");
                     }}
                   >
                     {machineTypeOptions.map((option) => (
@@ -653,11 +657,9 @@ export function InspectionForm({
                     ))}
                   </select>
                 </div>
-              ) : null}
-              {form.machineFields
-                .filter((field) => !field.key.startsWith("customer_") && visibleField(field.key) && field.key !== "inspection_date")
-                .map((field) =>
-                  machineMode === "new" ? (
+                {form.machineFields
+                  .filter((field) => !field.key.startsWith("customer_") && visibleField(field.key) && field.key !== "inspection_date")
+                  .map((field) => (
                     <div className="field" key={field.key}>
                       <label htmlFor={field.key}>{field.label}</label>
                       <input
@@ -669,16 +671,32 @@ export function InspectionForm({
                         onChange={(event) => setFieldValue(field.key, event.target.value)}
                       />
                     </div>
-                  ) : (
-                    visibleExistingMachineField(field.key) ? (
-                      <div className="info-card" key={field.key}>
-                        <strong>{values[field.key] || "-"}</strong>
-                        <span>{field.label}</span>
-                      </div>
-                    ) : null
-                  )
-                )}
-            </div>
+                  ))}
+              </div>
+            ) : (
+              <div className="read-only-grid">
+                <div className="info-card">
+                  <strong>{selectedMachine?.machineNumber || "-"}</strong>
+                  <span>Machine</span>
+                </div>
+                <div className="info-card">
+                  <strong>{selectedMachine?.brand || "-"}</strong>
+                  <span>Merk</span>
+                </div>
+                <div className="info-card">
+                  <strong>{selectedMachine?.model || "-"}</strong>
+                  <span>Type</span>
+                </div>
+                <div className="info-card">
+                  <strong>{selectedMachine?.internalNumber || selectedMachine?.machineNumber || "-"}</strong>
+                  <span>Intern nummer</span>
+                </div>
+                <div className="info-card">
+                  <strong>{selectedMachine?.serialNumber || "-"}</strong>
+                  <span>Serienummer</span>
+                </div>
+              </div>
+            )}
           </div>
         </section>
       ) : null}
@@ -738,6 +756,7 @@ export function InspectionForm({
                 <button className="button-secondary" type="button" onClick={saveDraft}>
                   Gegevens opslaan
                 </button>
+                {draftNotice ? <span className="draft-notice">{draftNotice}</span> : null}
               </div>
             </div>
           </section>
@@ -761,7 +780,10 @@ export function InspectionForm({
                                 type="radio"
                                 name={item.key}
                                 checked={checklist[item.key] === option}
-                                onChange={() => setChecklist((current) => ({ ...current, [item.key]: option }))}
+                                onChange={() => {
+                                  setDraftNotice("");
+                                  setChecklist((current) => ({ ...current, [item.key]: option }));
+                                }}
                               />
                               {option === "nvt" ? "n.v.t." : option}
                             </label>

@@ -309,6 +309,12 @@ textarea {
   margin-top: 1rem;
 }
 
+.draft-notice {
+  color: var(--success);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
 .button,
 .button-secondary {
   display: inline-flex;
