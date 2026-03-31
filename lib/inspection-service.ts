@@ -40,6 +40,10 @@ function sanitizeMachineConfiguration(configuration: Record<string, string>) {
   );
 }
 
+function isMachineArchived(machine: { configuration: Record<string, string> }) {
+  return Boolean(machine.configuration.__archivedAt);
+}
+
 function nextInspectionNumber(existing: InspectionRecord[], inspectionDate: string) {
   const year = Number(inspectionDate.slice(0, 4));
   const base = getYearSequenceStart(year);
@@ -848,10 +852,12 @@ export async function getMachines() {
       .from("machines")
       .select("*")
       .order("machine_number", { ascending: true });
-    return (data ?? []).map((row) => mapMachineRow(row));
+    return (data ?? [])
+      .map((row) => mapMachineRow(row))
+      .filter((machine) => !isMachineArchived(machine));
   }
   const data = await listDemoData();
-  return data.machines;
+  return data.machines.filter((machine) => !isMachineArchived(machine));
 }
 
 export async function getInspections() {
@@ -1111,6 +1117,79 @@ export async function createMachine(input: {
   data.machines.unshift(machine);
   await writeAppData(data);
   return machine.id;
+}
+
+export async function archiveMachine(machineId: string) {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data: machineRow } = await supabase
+      .from("machines")
+      .select("*")
+      .eq("id", machineId)
+      .maybeSingle();
+
+    if (!machineRow) {
+      return;
+    }
+
+    const machine = mapMachineRow(machineRow);
+    await supabase
+      .from("machines")
+      .update({
+        configuration: {
+          ...machine.configuration,
+          __archivedAt: nowIso()
+        }
+      })
+      .eq("id", machineId);
+    return;
+  }
+
+  const data = await readAppData();
+  const machine = data.machines.find((item) => item.id === machineId);
+  if (!machine) {
+    return;
+  }
+
+  machine.configuration = {
+    ...machine.configuration,
+    __archivedAt: nowIso()
+  };
+  machine.updatedAt = nowIso();
+  await writeAppData(data);
+}
+
+export async function deleteMachine(machineId: string) {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { count } = await supabase
+      .from("inspections")
+      .select("id", { count: "exact", head: true })
+      .eq("machine_id", machineId);
+
+    if ((count ?? 0) > 0) {
+      throw new Error("Deze machine heeft al keuringen en kan niet definitief worden verwijderd.");
+    }
+
+    await supabase
+      .from("planning_items")
+      .delete()
+      .eq("machine_id", machineId);
+    await supabase
+      .from("machines")
+      .delete()
+      .eq("id", machineId);
+    return;
+  }
+
+  const data = await readAppData();
+  if (data.inspections.some((inspection) => inspection.machineId === machineId)) {
+    throw new Error("Deze machine heeft al keuringen en kan niet definitief worden verwijderd.");
+  }
+
+  data.planningItems = data.planningItems.filter((item) => item.machineId !== machineId);
+  data.machines = data.machines.filter((item) => item.id !== machineId);
+  await writeAppData(data);
 }
 
 export async function updatePlanningItem(input: {

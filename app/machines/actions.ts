@@ -3,8 +3,10 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import {
+  archiveMachine,
   assignMachineToCustomer,
   createMachine,
+  deleteMachine,
   updateMachine
 } from "@/lib/inspection-service";
 
@@ -68,4 +70,37 @@ export async function assignMachineToCustomerAction(formData: FormData) {
   }
 
   redirect(`/machines/${machineId}?assigned=1`);
+}
+
+export async function archiveMachineAction(formData: FormData) {
+  const machineId = String(formData.get("machineId") || "");
+  if (!machineId) {
+    return;
+  }
+
+  await archiveMachine(machineId);
+  revalidatePath("/machines");
+  revalidatePath("/keuringen/nieuw");
+  redirect("/machines?archived=1");
+}
+
+export async function deleteMachineAction(formData: FormData) {
+  const machineId = String(formData.get("machineId") || "");
+  if (!machineId) {
+    return;
+  }
+
+  try {
+    await deleteMachine(machineId);
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? encodeURIComponent(error.message)
+        : encodeURIComponent("Verwijderen is niet gelukt.");
+    redirect(`/machines/${machineId}?error=${message}`);
+  }
+
+  revalidatePath("/machines");
+  revalidatePath("/keuringen/nieuw");
+  redirect("/machines?deleted=1");
 }

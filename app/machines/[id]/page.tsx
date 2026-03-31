@@ -2,7 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Route } from "next";
 import {
+  archiveMachineAction,
   assignMachineToCustomerAction,
+  deleteMachineAction,
   updateMachineAction
 } from "@/app/machines/actions";
 import { CustomerPicker } from "@/components/customer-picker";
@@ -20,7 +22,7 @@ export default async function MachineDetailPage({
   searchParams
 }: {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ saved?: string; created?: string; assigned?: string }>;
+  searchParams?: Promise<{ saved?: string; created?: string; assigned?: string; error?: string }>;
 }) {
   const { id } = await params;
   const query = await searchParams;
@@ -54,6 +56,7 @@ export default async function MachineDetailPage({
         {query?.saved ? <p className="form-message success">Machine opgeslagen.</p> : null}
         {query?.created ? <p className="form-message success">Machine toegevoegd.</p> : null}
         {query?.assigned ? <p className="form-message success">Machine gekoppeld aan klant.</p> : null}
+        {query?.error ? <p className="form-message error">{decodeURIComponent(query.error)}</p> : null}
         <div className="actions">
           <Link
             className="button"
@@ -64,6 +67,18 @@ export default async function MachineDetailPage({
           <Link className="button-secondary" href={`/machines/nieuw?customerId=${machine.customerId}`}>
             Machine toevoegen
           </Link>
+          <form action={archiveMachineAction}>
+            <input type="hidden" name="machineId" value={machine.id} />
+            <button className="button-secondary" type="submit">
+              Archiveren
+            </button>
+          </form>
+          <form action={deleteMachineAction}>
+            <input type="hidden" name="machineId" value={machine.id} />
+            <button className="button-secondary" type="submit">
+              Definitief verwijderen
+            </button>
+          </form>
         </div>
       </section>
 
