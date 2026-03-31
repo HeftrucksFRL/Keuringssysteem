@@ -203,7 +203,7 @@ export function PlanningCalendar({
               Vorige maand
             </button>
             <button className="button-secondary" type="button" onClick={() => setAnchorDate(new Date())}>
-              Vandaag
+              {monthLabel(anchorDate)}
             </button>
             <button
               className="button-secondary"
