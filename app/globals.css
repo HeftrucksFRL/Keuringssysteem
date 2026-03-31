@@ -870,9 +870,11 @@ textarea {
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
-  padding: 0.1rem 0.1rem 0.4rem;
-  color: var(--muted);
-  border-bottom: 1px solid #e5edf5;
+  padding: 0.65rem 0.8rem;
+  color: #f4f9ff;
+  background: #0b4f8a;
+  border-radius: 14px;
+  border-bottom: none;
 }
 
 .agenda-row {
