@@ -44,6 +44,52 @@ function isMachineArchived(machine: { configuration: Record<string, string> }) {
   return Boolean(machine.configuration.__archivedAt);
 }
 
+function normalizeValue(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function findDuplicateMachines(
+  machines: MachineRecord[],
+  currentMachine: MachineRecord
+) {
+  const keyValues = new Set(
+    [
+      currentMachine.machineNumber,
+      currentMachine.internalNumber,
+      currentMachine.serialNumber
+    ]
+      .map((value) => normalizeValue(value))
+      .filter(Boolean)
+  );
+  const brandModel = `${normalizeValue(currentMachine.brand)}|${normalizeValue(currentMachine.model)}`;
+
+  return machines.filter((candidate) => {
+    if (candidate.id === currentMachine.id) {
+      return false;
+    }
+    if (candidate.customerId !== currentMachine.customerId) {
+      return false;
+    }
+    if (isMachineArchived(candidate)) {
+      return false;
+    }
+
+    const candidateValues = [
+      candidate.machineNumber,
+      candidate.internalNumber,
+      candidate.serialNumber
+    ]
+      .map((value) => normalizeValue(value))
+      .filter(Boolean);
+
+    if (candidateValues.some((value) => keyValues.has(value))) {
+      return true;
+    }
+
+    return `${normalizeValue(candidate.brand)}|${normalizeValue(candidate.model)}` === brandModel;
+  });
+}
+
 function nextInspectionNumber(existing: InspectionRecord[], inspectionDate: string) {
   const year = Number(inspectionDate.slice(0, 4));
   const base = getYearSequenceStart(year);
@@ -1241,6 +1287,24 @@ export async function updateMachine(input: {
 
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
+    const { data: currentMachineRows } = await supabase
+      .from("machines")
+      .select("*")
+      .eq("id", input.id)
+      .limit(1);
+    const currentMachine = currentMachineRows?.[0] ? mapMachineRow(currentMachineRows[0]) : null;
+    const duplicateMachines = currentMachine
+      ? findDuplicateMachines(
+          ((await supabase
+            .from("machines")
+            .select("*")
+            .eq("customer_id", currentMachine.customerId)).data ?? []).map((row) =>
+            mapMachineRow(row)
+          ),
+          currentMachine
+        )
+      : [];
+
     const { data: updatedMachineRow } = await supabase
       .from("machines")
       .update({
@@ -1262,12 +1326,32 @@ export async function updateMachine(input: {
 
     const machine = mapMachineRow(updatedMachineRow);
     const machineSnapshot = buildMachineSnapshot(machine);
+    const duplicateIds = duplicateMachines.map((item) => item.id);
+
+    if (duplicateIds.length > 0) {
+      await supabase
+        .from("planning_items")
+        .update({ machine_id: input.id })
+        .in("machine_id", duplicateIds);
+
+      await supabase
+        .from("machines")
+        .update({
+          configuration: {
+            __archivedAt: nowIso()
+          }
+        })
+        .in("id", duplicateIds);
+    }
+
+    const affectedMachineIds = [input.id, ...duplicateIds];
     const { data: inspectionRows } = await supabase
       .from("inspections")
       .update({
+        machine_id: input.id,
         machine_snapshot: machineSnapshot
       })
-      .eq("machine_id", input.id)
+      .in("machine_id", affectedMachineIds)
       .select("*");
 
     const affectedInspectionIds: string[] = [];
@@ -1299,6 +1383,8 @@ export async function updateMachine(input: {
     return [];
   }
 
+  const duplicateMachines = findDuplicateMachines(data.machines, machine);
+
   machine.brand = input.brand;
   machine.model = input.model;
   machine.serialNumber = input.serialNumber;
@@ -1308,13 +1394,31 @@ export async function updateMachine(input: {
   machine.configuration = {};
   machine.updatedAt = nowIso();
 
+  for (const duplicate of duplicateMachines) {
+    duplicate.configuration = {
+      __archivedAt: nowIso()
+    };
+    duplicate.updatedAt = nowIso();
+  }
+
+  for (const planningItem of data.planningItems) {
+    if (duplicateMachines.some((duplicate) => duplicate.id === planningItem.machineId)) {
+      planningItem.machineId = input.id;
+      planningItem.updatedAt = nowIso();
+    }
+  }
+
   const machineSnapshot = buildMachineSnapshot(machine);
   const affectedInspectionIds: string[] = [];
   for (const inspection of data.inspections) {
-    if (inspection.machineId !== input.id) {
+    if (
+      inspection.machineId !== input.id &&
+      !duplicateMachines.some((duplicate) => duplicate.id === inspection.machineId)
+    ) {
       continue;
     }
 
+    inspection.machineId = input.id;
     inspection.machineSnapshot = machineSnapshot;
     inspection.updatedAt = nowIso();
     affectedInspectionIds.push(inspection.id);
