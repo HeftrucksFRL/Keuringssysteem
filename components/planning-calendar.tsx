@@ -297,7 +297,7 @@ export function PlanningCalendar({
             <section className="agenda-day-card" key={date}>
               <div className="agenda-day-head">
                 <strong>{dayLabel(new Date(date))}</strong>
-                <span>{groups.length} afspraak{groups.length === 1 ? "" : "en"}</span>
+                <span>{groups.length} {groups.length === 1 ? "afspraak" : "afspraken"}</span>
               </div>
               {groups.map((group) => (
                 <button
