@@ -10,22 +10,34 @@ interface PlanningCalendarProps {
   machines: MachineRecord[];
 }
 
-type ViewMode = "day" | "week";
-
-function formatDateLabel(date: Date) {
+function monthLabel(date: Date) {
   return date.toLocaleDateString("nl-NL", {
-    weekday: "short",
-    day: "2-digit",
-    month: "short"
+    month: "long",
+    year: "numeric"
   });
 }
 
-function startOfWeek(date: Date) {
-  const next = new Date(date);
-  const day = (next.getDay() + 6) % 7;
-  next.setDate(next.getDate() - day);
-  next.setHours(0, 0, 0, 0);
-  return next;
+function dayLabel(date: Date) {
+  return date.toLocaleDateString("nl-NL", {
+    weekday: "short",
+    day: "numeric"
+  });
+}
+
+function dateNumber(date: Date) {
+  return date.toLocaleDateString("nl-NL", { day: "numeric" });
+}
+
+function startOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function startOfGrid(date: Date) {
+  const monthStart = startOfMonth(date);
+  const day = (monthStart.getDay() + 6) % 7;
+  monthStart.setDate(monthStart.getDate() - day);
+  monthStart.setHours(0, 0, 0, 0);
+  return monthStart;
 }
 
 function addDays(date: Date, amount: number) {
@@ -34,8 +46,14 @@ function addDays(date: Date, amount: number) {
   return next;
 }
 
-function sameDay(left: string, right: string) {
-  return left === right;
+function addMonths(date: Date, amount: number) {
+  const next = new Date(date);
+  next.setMonth(next.getMonth() + amount);
+  return next;
+}
+
+function isoDate(date: Date) {
+  return date.toISOString().slice(0, 10);
 }
 
 function stateLabel(state: PlanningRecord["state"]) {
@@ -49,24 +67,18 @@ export function PlanningCalendar({
   customers,
   machines
 }: PlanningCalendarProps) {
-  const [view, setView] = useState<ViewMode>("week");
   const [anchorDate, setAnchorDate] = useState(new Date());
   const [query, setQuery] = useState("");
   const [sortByPlace, setSortByPlace] = useState(true);
   const [selectedGroupKey, setSelectedGroupKey] = useState("");
 
-  const visibleDays = useMemo(() => {
-    if (view === "day") {
-      const day = new Date(anchorDate);
-      day.setHours(0, 0, 0, 0);
-      return [day];
-    }
+  const calendarDays = useMemo(() => {
+    const first = startOfGrid(anchorDate);
+    return Array.from({ length: 42 }, (_, index) => addDays(first, index));
+  }, [anchorDate]);
 
-    const weekStart = startOfWeek(anchorDate);
-    return Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
-  }, [anchorDate, view]);
-
-  const visibleIsoDays = visibleDays.map((day) => day.toISOString().slice(0, 10));
+  const monthStart = startOfMonth(anchorDate);
+  const monthIsoPrefix = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, "0")}`;
 
   const groupedItems = useMemo(() => {
     const grouped = new Map<
@@ -83,7 +95,7 @@ export function PlanningCalendar({
     >();
 
     items
-      .filter((item) => visibleIsoDays.includes(item.dueDate))
+      .filter((item) => item.dueDate.startsWith(monthIsoPrefix))
       .forEach((item) => {
         const customer = customers.find((entry) => entry.id === item.customerId);
         const machine = machines.find((entry) => entry.id === item.machineId);
@@ -138,6 +150,10 @@ export function PlanningCalendar({
     });
 
     groups.sort((left, right) => {
+      if (left.dueDate !== right.dueDate) {
+        return left.dueDate.localeCompare(right.dueDate);
+      }
+
       if (sortByPlace) {
         return left.place.localeCompare(right.place, "nl");
       }
@@ -146,7 +162,25 @@ export function PlanningCalendar({
     });
 
     return groups;
-  }, [customers, items, machines, query, sortByPlace, visibleIsoDays]);
+  }, [customers, items, machines, monthIsoPrefix, query, sortByPlace]);
+
+  const groupsByDay = useMemo(() => {
+    const map = new Map<string, typeof groupedItems>();
+    groupedItems.forEach((group) => {
+      const current = map.get(group.dueDate) ?? [];
+      current.push(group);
+      map.set(group.dueDate, current);
+    });
+    return map;
+  }, [groupedItems]);
+
+  const mobileDays = useMemo(
+    () =>
+      Array.from(groupsByDay.entries())
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([date, groups]) => ({ date, groups })),
+    [groupsByDay]
+  );
 
   const selectedGroup = groupedItems.find((group) => group.key === selectedGroupKey) ?? null;
   const selectedPrimaryMachine = selectedGroup?.machineList[0] ?? null;
@@ -157,15 +191,16 @@ export function PlanningCalendar({
         <div>
           <div className="eyebrow">Planning</div>
           <h1>Agenda</h1>
+          <p className="muted" style={{ marginBottom: 0 }}>{monthLabel(anchorDate)}</p>
         </div>
         <div className="calendar-controls">
           <div className="inline-meta">
             <button
               className="button-secondary"
               type="button"
-              onClick={() => setAnchorDate(addDays(anchorDate, view === "day" ? -1 : -7))}
+              onClick={() => setAnchorDate(addMonths(anchorDate, -1))}
             >
-              Vorige
+              Vorige maand
             </button>
             <button className="button-secondary" type="button" onClick={() => setAnchorDate(new Date())}>
               Vandaag
@@ -173,25 +208,9 @@ export function PlanningCalendar({
             <button
               className="button-secondary"
               type="button"
-              onClick={() => setAnchorDate(addDays(anchorDate, view === "day" ? 1 : 7))}
+              onClick={() => setAnchorDate(addMonths(anchorDate, 1))}
             >
-              Volgende
-            </button>
-          </div>
-          <div className="inline-meta">
-            <button
-              className={`button-secondary ${view === "day" ? "active-toggle" : ""}`}
-              type="button"
-              onClick={() => setView("day")}
-            >
-              Dag
-            </button>
-            <button
-              className={`button-secondary ${view === "week" ? "active-toggle" : ""}`}
-              type="button"
-              onClick={() => setView("week")}
-            >
-              Week
+              Volgende maand
             </button>
           </div>
         </div>
@@ -222,78 +241,73 @@ export function PlanningCalendar({
         </button>
       </div>
 
-      <div className="agenda-list mobile-agenda">
-        {visibleDays.map((day) => {
-          const dayKey = day.toISOString().slice(0, 10);
-          const dayItems = groupedItems.filter((group) => sameDay(group.dueDate, dayKey));
-
-          return (
-            <section className="agenda-day" key={dayKey}>
+      <div className="mobile-agenda-list">
+        {mobileDays.length === 0 ? (
+          <div className="agenda-row empty">Geen afspraken in deze maand</div>
+        ) : (
+          mobileDays.map(({ date, groups }) => (
+            <section className="agenda-day" key={date}>
               <div className="agenda-day-head">
-                <strong>{formatDateLabel(day)}</strong>
-                <span>{dayItems.length} afspraak{dayItems.length === 1 ? "" : "ken"}</span>
+                <strong>{dayLabel(new Date(date))}</strong>
+                <span>{groups.length} afspraak{groups.length === 1 ? "" : "ken"}</span>
               </div>
-
-              {dayItems.length === 0 ? (
-                <div className="agenda-row empty">Geen afspraken</div>
-              ) : (
-                dayItems.map((group) => (
-                  <button
-                    key={group.key}
-                    className={`agenda-row ${group.state}`}
-                    type="button"
-                    onClick={() => setSelectedGroupKey(group.key)}
-                  >
-                    <div className="agenda-time">{view === "day" ? "Vandaag" : group.place}</div>
-                    <div className="agenda-main">
-                      <strong>{group.customer?.companyName ?? "Onbekende klant"}</strong>
-                      <span>
-                        {group.machineList.length} machine{group.machineList.length === 1 ? "" : "s"} · {stateLabel(group.state)}
-                      </span>
-                    </div>
-                  </button>
-                ))
-              )}
+              {groups.map((group) => (
+                <button
+                  key={group.key}
+                  className={`agenda-row ${group.state}`}
+                  type="button"
+                  onClick={() => setSelectedGroupKey(group.key)}
+                >
+                  <div className="agenda-time">{group.place}</div>
+                  <div className="agenda-main">
+                    <strong>{group.customer?.companyName ?? "Onbekende klant"}</strong>
+                    <span>
+                      {group.machineList.length} machine{group.machineList.length === 1 ? "" : "s"} · {stateLabel(group.state)}
+                    </span>
+                  </div>
+                </button>
+              ))}
             </section>
-          );
-        })}
+          ))
+        )}
       </div>
 
-      <div className={`desktop-agenda desktop-agenda-${view}`}>
-        {visibleDays.map((day) => {
-          const dayKey = day.toISOString().slice(0, 10);
-          const dayItems = groupedItems.filter((group) => sameDay(group.dueDate, dayKey));
+      <div className="month-grid-wrap">
+        <div className="month-grid-head">
+          {["Ma", "Di", "Wo", "Do", "Vr", "Za", "Zo"].map((label) => (
+            <span key={label}>{label}</span>
+          ))}
+        </div>
+        <div className="month-grid">
+          {calendarDays.map((day) => {
+            const dayKey = isoDate(day);
+            const dayGroups = groupsByDay.get(dayKey) ?? [];
+            const isCurrentMonth = day.getMonth() === anchorDate.getMonth();
+            const isToday = dayKey === isoDate(new Date());
 
-          return (
-            <section className="desktop-agenda-column" key={dayKey}>
-              <div className="desktop-agenda-head">
-                <strong>{formatDateLabel(day)}</strong>
-                <span>{dayItems.length} afspraak{dayItems.length === 1 ? "" : "ken"}</span>
-              </div>
-
-              <div className="desktop-agenda-body">
-                {dayItems.length === 0 ? (
-                  <div className="desktop-agenda-empty">Geen afspraken</div>
-                ) : (
-                  dayItems.map((group) => (
+            return (
+              <div
+                className={`month-cell ${isCurrentMonth ? "" : "is-outside"} ${isToday ? "is-today" : ""}`}
+                key={dayKey}
+              >
+                <div className="month-cell-date">{dateNumber(day)}</div>
+                <div className="month-cell-events">
+                  {dayGroups.map((group) => (
                     <button
                       key={group.key}
-                      className={`desktop-agenda-item ${group.state}`}
+                      className={`month-event ${group.state}`}
                       type="button"
                       onClick={() => setSelectedGroupKey(group.key)}
                     >
                       <strong>{group.customer?.companyName ?? "Onbekende klant"}</strong>
-                      <span>{group.place}</span>
-                      <span>
-                        {group.machineList.length} machine{group.machineList.length === 1 ? "" : "s"} · {stateLabel(group.state)}
-                      </span>
+                      <span>{group.machineList.length} machine{group.machineList.length === 1 ? "" : "s"}</span>
                     </button>
-                  ))
-                )}
+                  ))}
+                </div>
               </div>
-            </section>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
       {selectedGroup ? (
@@ -322,9 +336,7 @@ export function PlanningCalendar({
                 {selectedGroup.machineList.map((machine) => (
                   <Link className="list-item" href={`/machines/${machine.id}`} key={machine.id}>
                     <span>
-                      <strong>
-                        {machine.brand} {machine.model}
-                      </strong>
+                      <strong>{machine.brand} {machine.model}</strong>
                       <br />
                       Serienr: {machine.serialNumber || "-"}
                     </span>
