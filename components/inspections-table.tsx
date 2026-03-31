@@ -61,9 +61,14 @@ export function InspectionsTable({
 
     return [...inspections]
       .sort((left, right) => {
-        const leftValue = `${left.updatedAt || left.createdAt}|${left.inspectionDate}|${left.inspectionNumber}`;
-        const rightValue = `${right.updatedAt || right.createdAt}|${right.inspectionDate}|${right.inspectionNumber}`;
-        return rightValue.localeCompare(leftValue);
+        const leftNumber = Number(left.inspectionNumber);
+        const rightNumber = Number(right.inspectionNumber);
+
+        if (!Number.isNaN(leftNumber) && !Number.isNaN(rightNumber)) {
+          return rightNumber - leftNumber;
+        }
+
+        return right.inspectionNumber.localeCompare(left.inspectionNumber, "nl");
       })
       .filter((inspection) => {
         const customer = customers.find((item) => item.id === inspection.customerId);
