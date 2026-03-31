@@ -23,6 +23,7 @@ export async function createMachineAction(formData: FormData) {
 
   revalidatePath("/machines");
   revalidatePath("/klanten");
+  revalidatePath("/keuringen/nieuw");
   redirect(`/machines/${id}?created=1`);
 }
 
@@ -41,6 +42,7 @@ export async function updateMachineAction(formData: FormData) {
   revalidatePath("/machines");
   revalidatePath(`/machines/${id}`);
   revalidatePath("/keuringen");
+  revalidatePath("/keuringen/nieuw");
   for (const inspectionId of affectedInspectionIds) {
     revalidatePath(`/keuringen/${inspectionId}`);
   }
@@ -60,6 +62,7 @@ export async function assignMachineToCustomerAction(formData: FormData) {
   revalidatePath(`/machines/${machineId}`);
   revalidatePath("/klanten");
   revalidatePath("/keuringen");
+  revalidatePath("/keuringen/nieuw");
   for (const inspectionId of affectedInspectionIds) {
     revalidatePath(`/keuringen/${inspectionId}`);
   }

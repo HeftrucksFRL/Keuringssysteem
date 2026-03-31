@@ -19,6 +19,7 @@ export async function createCustomerAction(formData: FormData) {
   });
 
   revalidatePath("/klanten");
+  revalidatePath("/keuringen/nieuw");
   redirect(`/klanten/${id}?created=1`);
 }
 
@@ -36,6 +37,7 @@ export async function updateCustomerAction(formData: FormData) {
 
   revalidatePath("/klanten");
   revalidatePath(`/klanten/${id}`);
+  revalidatePath("/keuringen/nieuw");
   redirect(`/klanten/${id}?saved=1`);
 }
 
