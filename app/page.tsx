@@ -64,14 +64,17 @@ export default async function HomePage({
         </div>
       </section>
 
-      <section className="grid-3" style={{ marginTop: "1rem" }}>
-        {kpis.map((kpi) => (
-          <Link className="stat stat-link" href={kpi.href} key={kpi.label}>
-            <span className="eyebrow">{kpi.label}</span>
-            <strong>{kpi.value}</strong>
-            <p className="muted">{kpi.helper}</p>
-          </Link>
-        ))}
+      <section className="panel" style={{ marginTop: "1rem" }}>
+        <div className="eyebrow">Overzicht</div>
+        <h2>Stand van zaken</h2>
+        <div className="list">
+          {kpis.map((kpi) => (
+            <Link className="list-item" href={kpi.href} key={kpi.label}>
+              <span>{kpi.label}</span>
+              <strong>{kpi.value}</strong>
+            </Link>
+          ))}
+        </div>
       </section>
 
       <section className="grid-2" style={{ marginTop: "1rem" }}>
