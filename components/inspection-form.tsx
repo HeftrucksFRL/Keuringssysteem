@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { getFormDefinition } from "@/lib/form-definitions";
+import { previewNextInspectionNumber } from "@/lib/inspection-number";
 import { addTwelveMonths } from "@/lib/utils";
 import type { CustomerRecord, InspectionRecord, MachineRecord } from "@/lib/domain";
 import type { ChecklistOption, MachineType } from "@/lib/types";
@@ -20,6 +21,21 @@ type Step = 1 | 2 | 3 | 4;
 type Mode = "existing" | "new";
 type Flash = { type: "success" | "error" | "info"; text: string } | null;
 type PhotoItem = { file: File; previewUrl: string; sizeLabel: string };
+type SavedDraft = {
+  type: MachineType;
+  step: Step;
+  customerMode: Mode;
+  machineMode: Mode;
+  customerQuery: string;
+  machineQuery: string;
+  selectedCustomerId: string;
+  selectedMachineId: string;
+  values: Record<string, string>;
+  checklist: Record<string, ChecklistOption>;
+  savedAt: string;
+};
+
+const draftStorageKey = "inspection-form-draft";
 
 const machineTypeOptions: { value: MachineType; label: string }[] = [
   { value: "heftruck_reachtruck", label: "Heftruck / reachtruck" },
@@ -164,6 +180,19 @@ export function InspectionForm({
   const selectedCustomer = customers.find((item) => item.id === selectedCustomerId) ?? null;
   const selectedMachine = machines.find((item) => item.id === selectedMachineId) ?? null;
   const nextInspectionDate = addTwelveMonths(values.inspection_date);
+  const previewInspectionNumber = useMemo(() => {
+    const inspectionDate = values.inspection_date || new Date().toISOString().slice(0, 10);
+    const year = Number(inspectionDate.slice(0, 4));
+    const sequencesForYear = inspections
+      .filter((inspection) => inspection.inspectionDate.startsWith(String(year)))
+      .map((inspection) => Number(inspection.inspectionNumber))
+      .filter((sequence) => !Number.isNaN(sequence));
+
+    const lastSequenceForYear =
+      sequencesForYear.length > 0 ? Math.max(...sequencesForYear) : null;
+
+    return previewNextInspectionNumber(year, lastSequenceForYear);
+  }, [inspections, values.inspection_date]);
 
   const filteredCustomers = useMemo(() => {
     const query = customerQuery.trim().toLowerCase();
@@ -190,6 +219,43 @@ export function InspectionForm({
   }, [customerMachines, machineQuery]);
 
   useEffect(() => setChecklist(buildDefaultChecklist(type)), [type]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const raw = window.localStorage.getItem(draftStorageKey);
+    if (!raw) {
+      return;
+    }
+
+    try {
+      const draft = JSON.parse(raw) as SavedDraft;
+      const canRestore =
+        (!defaultCustomerId && !defaultMachineId) ||
+        draft.selectedCustomerId === defaultCustomerId ||
+        draft.selectedMachineId === defaultMachineId;
+
+      if (!canRestore) {
+        return;
+      }
+
+      setType(draft.type);
+      setStep(draft.step);
+      setCustomerMode(draft.customerMode);
+      setMachineMode(draft.machineMode);
+      setCustomerQuery(draft.customerQuery);
+      setMachineQuery(draft.machineQuery);
+      setSelectedCustomerId(draft.selectedCustomerId);
+      setSelectedMachineId(draft.selectedMachineId);
+      setValues(draft.values);
+      setChecklist(draft.checklist);
+      setMessage({ type: "info", text: "Concept opnieuw geladen." });
+    } catch {
+      window.localStorage.removeItem(draftStorageKey);
+    }
+  }, [defaultCustomerId, defaultMachineId]);
 
   useEffect(() => {
     const activeElement = document.activeElement;
@@ -362,8 +428,32 @@ export function InspectionForm({
         return;
       }
 
+      window.localStorage.removeItem(draftStorageKey);
       window.location.assign(`/?saved=${result.inspectionNumber}`);
     });
+  }
+
+  function saveDraft() {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const draft: SavedDraft = {
+      type,
+      step,
+      customerMode,
+      machineMode,
+      customerQuery,
+      machineQuery,
+      selectedCustomerId,
+      selectedMachineId,
+      values,
+      checklist,
+      savedAt: new Date().toISOString()
+    };
+
+    window.localStorage.setItem(draftStorageKey, JSON.stringify(draft));
+    setMessage({ type: "success", text: "Concept tussentijds opgeslagen." });
   }
 
   return (
@@ -377,7 +467,7 @@ export function InspectionForm({
 
       <section className="keurnummer-banner inspection-card-full">
         <span>Keurnummer</span>
-        <strong>Wordt automatisch aangemaakt bij opslaan</strong>
+        <strong>{previewInspectionNumber}</strong>
       </section>
 
       {step === 1 ? (
@@ -590,8 +680,9 @@ export function InspectionForm({
       {step === 4 ? (
         <>
           <section className="inspection-card inspection-card-full form-screen">
-            <div className="eyebrow">{form.title}</div>
-            <h2>Gegevens</h2>
+            <div className="eyebrow">Stap 4</div>
+            <h2>Keuring</h2>
+            <p className="muted" style={{ marginTop: 0 }}>{form.title}</p>
             <div className="compact-card" style={{ marginBottom: "1rem" }}>
               <div className="eyebrow">Geselecteerde gegevens</div>
               <div className="read-only-grid">
@@ -607,6 +698,11 @@ export function InspectionForm({
                   <strong>{values.internal_number || "-"}</strong>
                   <span>Intern nummer</span>
                 </div>
+              </div>
+              <div className="actions" style={{ marginTop: "0.75rem" }}>
+                <button className="button-secondary" type="button" onClick={saveDraft}>
+                  Tussentijds opslaan
+                </button>
               </div>
             </div>
             <div className="form-block">

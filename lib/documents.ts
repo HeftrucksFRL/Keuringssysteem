@@ -247,6 +247,7 @@ function summaryRows(inspection: InspectionRecord): Array<[string, string]> {
     ["Datum", inspection.inspectionDate],
     ["Status", inspectionStatusLabel(inspection)],
     ["Klant", inspection.customerSnapshot.customer_name ?? "-"],
+    ["Adres", inspection.customerSnapshot.customer_address ?? "-"],
     [
       "Machine",
       `${inspection.machineSnapshot.brand ?? ""} ${inspection.machineSnapshot.model ?? ""}`.trim() ||
@@ -494,6 +495,10 @@ export async function generateInspectionDocuments(
           `${inspection.machineSnapshot.brand ?? ""} ${inspection.machineSnapshot.model ?? ""}`.trim() ||
             "-"
         ]
+      ],
+      [
+        ["Adres", inspection.customerSnapshot.customer_address ?? "-"],
+        ["Bouwjaar", inspection.machineSnapshot.build_year ?? "-"]
       ],
       [
         ["Intern nummer", inspection.machineSnapshot.internal_number ?? "-"],
