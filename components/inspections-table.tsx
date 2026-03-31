@@ -26,35 +26,78 @@ export function InspectionsTable({
 }: InspectionsTableProps) {
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const [customerFilter, setCustomerFilter] = useState("");
+  const [machineFilter, setMachineFilter] = useState("");
+  const [dateFilter, setDateFilter] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
   const [resendInspectionId, setResendInspectionId] = useState<string>("");
   const [customRecipient, setCustomRecipient] = useState("");
   const [sendToCustomer, setSendToCustomer] = useState(true);
   const [isPending, startTransition] = useTransition();
 
+  const customerOptions = useMemo(
+    () =>
+      customers
+        .map((customer) => ({ id: customer.id, label: customer.companyName }))
+        .sort((left, right) => left.label.localeCompare(right.label, "nl")),
+    [customers]
+  );
+
+  const machineOptions = useMemo(
+    () =>
+      machines
+        .map((machine) => ({
+          id: machine.id,
+          label: [machine.internalNumber || machine.machineNumber, machine.brand, machine.model]
+            .filter(Boolean)
+            .join(" ")
+        }))
+        .sort((left, right) => left.label.localeCompare(right.label, "nl")),
+    [machines]
+  );
+
   const filteredInspections = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    if (!needle) {
-      return inspections;
-    }
 
-    return inspections.filter((inspection) => {
-      const customer = customers.find((item) => item.id === inspection.customerId);
-      const machine = machines.find((item) => item.id === inspection.machineId);
+    return [...inspections]
+      .sort((left, right) => {
+        const leftValue = `${left.updatedAt || left.createdAt}|${left.inspectionDate}|${left.inspectionNumber}`;
+        const rightValue = `${right.updatedAt || right.createdAt}|${right.inspectionDate}|${right.inspectionNumber}`;
+        return rightValue.localeCompare(leftValue);
+      })
+      .filter((inspection) => {
+        const customer = customers.find((item) => item.id === inspection.customerId);
+        const machine = machines.find((item) => item.id === inspection.machineId);
 
-      return [
-        inspection.inspectionNumber,
-        inspection.inspectionDate,
-        customer?.companyName,
-        machine?.internalNumber,
-        machine?.brand,
-        machine?.model
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(needle);
-    });
-  }, [customers, inspections, machines, query]);
+        if (customerFilter && inspection.customerId !== customerFilter) {
+          return false;
+        }
+
+        if (machineFilter && inspection.machineId !== machineFilter) {
+          return false;
+        }
+
+        if (dateFilter && inspection.inspectionDate !== dateFilter) {
+          return false;
+        }
+
+        if (!needle) {
+          return true;
+        }
+
+        return [
+          inspection.inspectionNumber,
+          inspection.inspectionDate,
+          customer?.companyName,
+          machine?.internalNumber,
+          machine?.brand,
+          machine?.model
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(needle);
+      });
+  }, [customerFilter, customers, dateFilter, inspections, machineFilter, machines, query]);
 
   function resendMail(inspectionId: string) {
     setFeedback(null);
@@ -90,6 +133,47 @@ export function InspectionsTable({
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Zoek op keurnummer, klant of machine"
         />
+      </div>
+      <div className="filter-bar">
+        <div className="field">
+          <label htmlFor="inspection-customer-filter">Klant</label>
+          <select
+            id="inspection-customer-filter"
+            value={customerFilter}
+            onChange={(event) => setCustomerFilter(event.target.value)}
+          >
+            <option value="">Alle klanten</option>
+            {customerOptions.map((customer) => (
+              <option key={customer.id} value={customer.id}>
+                {customer.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="inspection-machine-filter">Machine</label>
+          <select
+            id="inspection-machine-filter"
+            value={machineFilter}
+            onChange={(event) => setMachineFilter(event.target.value)}
+          >
+            <option value="">Alle machines</option>
+            {machineOptions.map((machine) => (
+              <option key={machine.id} value={machine.id}>
+                {machine.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="inspection-date-filter">Datum</label>
+          <input
+            id="inspection-date-filter"
+            type="date"
+            value={dateFilter}
+            onChange={(event) => setDateFilter(event.target.value)}
+          />
+        </div>
       </div>
       {feedback ? <p className="form-message success">{feedback}</p> : null}
       {resendInspectionId ? (
@@ -155,10 +239,10 @@ export function InspectionsTable({
               <strong>
                 <span className={`status-dot ${statusClass}`} aria-hidden="true" />
                 {inspection.inspectionNumber}
+              </strong>
               <span>
                 {customer?.companyName ?? "-"} · {machine?.brand ?? "Machine"} {machine?.model ?? ""}
               </span>
-              </strong>
               <span>{inspection.inspectionDate}</span>
               <span className="inline-meta">
                 {pdfAttachment ? (

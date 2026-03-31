@@ -728,6 +728,12 @@ textarea {
   background: #f9fbfd;
 }
 
+.filter-bar {
+  display: grid;
+  gap: 0.85rem;
+  margin: 0 0 1rem;
+}
+
 .stepper {
   display: grid;
   grid-template-columns: 1fr;
