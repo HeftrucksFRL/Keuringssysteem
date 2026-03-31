@@ -149,8 +149,30 @@ function findOrCreateMachine(
 
 async function createDemoInspection(input: CreateInspectionInput) {
   const data = await readAppData();
-  const customer = findOrCreateCustomer(data, input.customer);
-  const machine = findOrCreateMachine(data, customer.id, input.machine, input.machineType);
+  const customer =
+    (input.customerId
+      ? data.customers.find((item) => item.id === input.customerId)
+      : null) ?? findOrCreateCustomer(data, input.customer);
+  customer.address = input.customer.address;
+  customer.contactName = input.customer.contactName;
+  customer.phone = input.customer.phone;
+  customer.email = input.customer.email;
+  customer.updatedAt = nowIso();
+
+  const machine =
+    (input.machineId
+      ? data.machines.find((item) => item.id === input.machineId)
+      : null) ?? findOrCreateMachine(data, customer.id, input.machine, input.machineType);
+  machine.customerId = customer.id;
+  machine.machineNumber = input.machine.machineNumber;
+  machine.machineType = input.machineType;
+  machine.brand = input.machine.brand;
+  machine.model = input.machine.model;
+  machine.serialNumber = input.machine.serialNumber;
+  machine.buildYear = input.machine.buildYear;
+  machine.internalNumber = input.machine.internalNumber;
+  machine.configuration = input.machine.details;
+  machine.updatedAt = nowIso();
   const inspectionNumber = nextInspectionNumber(data.inspections, input.inspectionDate);
   const nextInspectionDate = addTwelveMonths(input.inspectionDate);
 
@@ -527,25 +549,44 @@ export async function createInspection(input: CreateInspectionInput) {
 
   const supabase = createSupabaseAdmin();
 
-  const { data: customerRow } = await supabase
-    .from("customers")
-    .upsert(
-      {
+  let customerRow: Record<string, unknown> | null = null;
+  if (input.customerId) {
+    const { data } = await supabase
+      .from("customers")
+      .update({
         company_name: input.customer.companyName,
         address_line_1: input.customer.address,
         contact_name: input.customer.contactName,
         phone: input.customer.phone,
         email: input.customer.email
-      },
-      { onConflict: "company_name" }
-    )
-    .select()
-    .single();
+      })
+      .eq("id", input.customerId)
+      .select()
+      .single();
+    customerRow = data;
+  } else {
+    const { data } = await supabase
+      .from("customers")
+      .upsert(
+        {
+          company_name: input.customer.companyName,
+          address_line_1: input.customer.address,
+          contact_name: input.customer.contactName,
+          phone: input.customer.phone,
+          email: input.customer.email
+        },
+        { onConflict: "company_name" }
+      )
+      .select()
+      .single();
+    customerRow = data;
+  }
 
-  const { data: machineRow } = await supabase
-    .from("machines")
-    .upsert(
-      {
+  let machineRow: Record<string, unknown> | null = null;
+  if (input.machineId) {
+    const { data } = await supabase
+      .from("machines")
+      .update({
         customer_id: customerRow?.id,
         machine_number: input.machine.machineNumber,
         machine_type: input.machineType,
@@ -555,11 +596,32 @@ export async function createInspection(input: CreateInspectionInput) {
         build_year: Number(input.machine.buildYear || 0) || null,
         internal_number: input.machine.internalNumber,
         configuration: input.machine.details
-      },
-      { onConflict: "machine_number" }
-    )
-    .select()
-    .single();
+      })
+      .eq("id", input.machineId)
+      .select()
+      .single();
+    machineRow = data;
+  } else {
+    const { data } = await supabase
+      .from("machines")
+      .upsert(
+        {
+          customer_id: customerRow?.id,
+          machine_number: input.machine.machineNumber,
+          machine_type: input.machineType,
+          brand: input.machine.brand,
+          model: input.machine.model,
+          serial_number: input.machine.serialNumber,
+          build_year: Number(input.machine.buildYear || 0) || null,
+          internal_number: input.machine.internalNumber,
+          configuration: input.machine.details
+        },
+        { onConflict: "machine_number" }
+      )
+      .select()
+      .single();
+    machineRow = data;
+  }
 
   const { data: inserted } = await supabase
     .from("inspections")

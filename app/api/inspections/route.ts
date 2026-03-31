@@ -32,6 +32,8 @@ export async function POST(request: Request) {
     const formData = await request.formData();
     const machineType = String(formData.get("machine_type") || "") as MachineType;
     const checklist = String(formData.get("checklist") || "");
+    const existingCustomerId = String(formData.get("existing_customer_id") || "").trim();
+    const existingMachineId = String(formData.get("existing_machine_id") || "").trim();
     const internalNumber = String(formData.get("internal_number") || "");
     const serialNumber = String(
       formData.get("serial_number") || formData.get("vehicle_serial_number") || ""
@@ -71,6 +73,8 @@ export async function POST(request: Request) {
     );
 
     const inspection = await createInspection({
+      customerId: existingCustomerId || undefined,
+      machineId: existingMachineId || undefined,
       machineType,
       customer: {
         companyName: String(formData.get("customer_name") || ""),

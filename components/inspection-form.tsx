@@ -352,6 +352,8 @@ export function InspectionForm({
       {Object.entries(values).filter(([key]) => key.startsWith("customer_")).map(([key, value]) => (
         <input key={key} type="hidden" name={key} value={value} />
       ))}
+      <input type="hidden" name="existing_customer_id" value={selectedCustomerId} />
+      <input type="hidden" name="existing_machine_id" value={selectedMachineId} />
 
       <section className="keurnummer-banner inspection-card-full">
         <span>Keurnummer</span>
