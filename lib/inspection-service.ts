@@ -1241,13 +1241,6 @@ export async function updateMachine(input: {
 
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
-    const { data: existingMachineRow } = await supabase
-      .from("machines")
-      .select("*")
-      .eq("id", input.id)
-      .maybeSingle();
-
-    const existingMachine = existingMachineRow ? mapMachineRow(existingMachineRow) : null;
     const { data: updatedMachineRow } = await supabase
       .from("machines")
       .update({
@@ -1257,7 +1250,7 @@ export async function updateMachine(input: {
         serial_number: input.serialNumber,
         build_year: Number(input.buildYear || 0) || null,
         internal_number: input.internalNumber,
-        configuration: sanitizeMachineConfiguration(existingMachine?.configuration ?? {})
+        configuration: {}
       })
       .eq("id", input.id)
       .select("*")
@@ -1312,7 +1305,7 @@ export async function updateMachine(input: {
   machine.buildYear = input.buildYear;
   machine.internalNumber = input.internalNumber;
   machine.machineNumber = machineNumber;
-  machine.configuration = sanitizeMachineConfiguration(machine.configuration);
+  machine.configuration = {};
   machine.updatedAt = nowIso();
 
   const machineSnapshot = buildMachineSnapshot(machine);
