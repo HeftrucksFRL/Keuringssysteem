@@ -242,11 +242,11 @@ export function PlanningCalendar({
       </div>
 
       <div className="mobile-agenda-list">
-        {mobileDays.length === 0 ? (
+              {mobileDays.length === 0 ? (
           <div className="agenda-row empty">Geen afspraken in deze maand</div>
         ) : (
           mobileDays.map(({ date, groups }) => (
-            <section className="agenda-day" key={date}>
+            <section className="agenda-day-card" key={date}>
               <div className="agenda-day-head">
                 <strong>{dayLabel(new Date(date))}</strong>
                 <span>{groups.length} afspraak{groups.length === 1 ? "" : "ken"}</span>
@@ -262,7 +262,10 @@ export function PlanningCalendar({
                   <div className="agenda-main">
                     <strong>{group.customer?.companyName ?? "Onbekende klant"}</strong>
                     <span>
-                      {group.machineList.length} machine{group.machineList.length === 1 ? "" : "s"} · {stateLabel(group.state)}
+                      {group.machineList.length} machine{group.machineList.length === 1 ? "" : "s"}
+                    </span>
+                    <span>
+                      {stateLabel(group.state)}
                     </span>
                   </div>
                 </button>
@@ -300,6 +303,7 @@ export function PlanningCalendar({
                       onClick={() => setSelectedGroupKey(group.key)}
                     >
                       <strong>{group.customer?.companyName ?? "Onbekende klant"}</strong>
+                      <span>{group.place}</span>
                       <span>{group.machineList.length} machine{group.machineList.length === 1 ? "" : "s"}</span>
                     </button>
                   ))}
