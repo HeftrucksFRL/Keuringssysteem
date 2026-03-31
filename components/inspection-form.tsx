@@ -67,6 +67,22 @@ function machineValues(machine?: MachineRecord | null) {
   };
 }
 
+function machineConfigurationValues(configuration: Record<string, string>) {
+  const blockedKeys = new Set([
+    "machine_number",
+    "brand",
+    "model",
+    "serial_number",
+    "build_year",
+    "internal_number",
+    "inspection_date"
+  ]);
+
+  return Object.fromEntries(
+    Object.entries(configuration).filter(([key]) => !blockedKeys.has(key))
+  );
+}
+
 function latestInspectionForMachine(inspections: InspectionRecord[], machineId: string) {
   return [...inspections]
     .filter((inspection) => inspection.machineId === machineId)
@@ -202,7 +218,11 @@ export function InspectionForm({
   useEffect(() => {
     if (!selectedMachine) return;
     setType(selectedMachine.machineType);
-    setValues((current) => ({ ...current, ...machineValues(selectedMachine), ...selectedMachine.configuration }));
+    setValues((current) => ({
+      ...current,
+      ...machineValues(selectedMachine),
+      ...machineConfigurationValues(selectedMachine.configuration)
+    }));
     setMachineQuery([selectedMachine.internalNumber || selectedMachine.machineNumber, selectedMachine.brand, selectedMachine.model].filter(Boolean).join(" "));
     const previousInspection = latestInspectionForMachine(inspections, selectedMachine.id);
     if (!previousInspection) {
@@ -213,7 +233,7 @@ export function InspectionForm({
       ...current,
       ...machineSnapshotOverrides(previousInspection.machineSnapshot),
       ...machineValues(selectedMachine),
-      ...selectedMachine.configuration,
+      ...machineConfigurationValues(selectedMachine.configuration),
       findings: previousInspection.findings,
       recommendations: previousInspection.recommendations,
       conclusion: previousInspection.conclusion,

@@ -24,6 +24,22 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+const reservedMachineKeys = new Set([
+  "machine_number",
+  "brand",
+  "model",
+  "serial_number",
+  "build_year",
+  "internal_number",
+  "inspection_date"
+]);
+
+function sanitizeMachineConfiguration(configuration: Record<string, string>) {
+  return Object.fromEntries(
+    Object.entries(configuration).filter(([key]) => !reservedMachineKeys.has(key))
+  );
+}
+
 function nextInspectionNumber(existing: InspectionRecord[], inspectionDate: string) {
   const year = Number(inspectionDate.slice(0, 4));
   const base = getYearSequenceStart(year);
@@ -52,7 +68,7 @@ function buildMachineSnapshot(machine: {
     serial_number: machine.serialNumber,
     build_year: machine.buildYear,
     internal_number: machine.internalNumber,
-    ...machine.configuration
+    ...sanitizeMachineConfiguration(machine.configuration)
   };
 }
 
@@ -124,7 +140,7 @@ function findOrCreateMachine(
     match.buildYear = input.buildYear;
     match.internalNumber = input.internalNumber;
     match.machineType = machineType;
-    match.configuration = input.details;
+    match.configuration = sanitizeMachineConfiguration(input.details);
     match.updatedAt = nowIso();
     return match;
   }
@@ -139,7 +155,7 @@ function findOrCreateMachine(
     serialNumber: input.serialNumber,
     buildYear: input.buildYear,
     internalNumber: input.internalNumber,
-    configuration: input.details,
+    configuration: sanitizeMachineConfiguration(input.details),
     createdAt: nowIso(),
     updatedAt: nowIso()
   };
@@ -171,7 +187,7 @@ async function createDemoInspection(input: CreateInspectionInput) {
   machine.serialNumber = input.machine.serialNumber;
   machine.buildYear = input.machine.buildYear;
   machine.internalNumber = input.machine.internalNumber;
-  machine.configuration = input.machine.details;
+  machine.configuration = sanitizeMachineConfiguration(input.machine.details);
   machine.updatedAt = nowIso();
   const inspectionNumber = nextInspectionNumber(data.inspections, input.inspectionDate);
   const nextInspectionDate = addTwelveMonths(input.inspectionDate);
@@ -595,7 +611,7 @@ export async function createInspection(input: CreateInspectionInput) {
         serial_number: input.machine.serialNumber,
         build_year: Number(input.machine.buildYear || 0) || null,
         internal_number: input.machine.internalNumber,
-        configuration: input.machine.details
+        configuration: sanitizeMachineConfiguration(input.machine.details)
       })
       .eq("id", input.machineId)
       .select()
@@ -614,7 +630,7 @@ export async function createInspection(input: CreateInspectionInput) {
           serial_number: input.machine.serialNumber,
           build_year: Number(input.machine.buildYear || 0) || null,
           internal_number: input.machine.internalNumber,
-          configuration: input.machine.details
+          configuration: sanitizeMachineConfiguration(input.machine.details)
         },
         { onConflict: "machine_number" }
       )
@@ -643,7 +659,7 @@ export async function createInspection(input: CreateInspectionInput) {
         serialNumber: input.machine.serialNumber,
         buildYear: input.machine.buildYear,
         internalNumber: input.machine.internalNumber,
-        configuration: input.machine.details
+        configuration: sanitizeMachineConfiguration(input.machine.details)
       }),
       findings: input.findings,
       recommendations: input.recommendations,
