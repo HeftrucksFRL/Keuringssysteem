@@ -52,6 +52,10 @@ function visibleField(key: string) {
   return !key.includes("sticker") && key !== "machine_number";
 }
 
+function visibleExistingMachineField(key: string) {
+  return ["brand", "model", "internal_number", "serial_number"].includes(key);
+}
+
 function buildDefaultChecklist(type: MachineType) {
   const definition = getFormDefinition(type);
   const defaultOption = definition.checklistOptions[0];
@@ -666,10 +670,12 @@ export function InspectionForm({
                       />
                     </div>
                   ) : (
-                    <div className="info-card" key={field.key}>
-                      <strong>{values[field.key] || "-"}</strong>
-                      <span>{field.label}</span>
-                    </div>
+                    visibleExistingMachineField(field.key) ? (
+                      <div className="info-card" key={field.key}>
+                        <strong>{values[field.key] || "-"}</strong>
+                        <span>{field.label}</span>
+                      </div>
+                    ) : null
                   )
                 )}
             </div>
