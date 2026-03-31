@@ -616,7 +616,7 @@ export function InspectionForm({
 
               <div className="compact-card" style={{ marginTop: "1rem" }}>
                 <div className="eyebrow">Gekozen machine</div>
-                <div className="read-only-grid">
+                <div className="read-only-grid compact-machine-summary">
                   <div className="info-card">
                     <strong>{selectedMachine ? `${selectedMachine.brand} ${selectedMachine.model}`.trim() : "Nog geen machine gekozen"}</strong>
                     <span>Machine</span>
@@ -634,8 +634,8 @@ export function InspectionForm({
             </>
           ) : null}
 
-          <div className="form-block" style={{ marginTop: "1rem" }}>
-            {machineMode === "new" ? (
+          {machineMode === "new" ? (
+            <div className="form-block" style={{ marginTop: "1rem" }}>
               <div className="form-grid-wide">
                 <div className="field">
                   <label htmlFor="machine-type">Keuringstype</label>
@@ -673,31 +673,8 @@ export function InspectionForm({
                     </div>
                   ))}
               </div>
-            ) : (
-              <div className="read-only-grid">
-                <div className="info-card">
-                  <strong>{selectedMachine?.machineNumber || "-"}</strong>
-                  <span>Machine</span>
-                </div>
-                <div className="info-card">
-                  <strong>{selectedMachine?.brand || "-"}</strong>
-                  <span>Merk</span>
-                </div>
-                <div className="info-card">
-                  <strong>{selectedMachine?.model || "-"}</strong>
-                  <span>Type</span>
-                </div>
-                <div className="info-card">
-                  <strong>{selectedMachine?.internalNumber || selectedMachine?.machineNumber || "-"}</strong>
-                  <span>Intern nummer</span>
-                </div>
-                <div className="info-card">
-                  <strong>{selectedMachine?.serialNumber || "-"}</strong>
-                  <span>Serienummer</span>
-                </div>
-              </div>
-            )}
-          </div>
+            </div>
+          ) : null}
         </section>
       ) : null}
 

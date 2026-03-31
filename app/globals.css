@@ -315,6 +315,16 @@ textarea {
   font-weight: 700;
 }
 
+.compact-machine-summary {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.75rem;
+}
+
+.compact-machine-summary .info-card {
+  min-height: auto;
+  padding: 1rem 1.1rem;
+}
+
 .button,
 .button-secondary {
   display: inline-flex;
