@@ -12,6 +12,8 @@ interface PlanningCalendarProps {
   initialMonth?: string;
 }
 
+type ViewFilter = "all" | "inspections" | "rentals";
+
 type AgendaEvent =
   | {
       key: string;
@@ -31,6 +33,7 @@ type AgendaEvent =
       machineList: MachineRecord[];
       place: string;
       rental: RentalRecord;
+      rentalMoment: "start" | "end";
     };
 
 function monthLabel(date: Date) {
@@ -77,14 +80,6 @@ function addMonths(date: Date, amount: number) {
 
 function isoDate(date: Date) {
   return date.toISOString().slice(0, 10);
-}
-
-function weekChunks<T>(items: T[], size: number) {
-  const chunks: T[][] = [];
-  for (let index = 0; index < items.length; index += size) {
-    chunks.push(items.slice(index, index + size));
-  }
-  return chunks;
 }
 
 function monthKey(date: Date) {
@@ -140,6 +135,17 @@ function rentalPhaseLabel(rental: RentalRecord) {
   return "Actief";
 }
 
+function rentalMomentLabel(moment: "start" | "end") {
+  return moment === "start" ? "Start verhuur" : "Einde verhuur";
+}
+
+function eventMatchesFilter(event: AgendaEvent, filter: ViewFilter) {
+  if (filter === "all") {
+    return true;
+  }
+  return filter === "inspections" ? event.kind === "inspection" : event.kind === "rental";
+}
+
 export function PlanningCalendar({
   items,
   rentals,
@@ -150,6 +156,7 @@ export function PlanningCalendar({
   const [anchorDate, setAnchorDate] = useState(() => parseMonthKey(initialMonth));
   const [query, setQuery] = useState("");
   const [sortByPlace, setSortByPlace] = useState(true);
+  const [viewFilter, setViewFilter] = useState<ViewFilter>("all");
   const [selectedEventKey, setSelectedEventKey] = useState("");
 
   useEffect(() => {
@@ -223,31 +230,30 @@ export function PlanningCalendar({
         return [];
       }
 
-      const start = rental.startDate < monthStartIso ? monthStartIso : rental.startDate;
-      const end = rental.endDate > monthEndIso ? monthEndIso : rental.endDate;
-      if (start > end) {
-        return [];
-      }
+      const result: AgendaEvent[] = [];
+      const moments = [
+        { dueDate: rental.startDate, rentalMoment: "start" as const },
+        { dueDate: rental.endDate, rentalMoment: "end" as const }
+      ];
 
-      const days: AgendaEvent[] = [];
-      let cursor = new Date(start);
-      const last = new Date(end);
+      for (const moment of moments) {
+        if (moment.dueDate < monthStartIso || moment.dueDate > monthEndIso) {
+          continue;
+        }
 
-      while (cursor <= last) {
-        const day = isoDate(cursor);
-        days.push({
-          key: `rental-${rental.id}`,
+        result.push({
+          key: `rental-${rental.id}-${moment.rentalMoment}`,
           kind: "rental",
-          dueDate: day,
+          dueDate: moment.dueDate,
           customer,
           machineList: [machine],
           place: placeLabel(customer),
-          rental
+          rental,
+          rentalMoment: moment.rentalMoment
         });
-        cursor = addDays(cursor, 1);
       }
 
-      return days;
+      return result;
     });
 
     const allEvents = [...Array.from(groupedPlanning.values()), ...rentalEvents];
@@ -255,6 +261,10 @@ export function PlanningCalendar({
 
     return allEvents
       .filter((event) => {
+        if (!eventMatchesFilter(event, viewFilter)) {
+          return false;
+        }
+
         if (!needle) {
           return true;
         }
@@ -262,6 +272,7 @@ export function PlanningCalendar({
         const haystack = [
           event.customer?.companyName,
           event.place,
+          event.kind === "rental" ? rentalMomentLabel(event.rentalMoment) : "",
           ...event.machineList.map((machine) =>
             [machine.internalNumber, machine.machineNumber, machine.brand, machine.model, machine.serialNumber]
               .filter(Boolean)
@@ -288,7 +299,7 @@ export function PlanningCalendar({
 
         return (left.customer?.companyName ?? "").localeCompare(right.customer?.companyName ?? "", "nl");
       });
-  }, [customers, items, machines, monthEndIso, monthStartIso, query, rentals, sortByPlace]);
+  }, [customers, items, machines, monthEndIso, monthStartIso, query, rentals, sortByPlace, viewFilter]);
 
   const eventsByDay = useMemo(() => {
     const map = new Map<string, AgendaEvent[]>();
@@ -310,80 +321,6 @@ export function PlanningCalendar({
 
   const selectedEvent = agendaEvents.find((event) => event.key === selectedEventKey) ?? null;
   const selectedPrimaryMachine = selectedEvent?.machineList[0] ?? null;
-  const calendarWeeks = useMemo(() => weekChunks(calendarDays, 7), [calendarDays]);
-  const rentalBarsByWeek = useMemo(() => {
-    return calendarWeeks.map((weekDays) => {
-      const weekStart = isoDate(weekDays[0]);
-      const weekEnd = isoDate(weekDays[6]);
-      const visibleRentals = rentals
-        .map((rental) => {
-          const customer = customers.find((entry) => entry.id === rental.customerId);
-          const machine = machines.find((entry) => entry.id === rental.machineId);
-          if (!machine) {
-            return null;
-          }
-
-          const haystack = [
-            customer?.companyName,
-            placeLabel(customer),
-            machine.internalNumber,
-            machine.machineNumber,
-            machine.brand,
-            machine.model,
-            machine.serialNumber
-          ]
-            .join(" ")
-            .toLowerCase();
-
-          if (query.trim() && !haystack.includes(query.trim().toLowerCase())) {
-            return null;
-          }
-
-          const segmentStart = rental.startDate > weekStart ? rental.startDate : weekStart;
-          const segmentEnd = rental.endDate < weekEnd ? rental.endDate : weekEnd;
-          if (segmentStart > segmentEnd) {
-            return null;
-          }
-
-          const startCol = weekDays.findIndex((day) => isoDate(day) === segmentStart) + 1;
-          const endCol = weekDays.findIndex((day) => isoDate(day) === segmentEnd) + 1;
-          if (startCol <= 0 || endCol <= 0) {
-            return null;
-          }
-
-          return {
-            key: `rental-${rental.id}`,
-            customer,
-            machine,
-            rental,
-            startCol,
-            endCol
-          };
-        })
-        .filter((item) => item !== null)
-        .sort((left, right) => {
-          if (left.startCol !== right.startCol) {
-            return left.startCol - right.startCol;
-          }
-          return left.endCol - right.endCol;
-        });
-
-      const lanes: Array<Array<{ startCol: number; endCol: number }>> = [];
-      return visibleRentals.map((bar) => {
-        let laneIndex = lanes.findIndex((lane) =>
-          lane.every((item) => bar.endCol < item.startCol || bar.startCol > item.endCol)
-        );
-
-        if (laneIndex === -1) {
-          lanes.push([]);
-          laneIndex = lanes.length - 1;
-        }
-
-        lanes[laneIndex].push({ startCol: bar.startCol, endCol: bar.endCol });
-        return { ...bar, lane: laneIndex };
-      });
-    });
-  }, [calendarWeeks, customers, machines, query, rentals]);
 
   return (
     <div className="panel">
@@ -391,7 +328,9 @@ export function PlanningCalendar({
         <div>
           <div className="eyebrow">Planning</div>
           <h1>Agenda</h1>
-          <p className="muted" style={{ marginBottom: 0 }}>{monthLabel(anchorDate)}</p>
+          <p className="muted" style={{ marginBottom: 0 }}>
+            {monthLabel(anchorDate)}
+          </p>
         </div>
         <div className="calendar-controls">
           <div className="inline-meta">
@@ -414,6 +353,30 @@ export function PlanningCalendar({
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Zoek op klant, plaats of machine"
         />
+      </div>
+
+      <div className="inline-meta" style={{ marginBottom: "1rem" }}>
+        <button
+          className={`button-secondary ${viewFilter === "all" ? "active-toggle" : ""}`}
+          type="button"
+          onClick={() => setViewFilter("all")}
+        >
+          Toon alles
+        </button>
+        <button
+          className={`button-secondary ${viewFilter === "inspections" ? "active-toggle" : ""}`}
+          type="button"
+          onClick={() => setViewFilter("inspections")}
+        >
+          Alleen keuringen
+        </button>
+        <button
+          className={`button-secondary ${viewFilter === "rentals" ? "active-toggle" : ""}`}
+          type="button"
+          onClick={() => setViewFilter("rentals")}
+        >
+          Alleen verhuur
+        </button>
       </div>
 
       <div className="inline-meta" style={{ marginBottom: "1rem" }}>
@@ -441,7 +404,9 @@ export function PlanningCalendar({
             <section className="agenda-day-card" key={date}>
               <div className="agenda-day-head">
                 <strong>{dayLabel(new Date(date))}</strong>
-                <span>{groups.length} {groups.length === 1 ? "afspraak" : "afspraken"}</span>
+                <span>
+                  {groups.length} {groups.length === 1 ? "afspraak" : "afspraken"}
+                </span>
               </div>
               {groups.map((event) => (
                 <button
@@ -465,7 +430,11 @@ export function PlanningCalendar({
                     <span>
                       {event.machineList.length} machine{event.machineList.length === 1 ? "" : "s"}
                     </span>
-                    <span>{event.kind === "rental" ? rentalPhaseLabel(event.rental) : stateLabel(event.state)}</span>
+                    <span>
+                      {event.kind === "rental"
+                        ? `${rentalMomentLabel(event.rentalMoment)} · ${rentalPhaseLabel(event.rental)}`
+                        : stateLabel(event.state)}
+                    </span>
                   </div>
                 </button>
               ))}
@@ -480,105 +449,53 @@ export function PlanningCalendar({
             <span key={label}>{label}</span>
           ))}
         </div>
-        <div style={{ display: "grid", gap: 0 }}>
-          {calendarWeeks.map((weekDays, weekIndex) => (
-            <div key={isoDate(weekDays[0])} style={{ position: "relative" }}>
-              <div className="month-grid">
-                {weekDays.map((day) => {
-                  const dayKey = isoDate(day);
-                  const dayEvents = (eventsByDay.get(dayKey) ?? []).filter((event) => event.kind !== "rental");
-                  const isCurrentMonth = day.getMonth() === anchorDate.getMonth();
-                  const isToday = dayKey === isoDate(new Date());
+        <div className="month-grid">
+          {calendarDays.map((day) => {
+            const dayKey = isoDate(day);
+            const dayEvents = eventsByDay.get(dayKey) ?? [];
+            const isCurrentMonth = day.getMonth() === anchorDate.getMonth();
+            const isToday = dayKey === isoDate(new Date());
 
-                  return (
-                    <div
-                      className={`month-cell ${isCurrentMonth ? "" : "is-outside"} ${isToday ? "is-today" : ""}`}
-                      key={dayKey}
-                    >
-                      <div className="month-cell-date">{dateNumber(day)}</div>
-                      <div className="month-cell-events">
-                        {dayEvents.map((event) => (
-                          <button
-                            key={event.key}
-                            className={`month-event ${event.state}`}
-                            type="button"
-                            onClick={() => setSelectedEventKey(event.key)}
-                          >
-                            <strong>{event.customer?.companyName ?? "Onbekende klant"}</strong>
-                            <span>{event.place}</span>
-                            <span>
-                              {event.machineList.length} machine{event.machineList.length === 1 ? "" : "s"}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              {rentalBarsByWeek[weekIndex]?.length ? (
-                <div
-                  style={{
-                    position: "absolute",
-                    inset: "2.7rem 0 auto 0",
-                    display: "grid",
-                    gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
-                    gap: "0.2rem",
-                    padding: "0 0.35rem",
-                    pointerEvents: "none"
-                  }}
-                >
-                  {rentalBarsByWeek[weekIndex].map((bar) => (
+            return (
+              <div
+                className={`month-cell ${isCurrentMonth ? "" : "is-outside"} ${isToday ? "is-today" : ""}`}
+                key={dayKey}
+              >
+                <div className="month-cell-date">{dateNumber(day)}</div>
+                <div className="month-cell-events">
+                  {dayEvents.map((event) => (
                     <button
-                      key={`${bar.key}-${weekIndex}`}
+                      key={event.key}
+                      className={`month-event ${event.kind === "rental" ? "scheduled" : event.state}`}
                       type="button"
-                      style={{
-                        pointerEvents: "auto",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: "0.55rem",
-                        minHeight: "18px",
-                        padding: "0.15rem 0.5rem",
-                        borderRadius: "999px",
-                        border: "1px solid #abefc6",
-                        background: "#dff6ec",
-                        color: "#0d8d59",
-                        fontSize: "0.74rem",
-                        lineHeight: "1.1",
-                        boxShadow: "0 2px 8px rgba(13, 141, 89, 0.12)",
-                        overflow: "hidden",
-                        whiteSpace: "nowrap",
-                        textOverflow: "ellipsis",
-                        gridColumn: `${bar.startCol} / ${bar.endCol + 1}`,
-                        marginTop: `${bar.lane * 24}px`
-                      }}
-                      onClick={() => setSelectedEventKey(bar.key)}
+                      style={
+                        event.kind === "rental"
+                          ? { background: "#dff6ec", borderColor: "#abefc6", color: "#0d8d59" }
+                          : undefined
+                      }
+                      onClick={() => setSelectedEventKey(event.key)}
                     >
-                      <strong
-                        style={{
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap"
-                        }}
-                      >
-                        {bar.machine.internalNumber || bar.machine.machineNumber || "Machine"}
+                      <strong>
+                        {event.kind === "rental"
+                          ? event.machineList[0]?.internalNumber || event.machineList[0]?.machineNumber || "Machine"
+                          : event.customer?.companyName ?? "Onbekende klant"}
                       </strong>
-                      <span
-                        style={{
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap"
-                        }}
-                      >
-                        {bar.customer?.companyName ?? "-"}
+                      <span>
+                        {event.kind === "rental"
+                          ? rentalMomentLabel(event.rentalMoment)
+                          : event.place}
+                      </span>
+                      <span>
+                        {event.kind === "rental"
+                          ? event.customer?.companyName ?? "-"
+                          : `${event.machineList.length} machine${event.machineList.length === 1 ? "" : "s"}`}
                       </span>
                     </button>
                   ))}
                 </div>
-              ) : null}
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -588,7 +505,8 @@ export function PlanningCalendar({
             <div className="eyebrow">{selectedEvent.kind === "rental" ? "Verhuur" : "Geplande keuring"}</div>
             <h2>{selectedEvent.customer?.companyName ?? "Onbekende klant"}</h2>
             <p className="muted" style={{ marginTop: "-0.35rem", marginBottom: "1rem" }}>
-              {[selectedEvent.customer?.address, selectedEvent.customer?.city].filter(Boolean).join(", ") || "Adres onbekend"}
+              {[selectedEvent.customer?.address, selectedEvent.customer?.city].filter(Boolean).join(", ") ||
+                "Adres onbekend"}
               {selectedEvent.customer?.phone ? ` | ${selectedEvent.customer.phone}` : ""}
             </p>
             <div className="list">
@@ -597,10 +515,16 @@ export function PlanningCalendar({
                 <strong>{selectedEvent.place}</strong>
               </div>
               {selectedEvent.kind === "rental" ? (
-                <div className="list-item static-list-item">
-                  <span>Periode</span>
-                  <strong>{selectedEvent.rental.startDate} t/m {selectedEvent.rental.endDate}</strong>
-                </div>
+                <>
+                  <div className="list-item static-list-item">
+                    <span>{selectedEvent.rentalMoment === "start" ? "Verhuur start" : "Verhuur eindigt"}</span>
+                    <strong>{selectedEvent.dueDate}</strong>
+                  </div>
+                  <div className="list-item static-list-item">
+                    <span>Periode</span>
+                    <strong>{selectedEvent.rental.startDate} t/m {selectedEvent.rental.endDate}</strong>
+                  </div>
+                </>
               ) : (
                 <div className="list-item static-list-item">
                   <span>Datum</span>
@@ -623,7 +547,9 @@ export function PlanningCalendar({
                 {selectedEvent.machineList.map((machine) => (
                   <Link className="list-item" href={`/machines/${machine.id}`} key={machine.id}>
                     <span>
-                      <strong>{machine.brand} {machine.model}</strong>
+                      <strong>
+                        {machine.brand} {machine.model}
+                      </strong>
                       <br />
                       Serienr: {machine.serialNumber || "-"}
                     </span>
