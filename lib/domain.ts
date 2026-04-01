@@ -1,5 +1,8 @@
 import type { MachineType, ChecklistOption } from "@/lib/types";
 
+export type MachineAvailabilityStatus = "available" | "rented" | "maintenance";
+export type RentalStatus = "active" | "completed";
+
 export interface CustomerRecord {
   id: string;
   companyName: string;
@@ -17,6 +20,7 @@ export interface MachineRecord {
   customerId: string;
   machineNumber: string;
   machineType: MachineType;
+  availabilityStatus: MachineAvailabilityStatus;
   brand: string;
   model: string;
   serialNumber: string;
@@ -61,6 +65,18 @@ export interface PlanningRecord {
   updatedAt: string;
 }
 
+export interface RentalRecord {
+  id: string;
+  machineId: string;
+  customerId: string;
+  startDate: string;
+  endDate: string;
+  status: RentalStatus;
+  price?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface InspectionAttachmentRecord {
   id: string;
   inspectionId: string;
@@ -86,6 +102,7 @@ export interface AppDataSnapshot {
   machines: MachineRecord[];
   inspections: InspectionRecord[];
   planningItems: PlanningRecord[];
+  rentals: RentalRecord[];
   attachments: InspectionAttachmentRecord[];
   mailEvents: MailEventRecord[];
 }

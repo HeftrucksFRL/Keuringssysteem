@@ -31,6 +31,7 @@ export const demoData: AppDataSnapshot = {
       customerId: "customer-1",
       machineNumber: "M-1024",
       machineType: "verreiker",
+      availabilityStatus: "available",
       brand: "Manitou",
       model: "VT-14",
       serialNumber: "VT14202401",
@@ -45,6 +46,7 @@ export const demoData: AppDataSnapshot = {
       customerId: "customer-2",
       machineNumber: "M-2218",
       machineType: "heftruck_reachtruck",
+      availabilityStatus: "available",
       brand: "Linde",
       model: "R25",
       serialNumber: "R25201944",
@@ -89,6 +91,7 @@ export const demoData: AppDataSnapshot = {
       updatedAt: now
     }
   ],
+  rentals: [],
   attachments: [],
   mailEvents: []
 };

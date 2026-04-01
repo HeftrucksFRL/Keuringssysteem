@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Route } from "next";
+import { completeRentalAction, createRentalAction } from "@/app/verhuur/actions";
 import {
   archiveMachineAction,
   assignMachineToCustomerAction,
@@ -12,7 +13,8 @@ import {
   getAttachmentsForInspection,
   getCustomers,
   getMachineById,
-  getMachineHistory
+  getMachineHistory,
+  getRentalsForMachine
 } from "@/lib/inspection-service";
 import { getFormDefinition } from "@/lib/form-definitions";
 import { fileUrl } from "@/lib/file-urls";
@@ -23,7 +25,7 @@ export default async function MachineDetailPage({
   searchParams
 }: {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ saved?: string; created?: string; assigned?: string; error?: string }>;
+  searchParams?: Promise<{ saved?: string; created?: string; assigned?: string; rented?: string; returned?: string; error?: string }>;
 }) {
   const { id } = await params;
   const query = await searchParams;
@@ -36,6 +38,7 @@ export default async function MachineDetailPage({
   const customers = await getCustomers();
   const customer = customers.find((item) => item.id === machine.customerId);
   const history = await getMachineHistory(machine.id);
+  const rentals = await getRentalsForMachine(machine.id);
   const form = getFormDefinition(machine.machineType);
   const extraFields = form.machineFields.filter(
     (field) =>
@@ -50,6 +53,16 @@ export default async function MachineDetailPage({
       )
     }))
   );
+  const activeRental = rentals.find((rental) => rental.status === "active");
+  const rentalCustomer = activeRental
+    ? customers.find((item) => item.id === activeRental.customerId)
+    : null;
+  const statusBadge =
+    machine.availabilityStatus === "rented"
+      ? { label: "Verhuurd", style: { background: "#fde8e6", color: "#b42318" } }
+      : machine.availabilityStatus === "maintenance"
+        ? { label: "Onderhoud", style: { background: "#fff0d8", color: "#d97706" } }
+        : { label: "Beschikbaar", style: { background: "#dff6ec", color: "#0d8d59" } };
 
   return (
     <>
@@ -60,9 +73,16 @@ export default async function MachineDetailPage({
           Intern nummer {machine.internalNumber || "-"} bij {customer?.companyName ?? "onbekende klant"}.
           Vanuit dit dossier kun je eerdere keuringen openen en de volgende inspectie voorbereiden.
         </p>
+        <p>
+          <span className="badge" style={statusBadge.style}>
+            {statusBadge.label}
+          </span>
+        </p>
         {query?.saved ? <p className="form-message success">Machine opgeslagen.</p> : null}
         {query?.created ? <p className="form-message success">Machine toegevoegd.</p> : null}
         {query?.assigned ? <p className="form-message success">Machine gekoppeld aan klant.</p> : null}
+        {query?.rented ? <p className="form-message success">Verhuur gestart.</p> : null}
+        {query?.returned ? <p className="form-message success">Verhuur afgerond.</p> : null}
         {query?.error ? <p className="form-message error">{decodeURIComponent(query.error)}</p> : null}
         <div className="actions">
           <Link
@@ -74,6 +94,9 @@ export default async function MachineDetailPage({
           <Link className="button-secondary" href={`/machines/nieuw?customerId=${machine.customerId}`}>
             Machine toevoegen
           </Link>
+          <a className="button-secondary" href="#verhuur">
+            Start verhuur
+          </a>
           <form action={archiveMachineAction}>
             <input type="hidden" name="machineId" value={machine.id} />
             <button className="button-secondary" type="submit">
@@ -174,6 +197,73 @@ export default async function MachineDetailPage({
               </button>
             </div>
           </form>
+        </article>
+      </section>
+
+      <section className="grid-2" id="verhuur" style={{ marginTop: "1rem" }}>
+        <article className="panel">
+          <div className="eyebrow">Verhuur</div>
+          <h2>Start verhuur</h2>
+          <form action={createRentalAction}>
+            <input type="hidden" name="machineId" value={machine.id} />
+            <CustomerPicker
+              customers={customers}
+              defaultCustomerId={machine.customerId}
+              label="Klant"
+              required
+            />
+            <div className="form-grid-wide" style={{ marginTop: "1rem" }}>
+              <div className="field">
+                <label htmlFor="startDate">Startdatum</label>
+                <input id="startDate" name="startDate" type="date" defaultValue={new Date().toISOString().slice(0, 10)} />
+              </div>
+              <div className="field">
+                <label htmlFor="endDate">Einddatum</label>
+                <input id="endDate" name="endDate" type="date" defaultValue={new Date().toISOString().slice(0, 10)} />
+              </div>
+              <div className="field">
+                <label htmlFor="price">Prijs</label>
+                <input id="price" name="price" placeholder="Bijv. € 350 totaal" />
+              </div>
+            </div>
+            <div className="actions">
+              <button className="button" type="submit">
+                Start verhuur
+              </button>
+            </div>
+          </form>
+        </article>
+
+        <article className="panel">
+          <div className="eyebrow">Lopende verhuur</div>
+          <h2>Huidige stand</h2>
+          {activeRental ? (
+            <>
+              <div className="list">
+                <div className="list-item">
+                  <span>Klant</span>
+                  <strong>{rentalCustomer?.companyName ?? "-"}</strong>
+                </div>
+                <div className="list-item">
+                  <span>Periode</span>
+                  <strong>{activeRental.startDate} t/m {activeRental.endDate}</strong>
+                </div>
+                <div className="list-item">
+                  <span>Prijs</span>
+                  <strong>{activeRental.price || "-"}</strong>
+                </div>
+              </div>
+              <form action={completeRentalAction} style={{ marginTop: "1rem" }}>
+                <input type="hidden" name="rentalId" value={activeRental.id} />
+                <input type="hidden" name="machineId" value={machine.id} />
+                <button className="button-secondary" type="submit">
+                  Verhuur afronden
+                </button>
+              </form>
+            </>
+          ) : (
+            <p className="muted">Deze machine is nu niet verhuurd.</p>
+          )}
         </article>
       </section>
 

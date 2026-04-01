@@ -17,7 +17,8 @@ import type {
   CustomerRecord,
   InspectionRecord,
   MachineRecord,
-  PlanningRecord
+  PlanningRecord,
+  RentalRecord
 } from "@/lib/domain";
 
 function nowIso() {
@@ -42,6 +43,18 @@ function sanitizeMachineConfiguration(configuration: Record<string, string>) {
 
 function isMachineArchived(machine: { configuration: Record<string, string> }) {
   return Boolean(machine.configuration.__archivedAt);
+}
+
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function rentalCompletionStatus(rental: { status: RentalRecord["status"]; endDate: string }) {
+  if (rental.status === "completed") {
+    return "completed" as const;
+  }
+
+  return rental.endDate < todayIso() ? "completed" : "active";
 }
 
 function normalizeValue(value: string) {
@@ -204,6 +217,7 @@ function findOrCreateMachine(
     match.buildYear = input.buildYear;
     match.internalNumber = input.internalNumber;
     match.machineType = machineType;
+    match.availabilityStatus = match.availabilityStatus ?? "available";
     match.configuration = sanitizeMachineConfiguration(input.details);
     match.updatedAt = nowIso();
     return match;
@@ -214,6 +228,7 @@ function findOrCreateMachine(
     customerId,
     machineNumber: identifier,
     machineType,
+    availabilityStatus: "available",
     brand: input.brand,
     model: input.model,
     serialNumber: input.serialNumber,
@@ -246,6 +261,7 @@ async function createDemoInspection(input: CreateInspectionInput) {
   machine.customerId = customer.id;
   machine.machineNumber = input.machine.machineNumber;
   machine.machineType = input.machineType;
+  machine.availabilityStatus = machine.availabilityStatus ?? "available";
   machine.brand = input.machine.brand;
   machine.model = input.machine.model;
   machine.serialNumber = input.machine.serialNumber;
@@ -571,12 +587,28 @@ function mapMachineRow(row: Record<string, unknown>): MachineRecord {
     customerId: String(row.customer_id),
     machineNumber: String(row.machine_number ?? ""),
     machineType: row.machine_type as CreateInspectionInput["machineType"],
+    availabilityStatus:
+      String(row.availability_status ?? "available") as MachineRecord["availabilityStatus"],
     brand: String(row.brand ?? ""),
     model: String(row.model ?? ""),
     serialNumber: String(row.serial_number ?? ""),
     buildYear: String(row.build_year ?? ""),
     internalNumber: String(row.internal_number ?? ""),
     configuration: (row.configuration as Record<string, string>) ?? {},
+    createdAt: String(row.created_at ?? ""),
+    updatedAt: String(row.updated_at ?? "")
+  };
+}
+
+function mapRentalRow(row: Record<string, unknown>): RentalRecord {
+  return {
+    id: String(row.id),
+    machineId: String(row.machine_id),
+    customerId: String(row.customer_id),
+    startDate: String(row.start_date ?? ""),
+    endDate: String(row.end_date ?? ""),
+    status: String(row.status ?? "active") as RentalRecord["status"],
+    price: row.price ? String(row.price) : undefined,
     createdAt: String(row.created_at ?? ""),
     updatedAt: String(row.updated_at ?? "")
   };
@@ -1139,7 +1171,12 @@ export async function getMachines() {
       .filter((machine) => !isMachineArchived(machine));
   }
   const data = await listDemoData();
-  return data.machines.filter((machine) => !isMachineArchived(machine));
+  return data.machines
+    .map((machine) => ({
+      ...machine,
+      availabilityStatus: machine.availabilityStatus ?? "available"
+    }))
+    .filter((machine) => !isMachineArchived(machine));
 }
 
 export async function getInspections() {
@@ -1166,6 +1203,20 @@ export async function getPlanningItems() {
   }
   const data = await listDemoData();
   return data.planningItems;
+}
+
+export async function getRentals() {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data } = await supabase
+      .from("rentals")
+      .select("*")
+      .order("start_date", { ascending: false });
+    return (data ?? []).map((row) => mapRentalRow(row));
+  }
+
+  const data = await listDemoData();
+  return data.rentals;
 }
 
 export async function createManualPlanningItem(input: {
@@ -1299,6 +1350,11 @@ export async function getMachinesForCustomer(customerId: string) {
   return machines.filter((machine) => machine.customerId === customerId);
 }
 
+export async function getRentalsForMachine(machineId: string) {
+  const rentals = await getRentals();
+  return rentals.filter((rental) => rental.machineId === machineId);
+}
+
 export async function createCustomer(input: {
   companyName: string;
   address: string;
@@ -1427,6 +1483,7 @@ export async function createMachine(input: {
           customer_id: input.customerId,
           machine_number: machineNumber,
           machine_type: input.machineType,
+          availability_status: "available",
           brand: input.brand,
           model: input.model,
           serial_number: input.serialNumber,
@@ -1450,6 +1507,7 @@ export async function createMachine(input: {
   if (existing) {
     existing.customerId = input.customerId;
     existing.machineType = input.machineType;
+    existing.availabilityStatus = existing.availabilityStatus ?? "available";
     existing.brand = input.brand;
     existing.model = input.model;
     existing.serialNumber = input.serialNumber;
@@ -1465,6 +1523,7 @@ export async function createMachine(input: {
     customerId: input.customerId,
     machineNumber,
     machineType: input.machineType,
+    availabilityStatus: "available",
     brand: input.brand,
     model: input.model,
     serialNumber: input.serialNumber,
@@ -1478,6 +1537,116 @@ export async function createMachine(input: {
   data.machines.unshift(machine);
   await writeAppData(data);
   return machine.id;
+}
+
+export async function createRental(input: {
+  machineId: string;
+  customerId: string;
+  startDate: string;
+  endDate: string;
+  price?: string;
+}) {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data } = await supabase
+      .from("rentals")
+      .insert({
+        machine_id: input.machineId,
+        customer_id: input.customerId,
+        start_date: input.startDate,
+        end_date: input.endDate,
+        status: "active",
+        price: input.price?.trim() || null
+      })
+      .select("*")
+      .single();
+
+    await supabase
+      .from("machines")
+      .update({ availability_status: "rented" })
+      .eq("id", input.machineId);
+
+    return mapRentalRow(data);
+  }
+
+  const data = await readAppData();
+  const rental: RentalRecord = {
+    id: randomUUID(),
+    machineId: input.machineId,
+    customerId: input.customerId,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    status: "active",
+    price: input.price?.trim() || undefined,
+    createdAt: nowIso(),
+    updatedAt: nowIso()
+  };
+
+  data.rentals.unshift(rental);
+  const machine = data.machines.find((item) => item.id === input.machineId);
+  if (machine) {
+    machine.availabilityStatus = "rented";
+    machine.updatedAt = nowIso();
+  }
+  await writeAppData(data);
+  return rental;
+}
+
+export async function completeRental(rentalId: string) {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data: rentalRow } = await supabase
+      .from("rentals")
+      .update({ status: "completed" })
+      .eq("id", rentalId)
+      .select("*")
+      .maybeSingle();
+
+    if (!rentalRow) {
+      return;
+    }
+
+    const rental = mapRentalRow(rentalRow);
+    const { data: openRentals } = await supabase
+      .from("rentals")
+      .select("id")
+      .eq("machine_id", rental.machineId)
+      .eq("status", "active");
+
+    if ((openRentals ?? []).length === 0) {
+      await supabase
+        .from("machines")
+        .update({ availability_status: "available" })
+        .eq("id", rental.machineId);
+    }
+    return;
+  }
+
+  const data = await readAppData();
+  const rental = data.rentals.find((item) => item.id === rentalId);
+  if (!rental) {
+    return;
+  }
+
+  rental.status = "completed";
+  rental.updatedAt = nowIso();
+
+  const hasOpenRental = data.rentals.some(
+    (item) =>
+      item.machineId === rental.machineId &&
+      item.id !== rentalId &&
+      rentalCompletionStatus(item) === "active"
+  );
+
+  if (!hasOpenRental) {
+    const machine = data.machines.find((item) => item.id === rental.machineId);
+    if (machine) {
+      machine.availabilityStatus = "available";
+      machine.updatedAt = nowIso();
+    }
+  }
+
+  await writeAppData(data);
 }
 
 export async function archiveMachine(machineId: string) {
@@ -1710,6 +1879,7 @@ export async function updateMachine(input: {
   machine.internalNumber = input.internalNumber;
   machine.machineNumber = machineNumber;
   machine.machineType = input.machineType;
+  machine.availabilityStatus = machine.availabilityStatus ?? "available";
   machine.configuration = sanitizeMachineConfiguration(input.details);
   machine.updatedAt = nowIso();
 

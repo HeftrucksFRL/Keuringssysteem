@@ -1,15 +1,18 @@
 import { PlanningCreateForm } from "@/components/planning-create-form";
 import { PlanningCalendar } from "@/components/planning-calendar";
-import { getCustomers, getMachines, getPlanningItems } from "@/lib/inspection-service";
+import { getCustomers, getMachines, getPlanningItems, getRentals } from "@/lib/inspection-service";
 
 export default async function PlanningPage({
   searchParams
 }: {
   searchParams?: Promise<{ month?: string; planned?: string; error?: string }>;
 }) {
-  const rows = await getPlanningItems();
-  const customers = await getCustomers();
-  const machines = await getMachines();
+  const [rows, customers, machines, rentals] = await Promise.all([
+    getPlanningItems(),
+    getCustomers(),
+    getMachines(),
+    getRentals()
+  ]);
   const params = await searchParams;
 
   return (
@@ -27,6 +30,7 @@ export default async function PlanningPage({
 
       <PlanningCalendar
         items={rows}
+        rentals={rentals}
         customers={customers}
         machines={machines}
         initialMonth={params?.month}

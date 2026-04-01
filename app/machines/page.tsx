@@ -21,6 +21,9 @@ export default async function MachinesPage({
         <Link className="button" href="/machines/nieuw">
           Machine toevoegen
         </Link>
+        <Link className="button-secondary" href="/verhuur">
+          Verhuur openen
+        </Link>
       </div>
       <MachinesTable machines={machines} customers={customers} />
     </section>

@@ -27,6 +27,7 @@ export async function createMachineAction(formData: FormData) {
   revalidatePath("/machines");
   revalidatePath("/klanten");
   revalidatePath("/keuringen/nieuw");
+  revalidatePath("/verhuur");
   redirect(`/machines/${id}?created=1`);
 }
 
@@ -62,6 +63,7 @@ export async function updateMachineAction(formData: FormData) {
   revalidatePath(`/machines/${id}`);
   revalidatePath("/keuringen");
   revalidatePath("/keuringen/nieuw");
+  revalidatePath("/verhuur");
   for (const inspectionId of affectedInspectionIds) {
     revalidatePath(`/keuringen/${inspectionId}`);
   }
@@ -82,6 +84,7 @@ export async function assignMachineToCustomerAction(formData: FormData) {
   revalidatePath("/klanten");
   revalidatePath("/keuringen");
   revalidatePath("/keuringen/nieuw");
+  revalidatePath("/verhuur");
   for (const inspectionId of affectedInspectionIds) {
     revalidatePath(`/keuringen/${inspectionId}`);
   }
@@ -98,6 +101,7 @@ export async function archiveMachineAction(formData: FormData) {
   await archiveMachine(machineId);
   revalidatePath("/machines");
   revalidatePath("/keuringen/nieuw");
+  revalidatePath("/verhuur");
   redirect("/machines?archived=1");
 }
 
@@ -119,5 +123,6 @@ export async function deleteMachineAction(formData: FormData) {
 
   revalidatePath("/machines");
   revalidatePath("/keuringen/nieuw");
+  revalidatePath("/verhuur");
   redirect("/machines?deleted=1");
 }

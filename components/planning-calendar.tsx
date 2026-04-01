@@ -2,14 +2,36 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import type { CustomerRecord, MachineRecord, PlanningRecord } from "@/lib/domain";
+import type { CustomerRecord, MachineRecord, PlanningRecord, RentalRecord } from "@/lib/domain";
 
 interface PlanningCalendarProps {
   items: PlanningRecord[];
+  rentals: RentalRecord[];
   customers: CustomerRecord[];
   machines: MachineRecord[];
   initialMonth?: string;
 }
+
+type AgendaEvent =
+  | {
+      key: string;
+      kind: "inspection";
+      dueDate: string;
+      customer?: CustomerRecord;
+      machineList: MachineRecord[];
+      state: PlanningRecord["state"];
+      place: string;
+      inspectionId?: string;
+    }
+  | {
+      key: string;
+      kind: "rental";
+      dueDate: string;
+      customer?: CustomerRecord;
+      machineList: MachineRecord[];
+      place: string;
+      rental: RentalRecord;
+    };
 
 function monthLabel(date: Date) {
   return date.toLocaleDateString("nl-NL", {
@@ -99,8 +121,20 @@ function stateLabel(state: PlanningRecord["state"]) {
   return "Aankomend";
 }
 
+function rentalPhaseLabel(rental: RentalRecord) {
+  const today = new Date().toISOString().slice(0, 10);
+  if (rental.status === "completed" || rental.endDate < today) {
+    return "Afgerond";
+  }
+  if (rental.startDate > today) {
+    return "Komend";
+  }
+  return "Actief";
+}
+
 export function PlanningCalendar({
   items,
+  rentals,
   customers,
   machines,
   initialMonth
@@ -108,7 +142,7 @@ export function PlanningCalendar({
   const [anchorDate, setAnchorDate] = useState(() => parseMonthKey(initialMonth));
   const [query, setQuery] = useState("");
   const [sortByPlace, setSortByPlace] = useState(true);
-  const [selectedGroupKey, setSelectedGroupKey] = useState("");
+  const [selectedEventKey, setSelectedEventKey] = useState("");
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -126,47 +160,44 @@ export function PlanningCalendar({
   }, [anchorDate]);
 
   const monthStart = startOfMonth(anchorDate);
-  const monthIsoPrefix = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, "0")}`;
+  const monthStartIso = isoDate(monthStart);
+  const monthEndIso = isoDate(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0));
 
-  const groupedItems = useMemo(() => {
-    const grouped = new Map<
-      string,
-      {
-        key: string;
-        dueDate: string;
-        customer: CustomerRecord | undefined;
-        items: PlanningRecord[];
-        machineList: MachineRecord[];
-        state: PlanningRecord["state"];
-        place: string;
-      }
-    >();
+  const agendaEvents = useMemo(() => {
+    const groupedPlanning = new Map<string, AgendaEvent>();
 
     items
-      .filter((item) => item.dueDate.startsWith(monthIsoPrefix))
+      .filter((item) => item.dueDate >= monthStartIso && item.dueDate <= monthEndIso)
       .forEach((item) => {
         const customer = customers.find((entry) => entry.id === item.customerId);
         const machine = machines.find((entry) => entry.id === item.machineId);
-        const key = `${item.customerId}-${item.dueDate}`;
+        const key = `inspection-${item.customerId}-${item.dueDate}`;
         const place = placeLabel(customer);
 
-        if (!grouped.has(key)) {
-          grouped.set(key, {
+        if (!groupedPlanning.has(key)) {
+          groupedPlanning.set(key, {
             key,
+            kind: "inspection",
             dueDate: item.dueDate,
             customer,
-            items: [item],
             machineList: machine ? [machine] : [],
             state: item.state,
-            place
+            place,
+            inspectionId: item.inspectionId || undefined
           });
           return;
         }
 
-        const current = grouped.get(key)!;
-        current.items.push(item);
+        const current = groupedPlanning.get(key);
+        if (!current || current.kind !== "inspection") {
+          return;
+        }
+
         if (machine && !current.machineList.some((entry) => entry.id === machine.id)) {
           current.machineList.push(machine);
+        }
+        if (!current.inspectionId && item.inspectionId) {
+          current.inspectionId = item.inspectionId;
         }
         if (item.state === "overdue" || current.state === "overdue") {
           current.state = "overdue";
@@ -177,61 +208,100 @@ export function PlanningCalendar({
         }
       });
 
+    const rentalEvents: AgendaEvent[] = rentals.flatMap((rental) => {
+      const customer = customers.find((entry) => entry.id === rental.customerId);
+      const machine = machines.find((entry) => entry.id === rental.machineId);
+      if (!machine) {
+        return [];
+      }
+
+      const start = rental.startDate < monthStartIso ? monthStartIso : rental.startDate;
+      const end = rental.endDate > monthEndIso ? monthEndIso : rental.endDate;
+      if (start > end) {
+        return [];
+      }
+
+      const days: AgendaEvent[] = [];
+      let cursor = new Date(start);
+      const last = new Date(end);
+
+      while (cursor <= last) {
+        const day = isoDate(cursor);
+        days.push({
+          key: `rental-${rental.id}-${day}`,
+          kind: "rental",
+          dueDate: day,
+          customer,
+          machineList: [machine],
+          place: placeLabel(customer),
+          rental
+        });
+        cursor = addDays(cursor, 1);
+      }
+
+      return days;
+    });
+
+    const allEvents = [...Array.from(groupedPlanning.values()), ...rentalEvents];
     const needle = query.trim().toLowerCase();
-    const groups = Array.from(grouped.values()).filter((group) => {
-      if (!needle) {
-        return true;
-      }
 
-      return [
-        group.customer?.companyName,
-        group.place,
-        ...group.machineList.map((machine) =>
-          [machine.internalNumber, machine.machineNumber, machine.brand, machine.model, machine.serialNumber]
-            .filter(Boolean)
-            .join(" ")
-        )
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(needle);
-    });
+    return allEvents
+      .filter((event) => {
+        if (!needle) {
+          return true;
+        }
 
-    groups.sort((left, right) => {
-      if (left.dueDate !== right.dueDate) {
-        return left.dueDate.localeCompare(right.dueDate);
-      }
+        const haystack = [
+          event.customer?.companyName,
+          event.place,
+          ...event.machineList.map((machine) =>
+            [machine.internalNumber, machine.machineNumber, machine.brand, machine.model, machine.serialNumber]
+              .filter(Boolean)
+              .join(" ")
+          )
+        ]
+          .join(" ")
+          .toLowerCase();
 
-      if (sortByPlace) {
-        return left.place.localeCompare(right.place, "nl");
-      }
+        return haystack.includes(needle);
+      })
+      .sort((left, right) => {
+        if (left.dueDate !== right.dueDate) {
+          return left.dueDate.localeCompare(right.dueDate);
+        }
 
-      return left.customer?.companyName.localeCompare(right.customer?.companyName || "", "nl") ?? 0;
-    });
+        if (left.kind !== right.kind) {
+          return left.kind === "rental" ? -1 : 1;
+        }
 
-    return groups;
-  }, [customers, items, machines, monthIsoPrefix, query, sortByPlace]);
+        if (sortByPlace) {
+          return left.place.localeCompare(right.place, "nl");
+        }
 
-  const groupsByDay = useMemo(() => {
-    const map = new Map<string, typeof groupedItems>();
-    groupedItems.forEach((group) => {
-      const current = map.get(group.dueDate) ?? [];
-      current.push(group);
-      map.set(group.dueDate, current);
+        return (left.customer?.companyName ?? "").localeCompare(right.customer?.companyName ?? "", "nl");
+      });
+  }, [customers, items, machines, monthEndIso, monthStartIso, query, rentals, sortByPlace]);
+
+  const eventsByDay = useMemo(() => {
+    const map = new Map<string, AgendaEvent[]>();
+    agendaEvents.forEach((event) => {
+      const current = map.get(event.dueDate) ?? [];
+      current.push(event);
+      map.set(event.dueDate, current);
     });
     return map;
-  }, [groupedItems]);
+  }, [agendaEvents]);
 
   const mobileDays = useMemo(
     () =>
-      Array.from(groupsByDay.entries())
+      Array.from(eventsByDay.entries())
         .sort(([left], [right]) => left.localeCompare(right))
         .map(([date, groups]) => ({ date, groups })),
-    [groupsByDay]
+    [eventsByDay]
   );
 
-  const selectedGroup = groupedItems.find((group) => group.key === selectedGroupKey) ?? null;
-  const selectedPrimaryMachine = selectedGroup?.machineList[0] ?? null;
+  const selectedEvent = agendaEvents.find((event) => event.key === selectedEventKey) ?? null;
+  const selectedPrimaryMachine = selectedEvent?.machineList[0] ?? null;
 
   return (
     <div className="panel">
@@ -243,21 +313,13 @@ export function PlanningCalendar({
         </div>
         <div className="calendar-controls">
           <div className="inline-meta">
-            <button
-              className="button-secondary"
-              type="button"
-              onClick={() => setAnchorDate(addMonths(anchorDate, -1))}
-            >
+            <button className="button-secondary" type="button" onClick={() => setAnchorDate(addMonths(anchorDate, -1))}>
               Vorige maand
             </button>
             <button className="button-secondary" type="button" onClick={() => setAnchorDate(new Date())}>
               {monthLabel(anchorDate)}
             </button>
-            <button
-              className="button-secondary"
-              type="button"
-              onClick={() => setAnchorDate(addMonths(anchorDate, 1))}
-            >
+            <button className="button-secondary" type="button" onClick={() => setAnchorDate(addMonths(anchorDate, 1))}>
               Volgende maand
             </button>
           </div>
@@ -290,7 +352,7 @@ export function PlanningCalendar({
       </div>
 
       <div className="mobile-agenda-list">
-              {mobileDays.length === 0 ? (
+        {mobileDays.length === 0 ? (
           <div className="agenda-row empty">Geen afspraken in deze maand</div>
         ) : (
           mobileDays.map(({ date, groups }) => (
@@ -299,22 +361,20 @@ export function PlanningCalendar({
                 <strong>{dayLabel(new Date(date))}</strong>
                 <span>{groups.length} {groups.length === 1 ? "afspraak" : "afspraken"}</span>
               </div>
-              {groups.map((group) => (
+              {groups.map((event) => (
                 <button
-                  key={group.key}
-                  className={`agenda-row ${group.state}`}
+                  key={event.key}
+                  className={`agenda-row ${event.kind === "rental" ? "scheduled" : event.state}`}
                   type="button"
-                  onClick={() => setSelectedGroupKey(group.key)}
+                  onClick={() => setSelectedEventKey(event.key)}
                 >
-                  <div className="agenda-time">{group.place}</div>
+                  <div className="agenda-time">{event.kind === "rental" ? "Verhuur" : event.place}</div>
                   <div className="agenda-main">
-                    <strong>{group.customer?.companyName ?? "Onbekende klant"}</strong>
+                    <strong>{event.customer?.companyName ?? "Onbekende klant"}</strong>
                     <span>
-                      {group.machineList.length} machine{group.machineList.length === 1 ? "" : "s"}
+                      {event.machineList.length} machine{event.machineList.length === 1 ? "" : "s"}
                     </span>
-                    <span>
-                      {stateLabel(group.state)}
-                    </span>
+                    <span>{event.kind === "rental" ? rentalPhaseLabel(event.rental) : stateLabel(event.state)}</span>
                   </div>
                 </button>
               ))}
@@ -332,7 +392,7 @@ export function PlanningCalendar({
         <div className="month-grid">
           {calendarDays.map((day) => {
             const dayKey = isoDate(day);
-            const dayGroups = groupsByDay.get(dayKey) ?? [];
+            const dayEvents = eventsByDay.get(dayKey) ?? [];
             const isCurrentMonth = day.getMonth() === anchorDate.getMonth();
             const isToday = dayKey === isoDate(new Date());
 
@@ -343,16 +403,20 @@ export function PlanningCalendar({
               >
                 <div className="month-cell-date">{dateNumber(day)}</div>
                 <div className="month-cell-events">
-                  {dayGroups.map((group) => (
+                  {dayEvents.map((event) => (
                     <button
-                      key={group.key}
-                      className={`month-event ${group.state}`}
+                      key={event.key}
+                      className={`month-event ${event.kind === "rental" ? "scheduled" : event.state}`}
                       type="button"
-                      onClick={() => setSelectedGroupKey(group.key)}
+                      onClick={() => setSelectedEventKey(event.key)}
                     >
-                      <strong>{group.customer?.companyName ?? "Onbekende klant"}</strong>
-                      <span>{group.place}</span>
-                      <span>{group.machineList.length} machine{group.machineList.length === 1 ? "" : "s"}</span>
+                      <strong>
+                        {event.kind === "rental" ? "Verhuur" : event.customer?.companyName ?? "Onbekende klant"}
+                      </strong>
+                      <span>{event.kind === "rental" ? event.customer?.companyName ?? "-" : event.place}</span>
+                      <span>
+                        {event.machineList.length} machine{event.machineList.length === 1 ? "" : "s"}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -362,34 +426,45 @@ export function PlanningCalendar({
         </div>
       </div>
 
-      {selectedGroup ? (
-        <div className="modal-backdrop" onClick={() => setSelectedGroupKey("")}>
+      {selectedEvent ? (
+        <div className="modal-backdrop" onClick={() => setSelectedEventKey("")}>
           <div className="modal-card" onClick={(event) => event.stopPropagation()}>
-            <div className="eyebrow">Geplande keuring</div>
-            <h2>{selectedGroup.customer?.companyName ?? "Onbekende klant"}</h2>
+            <div className="eyebrow">{selectedEvent.kind === "rental" ? "Verhuur" : "Geplande keuring"}</div>
+            <h2>{selectedEvent.customer?.companyName ?? "Onbekende klant"}</h2>
             <p className="muted" style={{ marginTop: "-0.35rem", marginBottom: "1rem" }}>
-              {[selectedGroup.customer?.address, selectedGroup.customer?.city].filter(Boolean).join(", ") || "Adres onbekend"}
-              {selectedGroup.customer?.phone ? ` | ${selectedGroup.customer.phone}` : ""}
+              {[selectedEvent.customer?.address, selectedEvent.customer?.city].filter(Boolean).join(", ") || "Adres onbekend"}
+              {selectedEvent.customer?.phone ? ` | ${selectedEvent.customer.phone}` : ""}
             </p>
             <div className="list">
               <div className="list-item static-list-item">
                 <span>Plaats</span>
-                <strong>{selectedGroup.place}</strong>
+                <strong>{selectedEvent.place}</strong>
               </div>
-              <div className="list-item static-list-item">
-                <span>Datum</span>
-                <strong>{selectedGroup.dueDate}</strong>
-              </div>
+              {selectedEvent.kind === "rental" ? (
+                <div className="list-item static-list-item">
+                  <span>Periode</span>
+                  <strong>{selectedEvent.rental.startDate} t/m {selectedEvent.rental.endDate}</strong>
+                </div>
+              ) : (
+                <div className="list-item static-list-item">
+                  <span>Datum</span>
+                  <strong>{selectedEvent.dueDate}</strong>
+                </div>
+              )}
               <div className="list-item static-list-item">
                 <span>Status</span>
-                <strong>{stateLabel(selectedGroup.state)}</strong>
+                <strong>
+                  {selectedEvent.kind === "rental"
+                    ? rentalPhaseLabel(selectedEvent.rental)
+                    : stateLabel(selectedEvent.state)}
+                </strong>
               </div>
             </div>
 
             <div className="form-block" style={{ marginTop: "1rem" }}>
               <div className="eyebrow">Machines</div>
               <div className="list compact-list">
-                {selectedGroup.machineList.map((machine) => (
+                {selectedEvent.machineList.map((machine) => (
                   <Link className="list-item" href={`/machines/${machine.id}`} key={machine.id}>
                     <span>
                       <strong>{machine.brand} {machine.model}</strong>
@@ -403,8 +478,8 @@ export function PlanningCalendar({
             </div>
 
             <div className="actions">
-              {selectedGroup.customer?.id ? (
-                <Link className="button-secondary" href={`/klanten/${selectedGroup.customer.id}`}>
+              {selectedEvent.customer?.id ? (
+                <Link className="button-secondary" href={`/klanten/${selectedEvent.customer.id}`}>
                   Open klantkaart
                 </Link>
               ) : null}
@@ -413,7 +488,7 @@ export function PlanningCalendar({
                   Open machinekaart
                 </Link>
               ) : null}
-              <button className="button" type="button" onClick={() => setSelectedGroupKey("")}>
+              <button className="button" type="button" onClick={() => setSelectedEventKey("")}>
                 Sluiten
               </button>
             </div>

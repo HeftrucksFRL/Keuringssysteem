@@ -18,6 +18,17 @@ create type public.inspection_status as enum (
   'rejected'
 );
 
+create type public.machine_availability_status as enum (
+  'available',
+  'rented',
+  'maintenance'
+);
+
+create type public.rental_status as enum (
+  'active',
+  'completed'
+);
+
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   full_name text not null,
@@ -50,6 +61,7 @@ create table if not exists public.machines (
   customer_id uuid not null references public.customers(id) on delete cascade,
   machine_number text not null unique,
   machine_type public.machine_type not null,
+  availability_status public.machine_availability_status not null default 'available',
   brand text,
   model text,
   serial_number text,
@@ -122,6 +134,18 @@ create table if not exists public.planning_items (
   state text not null check (state in ('upcoming', 'overdue', 'scheduled', 'completed')),
   scheduled_for date,
   notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.rentals (
+  id uuid primary key default gen_random_uuid(),
+  machine_id uuid not null references public.machines(id) on delete cascade,
+  customer_id uuid not null references public.customers(id) on delete cascade,
+  start_date date not null,
+  end_date date not null,
+  status public.rental_status not null default 'active',
+  price text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -200,6 +224,11 @@ create trigger trg_planning_updated_at
 before update on public.planning_items
 for each row execute procedure public.set_updated_at();
 
+drop trigger if exists trg_rentals_updated_at on public.rentals;
+create trigger trg_rentals_updated_at
+before update on public.rentals
+for each row execute procedure public.set_updated_at();
+
 drop trigger if exists trg_finalize_inspection on public.inspections;
 create trigger trg_finalize_inspection
 before insert or update on public.inspections
@@ -211,6 +240,7 @@ alter table public.inspections enable row level security;
 alter table public.inspection_attachments enable row level security;
 alter table public.mail_events enable row level security;
 alter table public.planning_items enable row level security;
+alter table public.rentals enable row level security;
 
 create policy "authenticated read customers" on public.customers
 for select to authenticated using (true);
@@ -242,8 +272,18 @@ for select to authenticated using (true);
 create policy "authenticated write planning" on public.planning_items
 for all to authenticated using (true) with check (true);
 
+create policy "authenticated read rentals" on public.rentals
+for select to authenticated using (true);
+
+create policy "authenticated write rentals" on public.rentals
+for all to authenticated using (true) with check (true);
+
 create index if not exists idx_machines_customer_id on public.machines(customer_id);
 create index if not exists idx_inspections_machine_id on public.inspections(machine_id);
 create index if not exists idx_inspections_customer_id on public.inspections(customer_id);
 create index if not exists idx_inspections_date on public.inspections(inspection_date desc);
 create index if not exists idx_planning_due_date on public.planning_items(due_date);
+create index if not exists idx_rentals_machine_id on public.rentals(machine_id);
+create index if not exists idx_rentals_customer_id on public.rentals(customer_id);
+create index if not exists idx_rentals_start_date on public.rentals(start_date);
+create index if not exists idx_rentals_end_date on public.rentals(end_date);

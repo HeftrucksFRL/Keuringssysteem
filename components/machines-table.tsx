@@ -10,6 +10,30 @@ interface MachinesTableProps {
   customers: CustomerRecord[];
 }
 
+function statusBadgeStyle(status: MachineRecord["availabilityStatus"]) {
+  if (status === "rented") {
+    return { background: "#fde8e6", color: "#b42318" };
+  }
+
+  if (status === "maintenance") {
+    return { background: "#fff0d8", color: "#d97706" };
+  }
+
+  return { background: "#dff6ec", color: "#0d8d59" };
+}
+
+function statusLabel(status: MachineRecord["availabilityStatus"]) {
+  if (status === "rented") {
+    return "Verhuurd";
+  }
+
+  if (status === "maintenance") {
+    return "Onderhoud";
+  }
+
+  return "Beschikbaar";
+}
+
 export function MachinesTable({
   machines,
   customers
@@ -47,11 +71,7 @@ export function MachinesTable({
       </div>
       <div className="dataset-list">
         {filteredMachines.map((machine) => (
-          <Link
-            className="dataset-row"
-            href={`/machines/${machine.id}`}
-            key={machine.id}
-          >
+          <Link className="dataset-row" href={`/machines/${machine.id}`} key={machine.id}>
             <strong>
               {[machine.brand, machine.model].filter(Boolean).join(" ") || "Machine"} ·{" "}
               {machine.internalNumber || machine.machineNumber}
@@ -60,6 +80,11 @@ export function MachinesTable({
             <span>
               {customers.find((customer) => customer.id === machine.customerId)?.companyName ?? "-"} ·{" "}
               {titleCase(machine.machineType)}
+            </span>
+            <span>
+              <span className="badge" style={statusBadgeStyle(machine.availabilityStatus)}>
+                {statusLabel(machine.availabilityStatus)}
+              </span>
             </span>
           </Link>
         ))}
