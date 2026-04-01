@@ -226,6 +226,10 @@ export function InspectionForm({
   const selectedMachine = machines.find((item) => item.id === selectedMachineId) ?? null;
   const nextInspectionDate = addTwelveMonths(values.inspection_date);
   const previewInspectionNumber = useMemo(() => {
+    if (existingInspection?.inspectionNumber) {
+      return existingInspection.inspectionNumber;
+    }
+
     const inspectionDate = values.inspection_date || new Date().toISOString().slice(0, 10);
     const year = Number(inspectionDate.slice(0, 4));
     const sequencesForYear = inspections
@@ -237,7 +241,7 @@ export function InspectionForm({
       sequencesForYear.length > 0 ? Math.max(...sequencesForYear) : null;
 
     return previewNextInspectionNumber(year, lastSequenceForYear);
-  }, [inspections, values.inspection_date]);
+  }, [existingInspection?.inspectionNumber, inspections, values.inspection_date]);
 
   const filteredCustomers = useMemo(() => {
     const query = customerQuery.trim().toLowerCase();
