@@ -136,8 +136,12 @@ export default async function HomePage({
             const customer = customers.find((entry) => entry.id === item.customerId);
             const machine = machines.find((entry) => entry.id === item.machineId);
 
+            const planningHref = item.inspectionId
+              ? { pathname: `/keuringen/${item.inspectionId}` }
+              : { pathname: "/planning", query: { month: item.dueDate.slice(0, 7) } };
+
             return (
-              <Link className="table-row" href={`/keuringen/${item.inspectionId}`} key={item.id}>
+              <Link className="table-row" href={planningHref} key={item.id}>
                 <span>
                   <strong>{customer?.companyName ?? "Onbekende klant"}</strong>
                   <br />
@@ -159,7 +163,7 @@ export default async function HomePage({
                       ? "Gepland"
                       : "Aankomend"}
                 </span>
-                <span>Open keuring</span>
+                <span>{item.inspectionId ? "Open keuring" : "Open planning"}</span>
               </Link>
             );
           })}

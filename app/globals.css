@@ -704,6 +704,14 @@ textarea {
   background: #fbfdff;
 }
 
+.planning-create-form {
+  margin-bottom: 1rem;
+}
+
+.planning-create-grid {
+  align-items: end;
+}
+
 .compact-card {
   padding: 0.9rem 1rem;
   border: 1px solid #d7e3ef;

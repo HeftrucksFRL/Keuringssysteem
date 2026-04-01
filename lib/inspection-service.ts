@@ -942,6 +942,85 @@ export async function getPlanningItems() {
   return data.planningItems;
 }
 
+export async function createManualPlanningItem(input: {
+  customerId: string;
+  machineId: string;
+  dueDate: string;
+}) {
+  const state =
+    new Date(input.dueDate) < new Date()
+      ? "overdue"
+      : ("scheduled" as const);
+
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data: existing } = await supabase
+      .from("planning_items")
+      .select("*")
+      .eq("customer_id", input.customerId)
+      .eq("machine_id", input.machineId)
+      .eq("due_date", input.dueDate)
+      .limit(1)
+      .maybeSingle();
+
+    if (existing) {
+      await supabase
+        .from("planning_items")
+        .update({
+          state,
+          notes: "Handmatig gepland"
+        })
+        .eq("id", existing.id);
+      return String(existing.id);
+    }
+
+    const { data } = await supabase
+      .from("planning_items")
+      .insert({
+        inspection_id: null,
+        customer_id: input.customerId,
+        machine_id: input.machineId,
+        due_date: input.dueDate,
+        state,
+        notes: "Handmatig gepland"
+      })
+      .select("id")
+      .single();
+
+    return String(data?.id ?? "");
+  }
+
+  const data = await readAppData();
+  const existing = data.planningItems.find(
+    (item) =>
+      item.customerId === input.customerId &&
+      item.machineId === input.machineId &&
+      item.dueDate === input.dueDate
+  );
+
+  if (existing) {
+    existing.state = state;
+    existing.updatedAt = nowIso();
+    await writeAppData(data);
+    return existing.id;
+  }
+
+  const planningItem: PlanningRecord = {
+    id: randomUUID(),
+    inspectionId: "",
+    customerId: input.customerId,
+    machineId: input.machineId,
+    dueDate: input.dueDate,
+    state,
+    createdAt: nowIso(),
+    updatedAt: nowIso()
+  };
+
+  data.planningItems.unshift(planningItem);
+  await writeAppData(data);
+  return planningItem.id;
+}
+
 export async function getInspectionAttachments() {
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
