@@ -21,7 +21,7 @@ const links: Array<{
   mobileQuick?: boolean;
 }> = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard, mobileQuick: true },
-  { href: "/keuringen/nieuw", label: "Nieuw", icon: ClipboardCheck, mobileQuick: true },
+  { href: "/keuringen/nieuw", label: "Nieuwe keuring", icon: ClipboardCheck, mobileQuick: true },
   { href: "/klanten", label: "Klanten", icon: Users, mobileQuick: true },
   { href: "/machines", label: "Machines", icon: Forklift, mobileQuick: true },
   { href: "/planning", label: "Planning", icon: FolderKanban, mobileQuick: true },
