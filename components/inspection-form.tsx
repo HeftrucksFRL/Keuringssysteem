@@ -369,7 +369,7 @@ export function InspectionForm({
       ...machineSnapshotOverrides(previousInspection.machineSnapshot),
       ...machineValues(selectedMachine),
       ...machineConfigurationValues(selectedMachine.configuration),
-      findings: previousInspection.findings,
+      findings: previousInspection.findings || previousInspection.recommendations,
       recommendations: previousInspection.recommendations,
       conclusion: previousInspection.conclusion,
       inspection_date: current.inspection_date
@@ -853,15 +853,11 @@ export function InspectionForm({
             <h2>Notities</h2>
             <div className="form-block">
               <div className="field">
-                <label htmlFor="findings">Bevindingen</label>
+                <label htmlFor="findings">Opmerking voor klant</label>
                 <textarea id="findings" name="findings" value={values.findings ?? ""} onChange={(event) => setFieldValue("findings", event.target.value)} />
               </div>
               <div className="field">
-                <label htmlFor="recommendations">Aanbevelingen</label>
-                <textarea id="recommendations" name="recommendations" value={values.recommendations ?? ""} onChange={(event) => setFieldValue("recommendations", event.target.value)} />
-              </div>
-              <div className="field">
-                <label htmlFor="conclusion">Extra opmerkingen</label>
+                <label htmlFor="conclusion">Eigen notitie</label>
                 <textarea id="conclusion" name="conclusion" value={values.conclusion ?? ""} onChange={(event) => setFieldValue("conclusion", event.target.value)} />
               </div>
             </div>

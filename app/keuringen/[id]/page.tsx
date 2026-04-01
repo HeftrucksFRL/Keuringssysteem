@@ -129,15 +129,11 @@ export default async function InspectionDetailPage({
             </div>
           </div>
           <div className="field">
-            <label htmlFor="findings">Bevindingen</label>
+            <label htmlFor="findings">Opmerking voor klant</label>
             <textarea id="findings" name="findings" defaultValue={inspection.findings} />
           </div>
           <div className="field">
-            <label htmlFor="recommendations">Aanbevelingen</label>
-            <textarea id="recommendations" name="recommendations" defaultValue={inspection.recommendations} />
-          </div>
-          <div className="field">
-            <label htmlFor="conclusion">Extra opmerkingen</label>
+            <label htmlFor="conclusion">Eigen notitie</label>
             <textarea id="conclusion" name="conclusion" defaultValue={inspection.conclusion} />
           </div>
           <div className="field">

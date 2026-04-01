@@ -8,8 +8,6 @@ interface ReportContext {
   contactName: string;
   machineName: string;
   findings: string;
-  recommendations: string;
-  conclusion: string;
   checklist: Record<string, ChecklistOption>;
 }
 
@@ -71,12 +69,8 @@ export function buildPdfHtml(form: FormDefinition, context: ReportContext) {
           ${renderChecklistRows(form, context.checklist)}
         </table>
         <section style="margin-top:24px;">
-          <h3 style="margin-bottom:8px;">Bevindingen</h3>
+          <h3 style="margin-bottom:8px;">Opmerkingen</h3>
           <p>${context.findings || "-"}</p>
-          <h3 style="margin-bottom:8px;">Aanbevelingen</h3>
-          <p>${context.recommendations || "-"}</p>
-          <h3 style="margin-bottom:8px;">Conclusie</h3>
-          <p>${context.conclusion || "-"}</p>
         </section>
       </body>
     </html>
@@ -95,9 +89,7 @@ export function buildWordTemplateText(form: FormDefinition) {
     "Secties:",
     ...form.sections.map((section) => `- ${section.title}: ${section.items.length} controlepunten`),
     "Afsluiting:",
-    "- Bevindingen",
-    "- Aanbevelingen",
-    "- Conclusie",
+    "- Opmerkingen",
     `- Statusopties: ${form.conclusionLabels.join(", ")}`
   ].join("\n");
 }

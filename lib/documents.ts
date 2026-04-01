@@ -208,12 +208,8 @@ async function generateWordFromTemplate(inspection: InspectionRecord) {
     buildWordBodyTable(summaryRows(inspection)),
     buildWordSectionTitle("Checklist"),
     buildWordChecklistTable(inspection),
-    buildWordSectionTitle("Bevindingen"),
-    buildWordMultilineContent(inspection.findings),
-    buildWordSectionTitle("Aanbevelingen"),
-    buildWordMultilineContent(inspection.recommendations),
-    buildWordSectionTitle("Conclusie"),
-    buildWordMultilineContent(inspection.conclusion)
+    buildWordSectionTitle("Opmerkingen"),
+    buildWordMultilineContent(inspection.findings)
   ].join("");
 
   const updatedDocumentXml = documentXml.replace(
@@ -610,9 +606,7 @@ export async function generateInspectionDocuments(
 
   drawMetaCard();
   drawTwoColumnInfoCard();
-  drawSectionCard("Bevindingen", inspection.findings);
-  drawSectionCard("Aanbevelingen", inspection.recommendations);
-  drawSectionCard("Conclusie", inspection.conclusion);
+  drawSectionCard("Opmerkingen", inspection.findings);
 
   let checklistStarted = false;
   form.sections.forEach((section) => {
