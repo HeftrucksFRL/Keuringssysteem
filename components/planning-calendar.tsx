@@ -468,7 +468,7 @@ export function PlanningCalendar({
                     <span>
                       {event.kind === "rental"
                         ? `${rentalMomentLabel(event.rentalMoment)} · ${rentalPhaseLabel(event.rental)}`
-                        : stateLabel(event.state)}
+                        : `Keuring · ${stateLabel(event.state)}`}
                     </span>
                   </div>
                 </button>
@@ -518,7 +518,7 @@ export function PlanningCalendar({
                       <span>
                         {event.kind === "rental"
                           ? rentalMomentLabel(event.rentalMoment)
-                          : event.place}
+                          : "Keuring"}
                       </span>
                       <span>
                         {event.kind === "rental"
