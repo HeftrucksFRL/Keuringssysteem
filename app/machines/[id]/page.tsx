@@ -208,7 +208,14 @@ export default async function MachineDetailPage({
               </span>
               <span>
                 <div className="inline-meta">
-                  <Link className="button-secondary" href={`/keuringen/${inspection.id}` as Route}>
+                  <Link
+                    className="button-secondary"
+                    href={
+                      (inspection.status === "draft"
+                        ? `/keuringen/nieuw?inspectionId=${inspection.id}`
+                        : `/keuringen/${inspection.id}`) as Route
+                    }
+                  >
                     Keuring openen
                   </Link>
                   {attachmentsByInspection.find((item) => item.inspectionId === inspection.id)?.pdf ? (

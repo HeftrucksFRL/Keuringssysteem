@@ -260,7 +260,14 @@ export function InspectionsTable({
                     Rapport openen
                   </a>
                 ) : null}
-                <Link className="button-secondary" href={`/keuringen/${inspection.id}`}>
+                <Link
+                  className="button-secondary"
+                  href={
+                    inspection.status === "draft"
+                      ? `/keuringen/nieuw?inspectionId=${inspection.id}`
+                      : `/keuringen/${inspection.id}`
+                  }
+                >
                   Keuring openen
                 </Link>
                 <button

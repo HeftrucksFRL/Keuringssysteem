@@ -1,6 +1,7 @@
 import { InspectionForm } from "@/components/inspection-form";
 import {
   getCustomers,
+  getInspectionById,
   getInspections,
   getMachines
 } from "@/lib/inspection-service";
@@ -8,14 +9,15 @@ import {
 export default async function NewInspectionPage({
   searchParams
 }: {
-  searchParams?: Promise<{ customerId?: string; machineId?: string }>;
+  searchParams?: Promise<{ customerId?: string; machineId?: string; inspectionId?: string; saved?: string }>;
 }) {
-  const [customers, machines, inspections] = await Promise.all([
+  const params = await searchParams;
+  const [customers, machines, inspections, existingInspection] = await Promise.all([
     getCustomers(),
     getMachines(),
-    getInspections()
+    getInspections(),
+    params?.inspectionId ? getInspectionById(params.inspectionId) : Promise.resolve(null)
   ]);
-  const params = await searchParams;
 
   return (
     <InspectionForm
@@ -24,6 +26,8 @@ export default async function NewInspectionPage({
       inspections={inspections}
       defaultCustomerId={params?.customerId}
       defaultMachineId={params?.machineId}
+      existingInspection={existingInspection}
+      savedState={params?.saved}
     />
   );
 }

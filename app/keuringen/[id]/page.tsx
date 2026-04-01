@@ -47,6 +47,11 @@ export default async function InspectionDetailPage({
         </p>
         {query?.saved ? <p className="form-message success">Keuring opgeslagen.</p> : null}
         <div className="actions">
+          {inspection.status === "draft" ? (
+            <Link className="button" href={`/keuringen/nieuw?inspectionId=${inspection.id}` as Route}>
+              Verder met keuring
+            </Link>
+          ) : null}
           {pdfAttachment ? (
             <a
               className="button-secondary"

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getFormDefinition } from "@/lib/form-definitions";
-import { createInspection } from "@/lib/inspection-service";
+import { createInspection, updateInspectionFromForm } from "@/lib/inspection-service";
 import type { ChecklistOption, MachineType } from "@/lib/types";
 
 function buildMachineDossier(serialNumber: string, internalNumber: string) {
@@ -39,6 +39,7 @@ export async function POST(request: Request) {
       formData.get("serial_number") || formData.get("vehicle_serial_number") || ""
     );
     const inspectionDate = String(formData.get("inspection_date") || "");
+    const inspectionId = String(formData.get("inspection_id") || "").trim();
 
     if (!machineType || !checklist) {
       return NextResponse.json(
@@ -72,7 +73,7 @@ export async function POST(request: Request) {
         .filter(([key]) => !key.startsWith("customer_"))
     );
 
-    const inspection = await createInspection({
+    const payload = {
       customerId: existingCustomerId || undefined,
       machineId: existingMachineId || undefined,
       machineType,
@@ -108,12 +109,17 @@ export async function POST(request: Request) {
           buffer: Buffer.from(await photo.arrayBuffer())
         }))
       )
-    });
+    };
+
+    const inspection = inspectionId
+      ? await updateInspectionFromForm(inspectionId, payload)
+      : await createInspection(payload);
 
     return NextResponse.json({
       ok: true,
       inspectionId: inspection.id,
-      inspectionNumber: inspection.inspectionNumber
+      inspectionNumber: inspection.inspectionNumber,
+      status: inspection.status
     });
   } catch {
     return NextResponse.json(

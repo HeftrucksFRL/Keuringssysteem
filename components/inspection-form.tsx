@@ -15,6 +15,8 @@ interface Props {
   defaultType?: MachineType;
   defaultCustomerId?: string;
   defaultMachineId?: string;
+  existingInspection?: InspectionRecord | null;
+  savedState?: string;
 }
 
 type Step = 1 | 2 | 3 | 4;
@@ -124,6 +126,18 @@ function machineSnapshotOverrides(snapshot: Record<string, string>) {
   );
 }
 
+function resultLabelsFromStatus(status?: InspectionRecord["status"]) {
+  if (status === "rejected") {
+    return ["Afgekeurd"];
+  }
+
+  if (status === "draft") {
+    return ["In behandeling"];
+  }
+
+  return ["Goedgekeurd"];
+}
+
 async function compressImage(file: File) {
   const url = URL.createObjectURL(file);
   const image = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -156,25 +170,55 @@ export function InspectionForm({
   inspections,
   defaultType = "heftruck_reachtruck",
   defaultCustomerId = "",
-  defaultMachineId = ""
+  defaultMachineId = "",
+  existingInspection = null,
+  savedState = ""
 }: Props) {
+  const isEditingExisting = Boolean(existingInspection);
   const formRef = useRef<HTMLFormElement | null>(null);
   const topRef = useRef<HTMLDivElement | null>(null);
   const [isPending, startTransition] = useTransition();
-  const [type, setType] = useState<MachineType>(defaultType);
-  const [step, setStep] = useState<Step>(defaultMachineId ? 4 : defaultCustomerId ? 3 : 1);
-  const [customerMode, setCustomerMode] = useState<Mode>(defaultCustomerId || defaultMachineId ? "existing" : "new");
-  const [machineMode, setMachineMode] = useState<Mode>(defaultMachineId ? "existing" : "new");
+  const [type, setType] = useState<MachineType>(existingInspection?.machineType ?? defaultType);
+  const [step, setStep] = useState<Step>(existingInspection ? 4 : defaultMachineId ? 4 : defaultCustomerId ? 3 : 1);
+  const [customerMode, setCustomerMode] = useState<Mode>(existingInspection || defaultCustomerId || defaultMachineId ? "existing" : "new");
+  const [machineMode, setMachineMode] = useState<Mode>(existingInspection || defaultMachineId ? "existing" : "new");
   const [customerQuery, setCustomerQuery] = useState("");
   const [machineQuery, setMachineQuery] = useState("");
   const [customerMenuOpen, setCustomerMenuOpen] = useState(false);
   const [machineMenuOpen, setMachineMenuOpen] = useState(false);
-  const [selectedCustomerId, setSelectedCustomerId] = useState(defaultCustomerId);
-  const [selectedMachineId, setSelectedMachineId] = useState(defaultMachineId);
-  const [values, setValues] = useState<Record<string, string>>({ inspection_date: new Date().toISOString().slice(0, 10) });
+  const [selectedCustomerId, setSelectedCustomerId] = useState(existingInspection?.customerId ?? defaultCustomerId);
+  const [selectedMachineId, setSelectedMachineId] = useState(existingInspection?.machineId ?? defaultMachineId);
+  const [values, setValues] = useState<Record<string, string>>(() =>
+    existingInspection
+      ? {
+          customer_name: existingInspection.customerSnapshot.customer_name ?? "",
+          customer_address: existingInspection.customerSnapshot.customer_address ?? "",
+          customer_contact: existingInspection.customerSnapshot.customer_contact ?? "",
+          customer_phone: existingInspection.customerSnapshot.customer_phone ?? "",
+          customer_email: existingInspection.customerSnapshot.customer_email ?? "",
+          brand: existingInspection.machineSnapshot.brand ?? "",
+          model: existingInspection.machineSnapshot.model ?? "",
+          serial_number: existingInspection.machineSnapshot.serial_number ?? "",
+          build_year: existingInspection.machineSnapshot.build_year ?? "",
+          internal_number: existingInspection.machineSnapshot.internal_number ?? "",
+          inspection_date: existingInspection.inspectionDate,
+          findings: existingInspection.findings,
+          recommendations: existingInspection.recommendations,
+          conclusion: existingInspection.conclusion,
+          ...machineSnapshotOverrides(existingInspection.machineSnapshot)
+        }
+      : { inspection_date: new Date().toISOString().slice(0, 10) }
+  );
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [message, setMessage] = useState<Flash>(null);
-  const [checklist, setChecklist] = useState<Record<string, ChecklistOption>>(buildDefaultChecklist(defaultType));
+  const [checklist, setChecklist] = useState<Record<string, ChecklistOption>>(
+    existingInspection
+      ? { ...buildDefaultChecklist(existingInspection.machineType), ...existingInspection.checklist }
+      : buildDefaultChecklist(defaultType)
+  );
+  const [selectedResultLabels, setSelectedResultLabels] = useState<string[]>(
+    existingInspection ? resultLabelsFromStatus(existingInspection.status) : []
+  );
   const [draftNotice, setDraftNotice] = useState("");
 
   const form = useMemo(() => getFormDefinition(type), [type]);
@@ -219,9 +263,17 @@ export function InspectionForm({
     );
   }, [customerMachines, machineQuery]);
 
-  useEffect(() => setChecklist(buildDefaultChecklist(type)), [type]);
+  useEffect(() => {
+    if (isEditingExisting) {
+      return;
+    }
+    setChecklist(buildDefaultChecklist(type));
+  }, [isEditingExisting, type]);
 
   useEffect(() => {
+    if (isEditingExisting) {
+      return;
+    }
     if (typeof window === "undefined") {
       return;
     }
@@ -256,7 +308,21 @@ export function InspectionForm({
     } catch {
       window.localStorage.removeItem(draftStorageKey);
     }
-  }, [defaultCustomerId, defaultMachineId]);
+  }, [defaultCustomerId, defaultMachineId, isEditingExisting]);
+
+  useEffect(() => {
+    if (!savedState) {
+      return;
+    }
+
+    setMessage({
+      type: "success",
+      text:
+        savedState === "draft"
+          ? "Keuring in behandeling bijgewerkt."
+          : "Keuring bijgewerkt."
+    });
+  }, [savedState]);
 
   useEffect(() => {
     const activeElement = document.activeElement;
@@ -277,12 +343,14 @@ export function InspectionForm({
   }, [step]);
 
   useEffect(() => {
+    if (isEditingExisting) return;
     if (!selectedCustomer) return;
     setValues((current) => ({ ...current, ...customerValues(selectedCustomer) }));
     if (!customerQuery) setCustomerQuery(selectedCustomer.companyName);
-  }, [selectedCustomer, customerQuery]);
+  }, [selectedCustomer, customerQuery, isEditingExisting]);
 
   useEffect(() => {
+    if (isEditingExisting) return;
     if (!selectedMachine) return;
     setType(selectedMachine.machineType);
     setValues((current) => ({
@@ -307,7 +375,7 @@ export function InspectionForm({
       inspection_date: current.inspection_date
     }));
     setChecklist({ ...buildDefaultChecklist(selectedMachine.machineType), ...previousInspection.checklist });
-  }, [selectedMachine, inspections]);
+  }, [selectedMachine, inspections, isEditingExisting]);
 
   function setFieldValue(key: string, value: string) {
     setDraftNotice("");
@@ -426,7 +494,7 @@ export function InspectionForm({
     startTransition(async () => {
       const response = await fetch("/api/inspections", { method: "POST", body: formData });
       const result = (await response.json()) as
-        | { ok: true; inspectionId: string; inspectionNumber: string }
+        | { ok: true; inspectionId: string; inspectionNumber: string; status: InspectionRecord["status"] }
         | { ok: false; message: string };
 
       if (!response.ok || !result.ok) {
@@ -435,6 +503,11 @@ export function InspectionForm({
       }
 
       window.localStorage.removeItem(draftStorageKey);
+      if (result.status === "draft") {
+        window.location.assign(`/keuringen/nieuw?inspectionId=${result.inspectionId}&saved=draft`);
+        return;
+      }
+
       window.location.assign(`/?saved=${result.inspectionNumber}`);
     });
   }
@@ -466,6 +539,7 @@ export function InspectionForm({
   return (
     <form ref={formRef} onSubmit={submitForm} className="inspection-layout">
       <div ref={topRef} />
+      {existingInspection ? <input type="hidden" name="inspection_id" value={existingInspection.id} /> : null}
       {Object.entries(values).filter(([key]) => key.startsWith("customer_")).map(([key, value]) => (
         <input key={key} type="hidden" name={key} value={value} />
       ))}
@@ -802,7 +876,17 @@ export function InspectionForm({
                 <div className="status-options">
                   {form.conclusionLabels.map((label) => (
                     <label className="status-chip" key={label}>
-                      <input type="checkbox" name="result_labels" value={label} />
+                      <input
+                        type="checkbox"
+                        name="result_labels"
+                        value={label}
+                        checked={selectedResultLabels.includes(label)}
+                        onChange={() => {
+                          setSelectedResultLabels((current) =>
+                            current.includes(label) ? current.filter((item) => item !== label) : [label]
+                          );
+                        }}
+                      />
                       {label}
                     </label>
                   ))}
@@ -859,7 +943,11 @@ export function InspectionForm({
               disabled={isPending}
               onClick={() => formRef.current?.requestSubmit()}
             >
-              {isPending ? "Bezig met opslaan..." : "Keuring afronden"}
+              {isPending
+                ? "Bezig met opslaan..."
+                : selectedResultLabels.includes("In behandeling")
+                  ? "Keuring bijwerken"
+                  : "Keuring afronden"}
             </button>
           )}
         </div>

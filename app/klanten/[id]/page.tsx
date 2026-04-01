@@ -2,6 +2,7 @@ import { fileUrl } from "@/lib/file-urls";
 import { getInspectionAttachments } from "@/lib/inspection-service";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { Route } from "next";
 import { updateCustomerAction } from "@/app/klanten/actions";
 import {
   getCustomerById,
@@ -120,7 +121,7 @@ export default async function CustomerDetailPage({
             <span>{inspection.machineSnapshot.model || inspection.machineSnapshot.brand || "-"}</span>
             <span>{inspection.inspectionDate}</span>
             <span>
-              {attachments.find(
+                  {attachments.find(
                 (attachment) =>
                   attachment.inspectionId === inspection.id && attachment.kind === "pdf"
               ) ? (
@@ -154,6 +155,16 @@ export default async function CustomerDetailPage({
                       : "Goedgekeurd"}
                 </span>
               )}
+              <Link
+                className="button-secondary"
+                href={
+                  (inspection.status === "draft"
+                    ? `/keuringen/nieuw?inspectionId=${inspection.id}`
+                    : `/keuringen/${inspection.id}`) as Route
+                }
+              >
+                Keuring openen
+              </Link>
             </span>
           </div>
         ))}

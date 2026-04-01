@@ -851,6 +851,174 @@ export async function createInspection(input: CreateInspectionInput) {
   return inspection;
 }
 
+export async function updateInspectionFromForm(
+  inspectionId: string,
+  input: CreateInspectionInput
+) {
+  if (!hasSupabaseConfig()) {
+    const data = await readAppData();
+    const inspection = data.inspections.find((item) => item.id === inspectionId);
+    if (!inspection) {
+      throw new Error("Keuring niet gevonden");
+    }
+
+    const customer =
+      (input.customerId
+        ? data.customers.find((item) => item.id === input.customerId)
+        : null) ?? findOrCreateCustomer(data, input.customer);
+    customer.address = input.customer.address;
+    customer.contactName = input.customer.contactName;
+    customer.phone = input.customer.phone;
+    customer.email = input.customer.email;
+    customer.updatedAt = nowIso();
+
+    const machine =
+      (input.machineId
+        ? data.machines.find((item) => item.id === input.machineId)
+        : null) ?? findOrCreateMachine(data, customer.id, input.machine, input.machineType);
+    machine.customerId = customer.id;
+    machine.machineNumber = input.machine.machineNumber;
+    machine.machineType = input.machineType;
+    machine.brand = input.machine.brand;
+    machine.model = input.machine.model;
+    machine.serialNumber = input.machine.serialNumber;
+    machine.buildYear = input.machine.buildYear;
+    machine.internalNumber = input.machine.internalNumber;
+    machine.configuration = sanitizeMachineConfiguration(input.machine.details);
+    machine.updatedAt = nowIso();
+
+    inspection.customerId = customer.id;
+    inspection.machineId = machine.id;
+    inspection.machineType = input.machineType;
+    inspection.inspectionDate = input.inspectionDate;
+    inspection.nextInspectionDate = addTwelveMonths(input.inspectionDate);
+    inspection.status = statusFromResultLabels(input.resultLabels);
+    inspection.sendPdfToCustomer = input.sendPdfToCustomer;
+    inspection.customerSnapshot = buildCustomerSnapshot(customer);
+    inspection.machineSnapshot = buildMachineSnapshot(machine);
+    inspection.checklist = input.checklist;
+    inspection.findings = input.findings;
+    inspection.recommendations = input.recommendations;
+    inspection.conclusion = input.conclusion;
+    inspection.resultLabels = input.resultLabels;
+    inspection.updatedAt = nowIso();
+
+    const planningItem = data.planningItems.find((item) => item.inspectionId === inspection.id);
+    if (planningItem) {
+      planningItem.customerId = customer.id;
+      planningItem.machineId = machine.id;
+      planningItem.dueDate = inspection.nextInspectionDate;
+      planningItem.state =
+        new Date(inspection.nextInspectionDate) < new Date() ? "overdue" : "scheduled";
+      planningItem.updatedAt = nowIso();
+    }
+
+    await syncDemoInspectionDocuments(data, inspection);
+    await writeAppData(data);
+    return inspection;
+  }
+
+  const supabase = createSupabaseAdmin();
+
+  let customerRow: Record<string, unknown> | null = null;
+  if (input.customerId) {
+    const { data } = await supabase
+      .from("customers")
+      .update({
+        company_name: input.customer.companyName,
+        address_line_1: input.customer.address,
+        contact_name: input.customer.contactName,
+        phone: input.customer.phone,
+        email: input.customer.email
+      })
+      .eq("id", input.customerId)
+      .select()
+      .single();
+    customerRow = data;
+  }
+
+  let machineRow: Record<string, unknown> | null = null;
+  if (input.machineId) {
+    const { data } = await supabase
+      .from("machines")
+      .update({
+        customer_id: customerRow?.id,
+        machine_number: input.machine.machineNumber,
+        machine_type: input.machineType,
+        brand: input.machine.brand,
+        model: input.machine.model,
+        serial_number: input.machine.serialNumber,
+        build_year: Number(input.machine.buildYear || 0) || null,
+        internal_number: input.machine.internalNumber,
+        configuration: sanitizeMachineConfiguration(input.machine.details)
+      })
+      .eq("id", input.machineId)
+      .select()
+      .single();
+    machineRow = data;
+  }
+
+  const nextInspectionDate = addTwelveMonths(input.inspectionDate);
+  const status = statusFromResultLabels(input.resultLabels);
+
+  const { data: updatedRow } = await supabase
+    .from("inspections")
+    .update({
+      customer_id: customerRow?.id,
+      machine_id: machineRow?.id,
+      machine_type: input.machineType,
+      inspection_date: input.inspectionDate,
+      next_inspection_date: nextInspectionDate,
+      status,
+      send_pdf_to_customer: input.sendPdfToCustomer,
+      checklist: input.checklist,
+      customer_snapshot: buildCustomerSnapshot(input.customer),
+      machine_snapshot: buildMachineSnapshot({
+        machineNumber: input.machine.machineNumber,
+        brand: input.machine.brand,
+        model: input.machine.model,
+        serialNumber: input.machine.serialNumber,
+        buildYear: input.machine.buildYear,
+        internalNumber: input.machine.internalNumber,
+        configuration: sanitizeMachineConfiguration(input.machine.details)
+      }),
+      findings: input.findings,
+      recommendations: input.recommendations,
+      conclusion: input.conclusion
+    })
+    .eq("id", inspectionId)
+    .select("*")
+    .single();
+
+  const inspection = mapInspectionRow(updatedRow);
+
+  await supabase
+    .from("planning_items")
+    .update({
+      customer_id: inspection.customerId,
+      machine_id: inspection.machineId,
+      due_date: inspection.nextInspectionDate,
+      state: new Date(inspection.nextInspectionDate) < new Date() ? "overdue" : "scheduled"
+    })
+    .eq("inspection_id", inspection.id);
+
+  const { data: attachmentRows } = await supabase
+    .from("inspection_attachments")
+    .select("id, kind, storage_path")
+    .eq("inspection_id", inspection.id);
+
+  await syncSupabaseInspectionDocuments(
+    inspection,
+    (attachmentRows ?? []).map((attachment) => ({
+      id: String(attachment.id),
+      kind: String(attachment.kind),
+      storage_path: String(attachment.storage_path)
+    }))
+  );
+
+  return inspection;
+}
+
 export async function getDashboardData() {
   const data = hasSupabaseConfig()
     ? {
