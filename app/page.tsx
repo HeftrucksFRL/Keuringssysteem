@@ -1,10 +1,11 @@
 import Link from "next/link";
 import type { UrlObject } from "node:url";
 import {
+  getCustomerDisplayName,
   getDashboardData,
+  getCustomers,
   getMachines,
-  getPlanningItems,
-  getVisibleCustomers
+  getPlanningItems
 } from "@/lib/inspection-service";
 
 export default async function HomePage({
@@ -16,7 +17,7 @@ export default async function HomePage({
   const params = await searchParams;
   const planning = (await getPlanningItems()).slice(0, 3);
   const machines = await getMachines();
-  const customers = await getVisibleCustomers();
+  const customers = await getCustomers();
 
   const kpis: { label: string; value: string; helper: string; href: UrlObject }[] = [
     {
@@ -111,7 +112,7 @@ export default async function HomePage({
                   {machine.brand} {machine.model}
                 </span>
                 <span className="badge blue">
-                  {customers.find((customer) => customer.id === machine.customerId)?.companyName ?? "-"}
+                  {getCustomerDisplayName(customers.find((customer) => customer.id === machine.customerId) ?? null)}
                 </span>
               </Link>
             ))}
@@ -140,7 +141,7 @@ export default async function HomePage({
             return (
               <Link className="table-row" href={planningHref} key={item.id}>
                 <span>
-                  <strong>{customer?.companyName ?? "Onbekende klant"}</strong>
+                  <strong>{customer ? getCustomerDisplayName(customer) : "Onbekende klant"}</strong>
                   <br />
                   {machine?.brand ?? "Machine"} {machine?.model ?? ""}
                 </span>

@@ -120,6 +120,28 @@ function placeLabel(customer?: CustomerRecord) {
   return address;
 }
 
+function normalizeRentalOwnerText(value?: string | null) {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function isStockCustomer(customer?: CustomerRecord) {
+  const company = normalizeRentalOwnerText(customer?.companyName);
+  const email = normalizeRentalOwnerText(customer?.email);
+  return (
+    company.includes("heftrucks") ||
+    company.includes("friesland") ||
+    email.includes("@heftrucks.frl")
+  );
+}
+
+function customerDisplayName(customer?: CustomerRecord) {
+  if (!customer) {
+    return "Onbekende klant";
+  }
+
+  return isStockCustomer(customer) ? "Eigen voorraad · Heftrucks.frl" : customer.companyName;
+}
+
 function stateLabel(state: PlanningRecord["state"]) {
   if (state === "overdue") return "Verlopen";
   if (state === "scheduled") return "Gepland";
@@ -272,7 +294,7 @@ export function PlanningCalendar({
         }
 
         const haystack = [
-          event.customer?.companyName,
+          customerDisplayName(event.customer),
           event.place,
           event.kind === "rental" ? rentalMomentLabel(event.rentalMoment) : "",
           ...event.machineList.map((machine) =>
@@ -299,7 +321,7 @@ export function PlanningCalendar({
           return left.place.localeCompare(right.place, "nl");
         }
 
-        return (left.customer?.companyName ?? "").localeCompare(right.customer?.companyName ?? "", "nl");
+        return customerDisplayName(left.customer).localeCompare(customerDisplayName(right.customer), "nl");
       });
   }, [customers, items, machines, monthEndIso, monthStartIso, query, rentals, sortByPlace, viewFilter]);
 
@@ -439,7 +461,7 @@ export function PlanningCalendar({
                       : event.place}
                   </div>
                   <div className="agenda-main">
-                    <strong>{event.customer?.companyName ?? "Onbekende klant"}</strong>
+                    <strong>{customerDisplayName(event.customer)}</strong>
                     <span>
                       {event.machineList.length} machine{event.machineList.length === 1 ? "" : "s"}
                     </span>
@@ -491,7 +513,7 @@ export function PlanningCalendar({
                       <strong>
                         {event.kind === "rental"
                           ? event.machineList[0]?.internalNumber || event.machineList[0]?.machineNumber || "Machine"
-                          : event.customer?.companyName ?? "Onbekende klant"}
+                          : customerDisplayName(event.customer)}
                       </strong>
                       <span>
                         {event.kind === "rental"
@@ -500,7 +522,7 @@ export function PlanningCalendar({
                       </span>
                       <span>
                         {event.kind === "rental"
-                          ? event.customer?.companyName ?? "-"
+                          ? customerDisplayName(event.customer)
                           : `${event.machineList.length} machine${event.machineList.length === 1 ? "" : "s"}`}
                       </span>
                     </button>
@@ -516,7 +538,7 @@ export function PlanningCalendar({
         <div className="modal-backdrop" onClick={() => setSelectedEventKey("")}>
           <div className="modal-card" onClick={(event) => event.stopPropagation()}>
             <div className="eyebrow">{selectedEvent.kind === "rental" ? "Verhuur" : "Geplande keuring"}</div>
-            <h2>{selectedEvent.customer?.companyName ?? "Onbekende klant"}</h2>
+            <h2>{customerDisplayName(selectedEvent.customer)}</h2>
             <p className="muted" style={{ marginTop: "-0.35rem", marginBottom: "1rem" }}>
               {[selectedEvent.customer?.address, selectedEvent.customer?.city].filter(Boolean).join(", ") ||
                 "Adres onbekend"}

@@ -1,6 +1,6 @@
 import { PlanningCreateForm } from "@/components/planning-create-form";
 import { PlanningCalendar } from "@/components/planning-calendar";
-import { getMachines, getPlanningItems, getRentals, getVisibleCustomers } from "@/lib/inspection-service";
+import { getCustomers, getMachines, getPlanningItems, getRentals } from "@/lib/inspection-service";
 
 export default async function PlanningPage({
   searchParams
@@ -9,7 +9,7 @@ export default async function PlanningPage({
 }) {
   const [rows, customers, machines, rentals] = await Promise.all([
     getPlanningItems(),
-    getVisibleCustomers(),
+    getCustomers(),
     getMachines(),
     getRentals()
   ]);

@@ -2,9 +2,11 @@ import Link from "next/link";
 import { completeRentalAction, createRentalAction } from "@/app/verhuur/actions";
 import { CustomerPicker } from "@/components/customer-picker";
 import {
+  getCustomerDisplayName,
   getRentalStockMachines,
   getRentals,
-  getVisibleCustomers
+  getVisibleCustomers,
+  stockOwnerLabel
 } from "@/lib/inspection-service";
 
 function rentalPhase(rental: { startDate: string; endDate: string; status: "active" | "completed" }) {
@@ -19,12 +21,8 @@ function rentalPhase(rental: { startDate: string; endDate: string; status: "acti
 }
 
 function phaseLabel(phase: ReturnType<typeof rentalPhase>) {
-  if (phase === "active") {
-    return "Actief";
-  }
-  if (phase === "upcoming") {
-    return "Komend";
-  }
+  if (phase === "active") return "Actief";
+  if (phase === "upcoming") return "Komend";
   return "Afgerond";
 }
 
@@ -80,76 +78,87 @@ export default async function RentalsPage({
       {query?.returned ? <p className="form-message success">Verhuur afgerond.</p> : null}
       {query?.error ? <p className="form-message error">{decodeURIComponent(query.error)}</p> : null}
 
+      <section className="panel" style={{ marginTop: "1rem" }}>
+        <div className="eyebrow">Nieuwe verhuur</div>
+        <div className="form-block">
+          <form action={createRentalAction}>
+            <input type="hidden" name="returnTo" value="/verhuur" />
+            <div className="form-grid-wide">
+              <div className="field">
+                <label htmlFor="rental-machine">Voorraadmachine</label>
+                <select id="rental-machine" name="machineId" defaultValue="">
+                  <option value="" disabled>
+                    Kies een machine uit de voorraad
+                  </option>
+                  {stockMachines.map((machine) => {
+                    const activeRental = groups.active.find((rental) => rental.machineId === machine.id);
+                    return (
+                      <option key={machine.id} value={machine.id} disabled={Boolean(activeRental)}>
+                        {(machine.internalNumber || machine.machineNumber) +
+                          " · " +
+                          [machine.brand, machine.model].filter(Boolean).join(" ") +
+                          (activeRental ? " · al in verhuur" : "")}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+              <CustomerPicker customers={customers} label="Verhuren aan klant" required />
+              <div className="field">
+                <label htmlFor="startDate">Startdatum</label>
+                <input id="startDate" name="startDate" type="date" defaultValue={new Date().toISOString().slice(0, 10)} />
+              </div>
+              <div className="field">
+                <label htmlFor="endDate">Einddatum</label>
+                <input id="endDate" name="endDate" type="date" defaultValue={new Date().toISOString().slice(0, 10)} />
+              </div>
+              <div className="field">
+                <label htmlFor="price">Prijs</label>
+                <input id="price" name="price" placeholder="Bijv. EUR 350 totaal" />
+              </div>
+            </div>
+            <div className="actions" style={{ marginTop: "0.75rem" }}>
+              <button className="button" type="submit">
+                Start verhuur
+              </button>
+            </div>
+          </form>
+        </div>
+      </section>
+
       <section style={{ marginTop: "1rem" }}>
         <div className="eyebrow">Voorraad</div>
-        <div className="list" style={{ marginTop: "0.75rem" }}>
+        <div className="list compact-list" style={{ marginTop: "0.75rem" }}>
           {stockMachines.map((machine) => {
             const activeRental = groups.active.find((rental) => rental.machineId === machine.id);
             const rentalCustomer = activeRental
-              ? customers.find((customer) => customer.id === activeRental.customerId)
+              ? customers.find((customer) => customer.id === activeRental.customerId) ?? null
               : null;
 
             return (
-              <div
-                className="list-item static-list-item"
+              <Link
+                className="list-item"
                 key={machine.id}
+                href={`/machines/${machine.id}`}
                 style={
                   machine.availabilityStatus === "rented"
-                    ? {
-                        background: "#ecfdf3",
-                        borderColor: "#abefc6"
-                      }
-                    : undefined
+                    ? { background: "#ecfdf3", borderColor: "#abefc6" }
+                    : { background: "#f5f3ff", borderColor: "#d9d6fe" }
                 }
               >
-                <div style={{ width: "100%" }}>
-                  <span>
-                    <strong>
-                      {machine.internalNumber || machine.machineNumber} · {machine.brand} {machine.model}
-                    </strong>
-                    <br />
-                    Serienummer: {machine.serialNumber || "-"}
-                    {activeRental ? ` · Verhuurd aan ${rentalCustomer?.companyName ?? "-"}` : " · Op voorraad"}
-                  </span>
-                  <form action={createRentalAction} style={{ marginTop: "0.9rem" }}>
-                    <input type="hidden" name="machineId" value={machine.id} />
-                    <input type="hidden" name="returnTo" value="/verhuur" />
-                    <div className="form-grid-wide">
-                      <CustomerPicker customers={customers} label="Verhuren aan klant" required />
-                      <div className="field">
-                        <label htmlFor={`startDate-${machine.id}`}>Startdatum</label>
-                        <input
-                          id={`startDate-${machine.id}`}
-                          name="startDate"
-                          type="date"
-                          defaultValue={new Date().toISOString().slice(0, 10)}
-                        />
-                      </div>
-                      <div className="field">
-                        <label htmlFor={`endDate-${machine.id}`}>Einddatum</label>
-                        <input
-                          id={`endDate-${machine.id}`}
-                          name="endDate"
-                          type="date"
-                          defaultValue={new Date().toISOString().slice(0, 10)}
-                        />
-                      </div>
-                      <div className="field">
-                        <label htmlFor={`price-${machine.id}`}>Prijs</label>
-                        <input id={`price-${machine.id}`} name="price" placeholder="Bijv. EUR 350 totaal" />
-                      </div>
-                    </div>
-                    <div className="actions" style={{ marginTop: "0.75rem" }}>
-                      <button className="button" type="submit" disabled={Boolean(activeRental)}>
-                        {activeRental ? "Al in verhuur" : "Start verhuur"}
-                      </button>
-                      <Link className="button-secondary" href={`/machines/${machine.id}`}>
-                        Open machine
-                      </Link>
-                    </div>
-                  </form>
-                </div>
-              </div>
+                <span>
+                  <strong>
+                    {machine.internalNumber || machine.machineNumber} · {machine.brand} {machine.model}
+                  </strong>
+                  <br />
+                  {stockOwnerLabel()}
+                  <br />
+                  {activeRental
+                    ? `Verhuurd aan ${getCustomerDisplayName(rentalCustomer)}`
+                    : "Op voorraad"}
+                </span>
+                <strong>{activeRental ? "In verhuur" : "Open"}</strong>
+              </Link>
             );
           })}
         </div>
@@ -167,7 +176,7 @@ export default async function RentalsPage({
             ) : (
               group.rows.map((rental) => {
                 const machine = stockMachines.find((item) => item.id === rental.machineId);
-                const customer = customers.find((item) => item.id === rental.customerId);
+                const customer = customers.find((item) => item.id === rental.customerId) ?? null;
                 const phase = rentalPhase(rental);
                 const machineLabel =
                   [machine?.brand, machine?.model].filter(Boolean).join(" ") ||
@@ -183,7 +192,7 @@ export default async function RentalsPage({
                   >
                     <strong>{machineLabel}</strong>
                     <span>
-                      {customer?.companyName ?? "Onbekende klant"} · {machineNumber} · {rental.startDate} t/m {rental.endDate}
+                      {getCustomerDisplayName(customer)} · {machineNumber} · {rental.startDate} t/m {rental.endDate}
                       {rental.price ? ` · ${rental.price}` : ""}
                     </span>
                     <span className="inline-meta">

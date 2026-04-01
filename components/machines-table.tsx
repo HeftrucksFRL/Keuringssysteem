@@ -35,6 +35,24 @@ function statusLabel(status: MachineRecord["availabilityStatus"]) {
   return "Beschikbaar";
 }
 
+function normalizeRentalOwnerText(value?: string | null) {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function isStockCustomer(customer?: CustomerRecord | null) {
+  const company = normalizeRentalOwnerText(customer?.companyName);
+  const email = normalizeRentalOwnerText(customer?.email);
+  return (
+    company.includes("heftrucks") ||
+    company.includes("friesland") ||
+    email.includes("@heftrucks.frl")
+  );
+}
+
+function stockOwnerLabel() {
+  return "Eigen voorraad · Heftrucks.frl";
+}
+
 export function MachinesTable({
   machines,
   customers,
@@ -92,8 +110,13 @@ export function MachinesTable({
           const rentalCustomer = activeRental
             ? customers.find((customer) => customer.id === activeRental.customerId) ?? null
             : null;
+          const ownerLabel = owner
+            ? isStockCustomer(owner)
+              ? stockOwnerLabel()
+              : owner.companyName
+            : "-";
 
-        return (
+          return (
             <Link
               className="dataset-row"
               href={`/machines/${machine.id}`}
@@ -115,7 +138,7 @@ export function MachinesTable({
               <span>
                 {activeRental
                   ? `Verhuurd aan ${rentalCustomer?.companyName ?? "-"}`
-                  : owner?.companyName ?? "-"}{" "}
+                  : ownerLabel}{" "}
                 · {titleCase(machine.machineType)}
               </span>
               <span>

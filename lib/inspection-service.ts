@@ -1375,6 +1375,10 @@ function normalizeRentalOwnerText(value: string | undefined) {
   return (value ?? "").trim().toLowerCase();
 }
 
+export function stockOwnerLabel() {
+  return "Eigen voorraad · Heftrucks.frl";
+}
+
 export function isRentalStockCustomer(
   customer?: Pick<CustomerRecord, "companyName" | "email"> | null
 ) {
@@ -1386,6 +1390,16 @@ export function isRentalStockCustomer(
     email.includes("@heftrucks.frl") ||
     email.includes("heftrucks.frl")
   );
+}
+
+export function getCustomerDisplayName(
+  customer?: Pick<CustomerRecord, "companyName" | "email"> | null
+) {
+  if (!customer) {
+    return "Onbekende klant";
+  }
+
+  return isRentalStockCustomer(customer) ? stockOwnerLabel() : customer.companyName;
 }
 
 export async function getRentalStockMachines() {
