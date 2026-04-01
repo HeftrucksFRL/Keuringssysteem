@@ -997,15 +997,18 @@ textarea {
 }
 
 .agenda-row.scheduled {
-  border-left: 5px solid var(--accent);
+  border-left: 5px solid #f6c453;
+  background: #fff8e8;
 }
 
 .agenda-row.overdue {
-  border-left: 5px solid var(--warning);
+  border-left: 5px solid #d92d20;
+  background: #fff0ef;
 }
 
 .agenda-row.upcoming {
-  border-left: 5px solid var(--success);
+  border-left: 5px solid #f0b323;
+  background: #fffaf0;
 }
 
 .agenda-time {
@@ -1109,18 +1112,18 @@ textarea {
 }
 
 .month-event.scheduled {
-  background: #eaf4fe;
-  border-color: #b9d8f4;
+  background: #fff4cc;
+  border-color: #f6c453;
 }
 
 .month-event.overdue {
-  background: #fff0d8;
-  border-color: #ffd89b;
+  background: #fff0ef;
+  border-color: #d92d20;
 }
 
 .month-event.upcoming {
-  background: #e7f7ef;
-  border-color: #bfe7d0;
+  background: #fff8e8;
+  border-color: #f0b323;
 }
 
 .active-toggle {
