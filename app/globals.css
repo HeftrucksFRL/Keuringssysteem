@@ -1,16 +1,16 @@
 :root {
-  --bg: #edf3f8;
-  --panel: #ffffff;
-  --panel-alt: #dfe9f3;
-  --text: #0f1720;
-  --muted: #526273;
-  --border: #c6d3e0;
-  --accent: #005ea8;
-  --accent-deep: #003e6e;
+  --bg: #f4efe7;
+  --panel: #fffdf9;
+  --panel-alt: #efe7dc;
+  --text: #231815;
+  --muted: #6a5b54;
+  --border: #dbc9bb;
+  --accent: #af4d2e;
+  --accent-deep: #7d2f1b;
   --success: #0d8d59;
   --warning: #d97706;
   --danger: #b42318;
-  --shadow: 0 16px 40px rgba(8, 33, 56, 0.08);
+  --shadow: 0 18px 42px rgba(88, 48, 31, 0.08);
 }
 
 * {
@@ -24,10 +24,11 @@ html {
 body {
   margin: 0;
   background:
-    radial-gradient(circle at top right, rgba(0, 94, 168, 0.16), transparent 28%),
-    linear-gradient(180deg, #f6fafc 0%, var(--bg) 42%, #e8f0f6 100%);
+    radial-gradient(circle at top right, rgba(175, 77, 46, 0.18), transparent 26%),
+    radial-gradient(circle at left top, rgba(122, 87, 64, 0.12), transparent 22%),
+    linear-gradient(180deg, #fcf8f3 0%, var(--bg) 44%, #f1e6da 100%);
   color: var(--text);
-  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  font-family: Georgia, "Times New Roman", serif;
 }
 
 a {
@@ -102,6 +103,21 @@ textarea {
 .brand span {
   font-size: 0.95rem;
   font-weight: 700;
+}
+
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #c86f4e 0%, #8d3821 100%);
+  color: #fff7f1;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  box-shadow: 0 14px 24px rgba(125, 47, 27, 0.2);
 }
 
 .auth-slot {
@@ -197,7 +213,7 @@ textarea {
   left: 0;
   z-index: 30;
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0.4rem;
   padding: 0.55rem 0.7rem calc(0.55rem + env(safe-area-inset-bottom));
   background: rgba(246, 250, 252, 0.94);
@@ -253,6 +269,83 @@ textarea {
 .hero p,
 .muted {
   color: var(--muted);
+}
+
+.content-workspace {
+  display: grid;
+  gap: 1rem;
+}
+
+.content-grid {
+  align-items: start;
+}
+
+.mode-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.mode-card {
+  display: grid;
+  gap: 0.3rem;
+  padding: 1rem;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: linear-gradient(180deg, #fffdfa 0%, #f6efe8 100%);
+  cursor: pointer;
+}
+
+.mode-card.active {
+  border-color: #d17b5b;
+  background: linear-gradient(180deg, #fff3eb 0%, #f8e5d7 100%);
+  box-shadow: 0 14px 28px rgba(125, 47, 27, 0.08);
+}
+
+.mode-card span {
+  color: var(--muted);
+}
+
+.generator-form,
+.output-panel,
+.prompt-panel,
+.style-card {
+  display: grid;
+  gap: 1rem;
+}
+
+.generator-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.output-hint {
+  display: grid;
+  gap: 0.25rem;
+  padding: 1rem;
+  border-radius: 18px;
+  border: 1px solid #e4d4c9;
+  background: #fcf5ef;
+}
+
+.result-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+.code-output {
+  min-height: 240px;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  background: #fffaf5;
+}
+
+.code-output-tall {
+  min-height: 520px;
 }
 
 .hero-grid,
@@ -486,8 +579,8 @@ textarea {
 }
 
 .badge.orange {
-  background: #fff0d8;
-  color: var(--warning);
+  background: #fff4cc;
+  color: #c97a00;
 }
 
 .status-dot {
@@ -504,11 +597,11 @@ textarea {
 }
 
 .status-dot.orange {
-  background: var(--warning);
+  background: #f6c453;
 }
 
 .status-dot.red {
-  background: var(--danger);
+  background: #d92d20;
 }
 
 .table-like {
@@ -1088,6 +1181,10 @@ textarea {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .mode-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .wizard-actions {
     flex-direction: row;
     justify-content: space-between;
@@ -1146,6 +1243,10 @@ textarea {
   .grid-2,
   .inspection-layout {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mode-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 
   .form-grid-wide {
