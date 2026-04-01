@@ -626,6 +626,8 @@ export async function createInspection(input: CreateInspectionInput) {
   }
 
   const supabase = createSupabaseAdmin();
+  const status = statusFromResultLabels(input.resultLabels);
+  const nextInspectionDate = addTwelveMonths(input.inspectionDate);
 
   let customerRow: Record<string, unknown> | null = null;
   if (input.customerId) {
@@ -701,14 +703,27 @@ export async function createInspection(input: CreateInspectionInput) {
     machineRow = data;
   }
 
-  const { data: inserted } = await supabase
+  const { data: generatedInspectionNumber, error: sequenceError } = await supabase.rpc(
+    "next_inspection_number",
+    {
+      target_date: input.inspectionDate
+    }
+  );
+
+  if (sequenceError || generatedInspectionNumber == null) {
+    throw new Error("Keurnummer kon niet worden aangemaakt.");
+  }
+
+  const { data: inserted, error: insertError } = await supabase
     .from("inspections")
     .insert({
+      inspection_number: generatedInspectionNumber,
       customer_id: customerRow?.id,
       machine_id: machineRow?.id,
       machine_type: input.machineType,
       inspection_date: input.inspectionDate,
-      status: statusFromResultLabels(input.resultLabels),
+      next_inspection_date: nextInspectionDate,
+      status,
       send_pdf_to_customer: input.sendPdfToCustomer,
       checklist: input.checklist,
       customer_snapshot: buildCustomerSnapshot(input.customer),
@@ -727,6 +742,10 @@ export async function createInspection(input: CreateInspectionInput) {
     })
     .select()
     .single();
+
+  if (insertError || !inserted) {
+    throw new Error(insertError?.message || "Keuring kon niet worden opgeslagen.");
+  }
 
   const inspection: InspectionRecord = {
     id: inserted.id,
