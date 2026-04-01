@@ -8,6 +8,7 @@ import {
   FolderKanban,
   LayoutDashboard,
   Menu,
+  PackageCheck,
   Users,
   Wrench
 } from "lucide-react";
@@ -17,13 +18,15 @@ const links: Array<{
   href: Route;
   label: string;
   icon: typeof LayoutDashboard;
+  mobileQuick?: boolean;
 }> = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/keuringen/nieuw", label: "Nieuw", icon: ClipboardCheck },
-  { href: "/klanten", label: "Klanten", icon: Users },
-  { href: "/machines", label: "Machines", icon: Forklift },
-  { href: "/planning", label: "Planning", icon: FolderKanban },
-  { href: "/keuringen", label: "Keuringen", icon: Wrench }
+  { href: "/", label: "Dashboard", icon: LayoutDashboard, mobileQuick: true },
+  { href: "/keuringen/nieuw", label: "Nieuw", icon: ClipboardCheck, mobileQuick: true },
+  { href: "/klanten", label: "Klanten", icon: Users, mobileQuick: true },
+  { href: "/machines", label: "Machines", icon: Forklift, mobileQuick: true },
+  { href: "/planning", label: "Planning", icon: FolderKanban, mobileQuick: true },
+  { href: "/keuringen", label: "Keuringen", icon: Wrench, mobileQuick: true },
+  { href: "/verhuur", label: "Verhuur", icon: PackageCheck }
 ];
 
 function isActive(pathname: string, href: string) {
@@ -36,6 +39,7 @@ function isActive(pathname: string, href: string) {
 
 export function AppNavigation() {
   const pathname = usePathname();
+  const quickLinks = links.filter((link) => link.mobileQuick);
 
   return (
     <>
@@ -78,7 +82,7 @@ export function AppNavigation() {
       </nav>
 
       <nav className="bottom-nav" aria-label="Snelle navigatie">
-        {links.map((link) => {
+        {quickLinks.map((link) => {
           const Icon = link.icon;
           return (
             <Link

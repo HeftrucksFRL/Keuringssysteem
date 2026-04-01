@@ -13,6 +13,16 @@ function rentalPhase(rental: { startDate: string; endDate: string; status: "acti
   return "active" as const;
 }
 
+function phaseLabel(phase: ReturnType<typeof rentalPhase>) {
+  if (phase === "active") {
+    return "Actief";
+  }
+  if (phase === "upcoming") {
+    return "Komend";
+  }
+  return "Afgerond";
+}
+
 export default async function RentalsPage() {
   const [rentals, customers, machines] = await Promise.all([
     getRentals(),
@@ -30,7 +40,9 @@ export default async function RentalsPage() {
     <section className="panel">
       <div className="eyebrow">Verhuur</div>
       <h1>Verhuur</h1>
-      <p className="muted">Bekijk hier welke machines verhuurd zijn, nog gaan lopen of afgerond zijn.</p>
+      <p className="muted">
+        Bekijk hier welke machines verhuurd zijn, bij welke klant ze staan en van wanneer tot wanneer.
+      </p>
 
       <div className="grid-3" style={{ marginTop: "1rem", marginBottom: "1rem" }}>
         <article className="stat">
@@ -65,18 +77,23 @@ export default async function RentalsPage() {
                 const machine = machines.find((item) => item.id === rental.machineId);
                 const customer = customers.find((item) => item.id === rental.customerId);
                 const phase = rentalPhase(rental);
+                const machineLabel =
+                  [machine?.brand, machine?.model].filter(Boolean).join(" ") ||
+                  machine?.machineNumber ||
+                  "Machine";
+                const customerLabel = customer?.companyName ?? "Onbekende klant";
+                const machineNumber = machine?.internalNumber || machine?.machineNumber || "-";
+                const periodLabel = `${rental.startDate} t/m ${rental.endDate}`;
 
                 return (
                   <div className="dataset-row" key={rental.id}>
-                    <strong>
-                      {[machine?.brand, machine?.model].filter(Boolean).join(" ") || "Machine"} ·{" "}
-                      {customer?.companyName ?? "Onbekende klant"}
-                    </strong>
+                    <strong>{machineLabel}</strong>
                     <span>
-                      {rental.startDate} t/m {rental.endDate}
+                      {customerLabel} · {machineNumber} · {periodLabel}
                       {rental.price ? ` · ${rental.price}` : ""}
                     </span>
                     <span className="inline-meta">
+                      <span className="status-pill">{phaseLabel(phase)}</span>
                       <Link className="button-secondary" href={`/machines/${rental.machineId}`}>
                         Open machine
                       </Link>
