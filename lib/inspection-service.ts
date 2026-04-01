@@ -919,9 +919,22 @@ export async function updateInspectionFromForm(
   }
 
   const supabase = createSupabaseAdmin();
+  const { data: currentInspectionRow } = await supabase
+    .from("inspections")
+    .select("*")
+    .eq("id", inspectionId)
+    .maybeSingle();
+
+  if (!currentInspectionRow) {
+    throw new Error("Keuring niet gevonden");
+  }
+
+  const currentInspection = mapInspectionRow(currentInspectionRow);
+  const resolvedCustomerId = input.customerId ?? currentInspection.customerId;
+  const resolvedMachineId = input.machineId ?? currentInspection.machineId;
 
   let customerRow: Record<string, unknown> | null = null;
-  if (input.customerId) {
+  if (resolvedCustomerId) {
     const { data } = await supabase
       .from("customers")
       .update({
@@ -931,18 +944,27 @@ export async function updateInspectionFromForm(
         phone: input.customer.phone,
         email: input.customer.email
       })
-      .eq("id", input.customerId)
+      .eq("id", resolvedCustomerId)
       .select()
-      .single();
+      .maybeSingle();
     customerRow = data;
+
+    if (!customerRow) {
+      const { data: fallbackCustomerRow } = await supabase
+        .from("customers")
+        .select("*")
+        .eq("id", resolvedCustomerId)
+        .maybeSingle();
+      customerRow = fallbackCustomerRow;
+    }
   }
 
   let machineRow: Record<string, unknown> | null = null;
-  if (input.machineId) {
+  if (resolvedMachineId) {
     const { data } = await supabase
       .from("machines")
       .update({
-        customer_id: customerRow?.id,
+        customer_id: resolvedCustomerId,
         machine_number: input.machine.machineNumber,
         machine_type: input.machineType,
         brand: input.machine.brand,
@@ -952,10 +974,23 @@ export async function updateInspectionFromForm(
         internal_number: input.machine.internalNumber,
         configuration: sanitizeMachineConfiguration(input.machine.details)
       })
-      .eq("id", input.machineId)
+      .eq("id", resolvedMachineId)
       .select()
-      .single();
+      .maybeSingle();
     machineRow = data;
+
+    if (!machineRow) {
+      const { data: fallbackMachineRow } = await supabase
+        .from("machines")
+        .select("*")
+        .eq("id", resolvedMachineId)
+        .maybeSingle();
+      machineRow = fallbackMachineRow;
+    }
+  }
+
+  if (!customerRow || !machineRow) {
+    throw new Error("Klant of machine kon niet worden bijgewerkt.");
   }
 
   const nextInspectionDate = addTwelveMonths(input.inspectionDate);
@@ -964,8 +999,8 @@ export async function updateInspectionFromForm(
   const { data: updatedRow } = await supabase
     .from("inspections")
     .update({
-      customer_id: customerRow?.id,
-      machine_id: machineRow?.id,
+      customer_id: resolvedCustomerId,
+      machine_id: resolvedMachineId,
       machine_type: input.machineType,
       inspection_date: input.inspectionDate,
       next_inspection_date: nextInspectionDate,
@@ -988,7 +1023,11 @@ export async function updateInspectionFromForm(
     })
     .eq("id", inspectionId)
     .select("*")
-    .single();
+    .maybeSingle();
+
+  if (!updatedRow) {
+    throw new Error("Keuring kon niet worden bijgewerkt.");
+  }
 
   const inspection = mapInspectionRow(updatedRow);
 

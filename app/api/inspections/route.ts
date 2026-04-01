@@ -121,9 +121,15 @@ export async function POST(request: Request) {
       inspectionNumber: inspection.inspectionNumber,
       status: inspection.status
     });
-  } catch {
+  } catch (error) {
     return NextResponse.json(
-      { ok: false, message: "Opslaan is niet gelukt. Probeer het opnieuw." },
+      {
+        ok: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : "Opslaan is niet gelukt. Probeer het opnieuw."
+      },
       { status: 500 }
     );
   }
