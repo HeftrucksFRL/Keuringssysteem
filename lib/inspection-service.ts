@@ -1355,6 +1355,23 @@ export async function getRentalsForMachine(machineId: string) {
   return rentals.filter((rental) => rental.machineId === machineId);
 }
 
+function normalizeRentalOwnerText(value: string | undefined) {
+  return (value ?? "").trim().toLowerCase();
+}
+
+export function isRentalStockCustomer(
+  customer?: Pick<CustomerRecord, "companyName" | "email"> | null
+) {
+  const company = normalizeRentalOwnerText(customer?.companyName);
+  const email = normalizeRentalOwnerText(customer?.email);
+  return (
+    company.includes("heftrucks") ||
+    company.includes("friesland") ||
+    email.includes("@heftrucks.frl") ||
+    email.includes("heftrucks.frl")
+  );
+}
+
 export async function createCustomer(input: {
   companyName: string;
   address: string;
@@ -1548,6 +1565,40 @@ export async function createRental(input: {
 }) {
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
+    const { data: machineRow } = await supabase
+      .from("machines")
+      .select("*")
+      .eq("id", input.machineId)
+      .maybeSingle();
+
+    if (!machineRow) {
+      throw new Error("Machine niet gevonden.");
+    }
+
+    const machine = mapMachineRow(machineRow);
+    const { data: ownerRow } = await supabase
+      .from("customers")
+      .select("*")
+      .eq("id", machine.customerId)
+      .maybeSingle();
+
+    const ownerCustomer = ownerRow ? mapCustomerRow(ownerRow) : null;
+    if (!isRentalStockCustomer(ownerCustomer)) {
+      throw new Error("Alleen voorraadmachines van Heftrucks Friesland zijn verhuurbaar.");
+    }
+
+    const { data: existingRental } = await supabase
+      .from("rentals")
+      .select("id")
+      .eq("machine_id", input.machineId)
+      .eq("status", "active")
+      .limit(1)
+      .maybeSingle();
+
+    if (existingRental) {
+      throw new Error("Deze machine staat al in verhuur.");
+    }
+
     const { data } = await supabase
       .from("rentals")
       .insert({
@@ -1570,6 +1621,23 @@ export async function createRental(input: {
   }
 
   const data = await readAppData();
+  const machine = data.machines.find((item) => item.id === input.machineId);
+  if (!machine) {
+    throw new Error("Machine niet gevonden.");
+  }
+
+  const ownerCustomer = data.customers.find((item) => item.id === machine.customerId) ?? null;
+  if (!isRentalStockCustomer(ownerCustomer)) {
+    throw new Error("Alleen voorraadmachines van Heftrucks Friesland zijn verhuurbaar.");
+  }
+
+  const existingRental = data.rentals.find(
+    (item) => item.machineId === input.machineId && item.status === "active"
+  );
+  if (existingRental) {
+    throw new Error("Deze machine staat al in verhuur.");
+  }
+
   const rental: RentalRecord = {
     id: randomUUID(),
     machineId: input.machineId,
@@ -1583,11 +1651,8 @@ export async function createRental(input: {
   };
 
   data.rentals.unshift(rental);
-  const machine = data.machines.find((item) => item.id === input.machineId);
-  if (machine) {
-    machine.availabilityStatus = "rented";
-    machine.updatedAt = nowIso();
-  }
+  machine.availabilityStatus = "rented";
+  machine.updatedAt = nowIso();
   await writeAppData(data);
   return rental;
 }

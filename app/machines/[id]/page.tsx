@@ -14,7 +14,8 @@ import {
   getCustomers,
   getMachineById,
   getMachineHistory,
-  getRentalsForMachine
+  getRentalsForMachine,
+  isRentalStockCustomer
 } from "@/lib/inspection-service";
 import { getFormDefinition } from "@/lib/form-definitions";
 import { fileUrl } from "@/lib/file-urls";
@@ -25,7 +26,14 @@ export default async function MachineDetailPage({
   searchParams
 }: {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ saved?: string; created?: string; assigned?: string; rented?: string; returned?: string; error?: string }>;
+  searchParams?: Promise<{
+    saved?: string;
+    created?: string;
+    assigned?: string;
+    rented?: string;
+    returned?: string;
+    error?: string;
+  }>;
 }) {
   const { id } = await params;
   const query = await searchParams;
@@ -36,14 +44,23 @@ export default async function MachineDetailPage({
   }
 
   const customers = await getCustomers();
-  const customer = customers.find((item) => item.id === machine.customerId);
+  const customer = customers.find((item) => item.id === machine.customerId) ?? null;
   const history = await getMachineHistory(machine.id);
   const rentals = await getRentalsForMachine(machine.id);
   const form = getFormDefinition(machine.machineType);
   const extraFields = form.machineFields.filter(
     (field) =>
       !field.key.startsWith("customer_") &&
-      !["brand", "model", "build_year", "internal_number", "serial_number", "inspection_date", "sticker_number", "machine_number"].includes(field.key)
+      ![
+        "brand",
+        "model",
+        "build_year",
+        "internal_number",
+        "serial_number",
+        "inspection_date",
+        "sticker_number",
+        "machine_number"
+      ].includes(field.key)
   );
   const attachmentsByInspection = await Promise.all(
     history.map(async (inspection) => ({
@@ -53,16 +70,17 @@ export default async function MachineDetailPage({
       )
     }))
   );
-  const activeRental = rentals.find((rental) => rental.status === "active");
+  const activeRental = rentals.find((rental) => rental.status === "active") ?? null;
   const rentalCustomer = activeRental
-    ? customers.find((item) => item.id === activeRental.customerId)
+    ? customers.find((item) => item.id === activeRental.customerId) ?? null
     : null;
+  const isRentalStockMachine = isRentalStockCustomer(customer);
   const statusBadge =
     machine.availabilityStatus === "rented"
-      ? { label: "Verhuurd", style: { background: "#fde8e6", color: "#b42318" } }
+      ? { label: "In verhuur", style: { background: "#dff6ec", color: "#0d8d59" } }
       : machine.availabilityStatus === "maintenance"
         ? { label: "Onderhoud", style: { background: "#fff0d8", color: "#d97706" } }
-        : { label: "Beschikbaar", style: { background: "#dff6ec", color: "#0d8d59" } };
+        : { label: "Beschikbaar", style: { background: "#e6f0ff", color: "#175cd3" } };
 
   return (
     <>
@@ -182,6 +200,22 @@ export default async function MachineDetailPage({
               <span>Telefoon</span>
               <strong>{customer?.phone ?? "-"}</strong>
             </div>
+            {activeRental ? (
+              <div
+                className="list-item"
+                style={{
+                  background: "#ecfdf3",
+                  borderRadius: "0.9rem",
+                  padding: "0.9rem 1rem",
+                  border: "1px solid #abefc6"
+                }}
+              >
+                <span>Verhuurd aan</span>
+                <strong>
+                  {rentalCustomer?.companyName ?? "-"} · {activeRental.startDate} t/m {activeRental.endDate}
+                </strong>
+              </div>
+            ) : null}
           </div>
           <form action={assignMachineToCustomerAction} style={{ marginTop: "1rem" }}>
             <input type="hidden" name="machineId" value={machine.id} />
@@ -204,34 +238,49 @@ export default async function MachineDetailPage({
         <article className="panel">
           <div className="eyebrow">Verhuur</div>
           <h2>Start verhuur</h2>
-          <form action={createRentalAction}>
-            <input type="hidden" name="machineId" value={machine.id} />
-            <CustomerPicker
-              customers={customers}
-              defaultCustomerId={machine.customerId}
-              label="Klant"
-              required
-            />
-            <div className="form-grid-wide" style={{ marginTop: "1rem" }}>
-              <div className="field">
-                <label htmlFor="startDate">Startdatum</label>
-                <input id="startDate" name="startDate" type="date" defaultValue={new Date().toISOString().slice(0, 10)} />
+          {isRentalStockMachine ? (
+            <form action={createRentalAction}>
+              <input type="hidden" name="machineId" value={machine.id} />
+              <CustomerPicker
+                customers={customers.filter((item) => item.id !== machine.customerId)}
+                label="Verhuren aan klant"
+                required
+              />
+              <div className="form-grid-wide" style={{ marginTop: "1rem" }}>
+                <div className="field">
+                  <label htmlFor="startDate">Startdatum</label>
+                  <input
+                    id="startDate"
+                    name="startDate"
+                    type="date"
+                    defaultValue={new Date().toISOString().slice(0, 10)}
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="endDate">Einddatum</label>
+                  <input
+                    id="endDate"
+                    name="endDate"
+                    type="date"
+                    defaultValue={new Date().toISOString().slice(0, 10)}
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="price">Prijs</label>
+                  <input id="price" name="price" placeholder="Bijv. EUR 350 totaal" />
+                </div>
               </div>
-              <div className="field">
-                <label htmlFor="endDate">Einddatum</label>
-                <input id="endDate" name="endDate" type="date" defaultValue={new Date().toISOString().slice(0, 10)} />
+              <div className="actions">
+                <button className="button" type="submit">
+                  Start verhuur
+                </button>
               </div>
-              <div className="field">
-                <label htmlFor="price">Prijs</label>
-                <input id="price" name="price" placeholder="Bijv. € 350 totaal" />
-              </div>
-            </div>
-            <div className="actions">
-              <button className="button" type="submit">
-                Start verhuur
-              </button>
-            </div>
-          </form>
+            </form>
+          ) : (
+            <p className="muted">
+              Alleen voorraadmachines van Heftrucks Friesland kunnen vanuit dit scherm verhuurd worden.
+            </p>
+          )}
         </article>
 
         <article className="panel">
@@ -246,7 +295,9 @@ export default async function MachineDetailPage({
                 </div>
                 <div className="list-item">
                   <span>Periode</span>
-                  <strong>{activeRental.startDate} t/m {activeRental.endDate}</strong>
+                  <strong>
+                    {activeRental.startDate} t/m {activeRental.endDate}
+                  </strong>
                 </div>
                 <div className="list-item">
                   <span>Prijs</span>

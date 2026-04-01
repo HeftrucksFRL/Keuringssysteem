@@ -1,4 +1,4 @@
-import { getCustomers, getMachines } from "@/lib/inspection-service";
+import { getCustomers, getMachines, getRentals } from "@/lib/inspection-service";
 import { MachinesTable } from "@/components/machines-table";
 import Link from "next/link";
 
@@ -9,6 +9,7 @@ export default async function MachinesPage({
 }) {
   const machines = await getMachines();
   const customers = await getCustomers();
+  const rentals = await getRentals();
   const query = await searchParams;
 
   return (
@@ -25,7 +26,7 @@ export default async function MachinesPage({
           Verhuur openen
         </Link>
       </div>
-      <MachinesTable machines={machines} customers={customers} />
+      <MachinesTable machines={machines} customers={customers} rentals={rentals} />
     </section>
   );
 }

@@ -19,13 +19,21 @@ export async function createRentalAction(formData: FormData) {
     redirect(`/machines/${machineId}?error=De%20einddatum%20moet%20na%20de%20startdatum%20liggen`);
   }
 
-  await createRental({
-    machineId,
-    customerId,
-    startDate,
-    endDate,
-    price
-  });
+  try {
+    await createRental({
+      machineId,
+      customerId,
+      startDate,
+      endDate,
+      price
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? encodeURIComponent(error.message)
+        : encodeURIComponent("Verhuur starten is niet gelukt.");
+    redirect(`/machines/${machineId}?error=${message}`);
+  }
 
   revalidatePath("/machines");
   revalidatePath(`/machines/${machineId}`);
