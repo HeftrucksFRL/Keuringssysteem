@@ -41,7 +41,7 @@ function statusBadgeStyle(phase: ReturnType<typeof rentalPhase>) {
 export default async function RentalsPage({
   searchParams
 }: {
-  searchParams?: Promise<{ rented?: string; returned?: string; error?: string }>;
+  searchParams?: Promise<{ rented?: string; returned?: string; error?: string; phase?: string }>;
 }) {
   const query = await searchParams;
   const [rentals, customers, stockMachines] = await Promise.all([
@@ -56,6 +56,19 @@ export default async function RentalsPage({
     completed: rentals.filter((rental) => rentalPhase(rental) === "completed")
   };
 
+  const visibleGroups =
+    query?.phase === "active"
+      ? [{ key: "active", title: "Actieve verhuur", rows: groups.active }]
+      : query?.phase === "upcoming"
+        ? [{ key: "upcoming", title: "Komende verhuur", rows: groups.upcoming }]
+        : query?.phase === "completed"
+          ? [{ key: "completed", title: "Afgeronde verhuur", rows: groups.completed }]
+          : [
+              { key: "active", title: "Actieve verhuur", rows: groups.active },
+              { key: "upcoming", title: "Komende verhuur", rows: groups.upcoming },
+              { key: "completed", title: "Afgeronde verhuur", rows: groups.completed }
+            ];
+
   return (
     <section className="panel">
       <div className="eyebrow">Verhuur</div>
@@ -67,24 +80,9 @@ export default async function RentalsPage({
       {query?.returned ? <p className="form-message success">Verhuur afgerond.</p> : null}
       {query?.error ? <p className="form-message error">{decodeURIComponent(query.error)}</p> : null}
 
-      <div className="grid-3" style={{ marginTop: "1rem", marginBottom: "1rem" }}>
-        <article className="stat">
-          <span>Actief</span>
-          <strong>{groups.active.length}</strong>
-        </article>
-        <article className="stat">
-          <span>Komend</span>
-          <strong>{groups.upcoming.length}</strong>
-        </article>
-        <article className="stat">
-          <span>Voorraad</span>
-          <strong>{stockMachines.length}</strong>
-        </article>
-      </div>
-
       <section style={{ marginTop: "1rem" }}>
         <div className="eyebrow">Voorraad</div>
-        <div className="dataset-list" style={{ marginTop: "0.75rem" }}>
+        <div className="list" style={{ marginTop: "0.75rem" }}>
           {stockMachines.map((machine) => {
             const activeRental = groups.active.find((rental) => rental.machineId === machine.id);
             const rentalCustomer = activeRental
@@ -93,7 +91,7 @@ export default async function RentalsPage({
 
             return (
               <div
-                className="dataset-row"
+                className="list-item static-list-item"
                 key={machine.id}
                 style={
                   machine.availabilityStatus === "rented"
@@ -104,68 +102,60 @@ export default async function RentalsPage({
                     : undefined
                 }
               >
-                <strong>
-                  {[machine.brand, machine.model].filter(Boolean).join(" ") || "Machine"} ·{" "}
-                  {machine.internalNumber || machine.machineNumber}
-                </strong>
-                <span>
-                  Serienummer: {machine.serialNumber || "-"}
-                  {activeRental
-                    ? ` · Verhuurd aan ${rentalCustomer?.companyName ?? "-"}`
-                    : " · Op voorraad"}
-                </span>
-                <form action={createRentalAction}>
-                  <input type="hidden" name="machineId" value={machine.id} />
-                  <input type="hidden" name="returnTo" value="/verhuur" />
-                  <div className="form-grid-wide" style={{ marginTop: "0.75rem" }}>
-                    <CustomerPicker
-                      customers={customers}
-                      label="Verhuren aan klant"
-                      required
-                    />
-                    <div className="field">
-                      <label htmlFor={`startDate-${machine.id}`}>Startdatum</label>
-                      <input
-                        id={`startDate-${machine.id}`}
-                        name="startDate"
-                        type="date"
-                        defaultValue={new Date().toISOString().slice(0, 10)}
-                      />
+                <div style={{ width: "100%" }}>
+                  <span>
+                    <strong>
+                      {machine.internalNumber || machine.machineNumber} · {machine.brand} {machine.model}
+                    </strong>
+                    <br />
+                    Serienummer: {machine.serialNumber || "-"}
+                    {activeRental ? ` · Verhuurd aan ${rentalCustomer?.companyName ?? "-"}` : " · Op voorraad"}
+                  </span>
+                  <form action={createRentalAction} style={{ marginTop: "0.9rem" }}>
+                    <input type="hidden" name="machineId" value={machine.id} />
+                    <input type="hidden" name="returnTo" value="/verhuur" />
+                    <div className="form-grid-wide">
+                      <CustomerPicker customers={customers} label="Verhuren aan klant" required />
+                      <div className="field">
+                        <label htmlFor={`startDate-${machine.id}`}>Startdatum</label>
+                        <input
+                          id={`startDate-${machine.id}`}
+                          name="startDate"
+                          type="date"
+                          defaultValue={new Date().toISOString().slice(0, 10)}
+                        />
+                      </div>
+                      <div className="field">
+                        <label htmlFor={`endDate-${machine.id}`}>Einddatum</label>
+                        <input
+                          id={`endDate-${machine.id}`}
+                          name="endDate"
+                          type="date"
+                          defaultValue={new Date().toISOString().slice(0, 10)}
+                        />
+                      </div>
+                      <div className="field">
+                        <label htmlFor={`price-${machine.id}`}>Prijs</label>
+                        <input id={`price-${machine.id}`} name="price" placeholder="Bijv. EUR 350 totaal" />
+                      </div>
                     </div>
-                    <div className="field">
-                      <label htmlFor={`endDate-${machine.id}`}>Einddatum</label>
-                      <input
-                        id={`endDate-${machine.id}`}
-                        name="endDate"
-                        type="date"
-                        defaultValue={new Date().toISOString().slice(0, 10)}
-                      />
+                    <div className="actions" style={{ marginTop: "0.75rem" }}>
+                      <button className="button" type="submit" disabled={Boolean(activeRental)}>
+                        {activeRental ? "Al in verhuur" : "Start verhuur"}
+                      </button>
+                      <Link className="button-secondary" href={`/machines/${machine.id}`}>
+                        Open machine
+                      </Link>
                     </div>
-                    <div className="field">
-                      <label htmlFor={`price-${machine.id}`}>Prijs</label>
-                      <input id={`price-${machine.id}`} name="price" placeholder="Bijv. EUR 350 totaal" />
-                    </div>
-                  </div>
-                  <div className="actions" style={{ marginTop: "0.75rem" }}>
-                    <button className="button" type="submit" disabled={Boolean(activeRental)}>
-                      {activeRental ? "Al in verhuur" : "Start verhuur"}
-                    </button>
-                    <Link className="button-secondary" href={`/machines/${machine.id}`}>
-                      Open machine
-                    </Link>
-                  </div>
-                </form>
+                  </form>
+                </div>
               </div>
             );
           })}
         </div>
       </section>
 
-      {[
-        { key: "active", title: "Actieve verhuur", rows: groups.active },
-        { key: "upcoming", title: "Komende verhuur", rows: groups.upcoming },
-        { key: "completed", title: "Afgeronde verhuur", rows: groups.completed }
-      ].map((group) => (
+      {visibleGroups.map((group) => (
         <section key={group.key} style={{ marginTop: "1rem" }}>
           <div className="eyebrow">{group.title}</div>
           <div className="dataset-list" style={{ marginTop: "0.75rem" }}>
@@ -183,9 +173,7 @@ export default async function RentalsPage({
                   [machine?.brand, machine?.model].filter(Boolean).join(" ") ||
                   machine?.machineNumber ||
                   "Machine";
-                const customerLabel = customer?.companyName ?? "Onbekende klant";
                 const machineNumber = machine?.internalNumber || machine?.machineNumber || "-";
-                const periodLabel = `${rental.startDate} t/m ${rental.endDate}`;
 
                 return (
                   <div
@@ -195,7 +183,7 @@ export default async function RentalsPage({
                   >
                     <strong>{machineLabel}</strong>
                     <span>
-                      {customerLabel} · {machineNumber} · {periodLabel}
+                      {customer?.companyName ?? "Onbekende klant"} · {machineNumber} · {rental.startDate} t/m {rental.endDate}
                       {rental.price ? ` · ${rental.price}` : ""}
                     </span>
                     <span className="inline-meta">

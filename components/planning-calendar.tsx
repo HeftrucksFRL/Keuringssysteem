@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { updatePlanningItemAction, updateRentalAction } from "@/app/planning/actions";
+import { CustomerPicker } from "@/components/customer-picker";
 import type { CustomerRecord, MachineRecord, PlanningRecord, RentalRecord } from "@/lib/domain";
 
 interface PlanningCalendarProps {
@@ -321,6 +323,17 @@ export function PlanningCalendar({
 
   const selectedEvent = agendaEvents.find((event) => event.key === selectedEventKey) ?? null;
   const selectedPrimaryMachine = selectedEvent?.machineList[0] ?? null;
+  const selectedPlanningItemIds =
+    selectedEvent?.kind === "inspection"
+      ? items
+          .filter(
+            (item) =>
+              item.customerId === selectedEvent.customer?.id &&
+              item.dueDate === selectedEvent.dueDate &&
+              selectedEvent.machineList.some((machine) => machine.id === item.machineId)
+          )
+          .map((item) => item.id)
+      : [];
 
   return (
     <div className="panel">
@@ -560,6 +573,72 @@ export function PlanningCalendar({
             </div>
 
             <div className="actions">
+              {selectedEvent.kind === "rental" ? (
+                <form action={updateRentalAction} className="panel" style={{ width: "100%", marginBottom: "0.5rem" }}>
+                  <input type="hidden" name="rentalId" value={selectedEvent.rental.id} />
+                  <input type="hidden" name="month" value={monthKey(anchorDate)} />
+                  <div className="eyebrow">Verhuur aanpassen</div>
+                  <div className="form-grid-wide" style={{ marginTop: "0.75rem" }}>
+                    <CustomerPicker
+                      customers={customers}
+                      defaultCustomerId={selectedEvent.customer?.id}
+                      label="Klant"
+                      required
+                    />
+                    <div className="field">
+                      <label htmlFor="popup-rental-start">Startdatum</label>
+                      <input
+                        id="popup-rental-start"
+                        name="startDate"
+                        type="date"
+                        defaultValue={selectedEvent.rental.startDate}
+                      />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="popup-rental-end">Einddatum</label>
+                      <input
+                        id="popup-rental-end"
+                        name="endDate"
+                        type="date"
+                        defaultValue={selectedEvent.rental.endDate}
+                      />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="popup-rental-price">Prijs</label>
+                      <input
+                        id="popup-rental-price"
+                        name="price"
+                        defaultValue={selectedEvent.rental.price || ""}
+                      />
+                    </div>
+                  </div>
+                  <div className="actions" style={{ marginTop: "0.75rem" }}>
+                    <button className="button" type="submit">
+                      Verhuur bijwerken
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <form action={updatePlanningItemAction} className="panel" style={{ width: "100%", marginBottom: "0.5rem" }}>
+                  <input type="hidden" name="ids" value={JSON.stringify(selectedPlanningItemIds)} />
+                  <input type="hidden" name="month" value={monthKey(anchorDate)} />
+                  <div className="eyebrow">Keuring verplaatsen</div>
+                  <div className="field" style={{ marginTop: "0.75rem" }}>
+                    <label htmlFor="popup-planning-date">Nieuwe datum</label>
+                    <input
+                      id="popup-planning-date"
+                      name="dueDate"
+                      type="date"
+                      defaultValue={selectedEvent.dueDate}
+                    />
+                  </div>
+                  <div className="actions" style={{ marginTop: "0.75rem" }}>
+                    <button className="button" type="submit">
+                      Planning bijwerken
+                    </button>
+                  </div>
+                </form>
+              )}
               {selectedEvent.customer?.id ? (
                 <Link className="button-secondary" href={`/klanten/${selectedEvent.customer.id}`}>
                   Open klantkaart

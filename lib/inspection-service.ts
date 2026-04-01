@@ -1112,14 +1112,18 @@ export async function updateInspectionFromForm(
 export async function getDashboardData() {
   const data = hasSupabaseConfig()
     ? {
-        customers: await getCustomers(),
+        customers: await getVisibleCustomers(),
         machines: await getMachines(),
         inspections: await getInspections(),
         planningItems: await getPlanningItems(),
+        rentals: await getRentals(),
         attachments: await getInspectionAttachments(),
         mailEvents: []
       }
-    : await listDemoData();
+    : {
+        ...(await listDemoData()),
+        customers: await getVisibleCustomers()
+      };
   const upcoming = data.planningItems.filter((item) => item.state === "scheduled").length;
   const overdue = data.planningItems.filter((item) => item.state === "overdue").length;
   const drafts = data.inspections.filter((item) => item.status === "draft").length;
@@ -1135,15 +1139,17 @@ export async function getDashboardData() {
   sunday.setHours(23, 59, 59, 999);
 
   return {
-    drafts,
-    inspectionsThisMonth: data.inspections.filter((item) => item.inspectionDate.startsWith(monthPrefix)).length,
-    inspectionsThisWeek: data.inspections.filter((item) => {
-      const inspectionDate = new Date(item.inspectionDate);
-      return inspectionDate >= monday && inspectionDate <= sunday;
-    }).length,
-    upcoming,
-    overdue
-  };
+      drafts,
+      inspectionsToday: data.inspections.filter((item) => item.inspectionDate === now.toISOString().slice(0, 10)).length,
+      inspectionsThisMonth: data.inspections.filter((item) => item.inspectionDate.startsWith(monthPrefix)).length,
+      inspectionsThisWeek: data.inspections.filter((item) => {
+        const inspectionDate = new Date(item.inspectionDate);
+        return inspectionDate >= monday && inspectionDate <= sunday;
+      }).length,
+      activeRentals: data.rentals.filter((item) => rentalCompletionStatus(item) === "active").length,
+      upcoming,
+      overdue
+    };
 }
 
 export async function getCustomers() {
@@ -1817,6 +1823,12 @@ export async function updatePlanningItem(input: {
 
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
+    const { data: currentItem } = await supabase
+      .from("planning_items")
+      .select("*")
+      .eq("id", input.id)
+      .maybeSingle();
+
     await supabase
       .from("planning_items")
       .update({
@@ -1824,6 +1836,15 @@ export async function updatePlanningItem(input: {
         state
       })
       .eq("id", input.id);
+
+    if (currentItem?.inspection_id) {
+      await supabase
+        .from("inspections")
+        .update({
+          next_inspection_date: input.dueDate
+        })
+        .eq("id", currentItem.inspection_id);
+    }
     return;
   }
 
@@ -1836,6 +1857,53 @@ export async function updatePlanningItem(input: {
   item.dueDate = input.dueDate;
   item.state = state;
   item.updatedAt = nowIso();
+
+  if (item.inspectionId) {
+    const inspection = data.inspections.find((entry) => entry.id === item.inspectionId);
+    if (inspection) {
+      inspection.nextInspectionDate = input.dueDate;
+      inspection.updatedAt = nowIso();
+      await syncDemoInspectionDocuments(data, inspection);
+    }
+  }
+
+  await writeAppData(data);
+}
+
+export async function updateRental(input: {
+  rentalId: string;
+  startDate: string;
+  endDate: string;
+  customerId?: string;
+  price?: string;
+}) {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    await supabase
+      .from("rentals")
+      .update({
+        start_date: input.startDate,
+        end_date: input.endDate,
+        customer_id: input.customerId || undefined,
+        price: input.price?.trim() || null
+      })
+      .eq("id", input.rentalId);
+    return;
+  }
+
+  const data = await readAppData();
+  const rental = data.rentals.find((entry) => entry.id === input.rentalId);
+  if (!rental) {
+    return;
+  }
+
+  rental.startDate = input.startDate;
+  rental.endDate = input.endDate;
+  if (input.customerId) {
+    rental.customerId = input.customerId;
+  }
+  rental.price = input.price?.trim() || undefined;
+  rental.updatedAt = nowIso();
   await writeAppData(data);
 }
 

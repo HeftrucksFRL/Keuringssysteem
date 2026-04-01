@@ -1,10 +1,10 @@
 import Link from "next/link";
 import type { UrlObject } from "node:url";
 import {
-  getCustomers,
   getDashboardData,
   getMachines,
-  getPlanningItems
+  getPlanningItems,
+  getVisibleCustomers
 } from "@/lib/inspection-service";
 
 export default async function HomePage({
@@ -16,32 +16,26 @@ export default async function HomePage({
   const params = await searchParams;
   const planning = (await getPlanningItems()).slice(0, 3);
   const machines = await getMachines();
-  const customers = await getCustomers();
+  const customers = await getVisibleCustomers();
 
   const kpis: { label: string; value: string; helper: string; href: UrlObject }[] = [
     {
-      label: "Concept keuringen",
+      label: "Keuringen in behandeling",
       value: String(dashboard.drafts),
-      helper: "Nog niet afgerond",
-      href: { pathname: "/keuringen" }
+      helper: "Open alleen de lopende keuringen",
+      href: { pathname: "/keuringen", query: { status: "draft" } }
     },
     {
       label: "Aantal keuringen deze maand",
       value: String(dashboard.inspectionsThisMonth),
-      helper: "Alle keuringen",
-      href: { pathname: "/keuringen" }
+      helper: `${dashboard.inspectionsToday} vandaag · ${dashboard.inspectionsThisWeek} deze week`,
+      href: { pathname: "/keuringen", query: { period: "month" } }
     },
     {
-      label: "Vervolgkeuringen gepland",
-      value: String(dashboard.upcoming),
-      helper: "Direct naar planning",
-      href: { pathname: "/planning" }
-    },
-    {
-      label: "Keuringen deze week",
-      value: String(dashboard.inspectionsThisWeek),
-      helper: "Open deze week",
-      href: { pathname: "/keuringen", query: { week: "current" } }
+      label: "Aantal machines in verhuur",
+      value: String(dashboard.activeRentals),
+      helper: "Open actieve verhuur",
+      href: { pathname: "/verhuur", query: { phase: "active" } }
     }
   ];
 
@@ -70,7 +64,11 @@ export default async function HomePage({
         <div className="list">
           {kpis.map((kpi) => (
             <Link className="list-item" href={kpi.href} key={kpi.label}>
-              <span>{kpi.label}</span>
+              <span>
+                <strong>{kpi.label}</strong>
+                <br />
+                {kpi.helper}
+              </span>
               <strong>{kpi.value}</strong>
             </Link>
           ))}
@@ -86,17 +84,17 @@ export default async function HomePage({
               <span>Nieuwe keuring</span>
               <strong>Open formulier</strong>
             </Link>
-            <Link className="list-item" href={{ pathname: "/keuringen", query: { week: "current" } }}>
-              <span>Keuringen deze week</span>
-              <strong>{dashboard.inspectionsThisWeek}</strong>
+            <Link className="list-item" href={{ pathname: "/keuringen", query: { status: "draft" } }}>
+              <span>Keuringen in behandeling</span>
+              <strong>{dashboard.drafts}</strong>
             </Link>
             <Link className="list-item" href="/klanten">
               <span>Klanten</span>
               <strong>Open klantbestand</strong>
             </Link>
-            <Link className="list-item" href={{ pathname: "/planning" }}>
-              <span>Vervolgkeuringen deze week</span>
-              <strong>Open planning</strong>
+            <Link className="list-item" href={{ pathname: "/verhuur", query: { phase: "active" } }}>
+              <span>Machines in verhuur</span>
+              <strong>{dashboard.activeRentals}</strong>
             </Link>
           </div>
         </article>
@@ -113,8 +111,7 @@ export default async function HomePage({
                   {machine.brand} {machine.model}
                 </span>
                 <span className="badge blue">
-                  {customers.find((customer) => customer.id === machine.customerId)?.companyName ??
-                    "-"}
+                  {customers.find((customer) => customer.id === machine.customerId)?.companyName ?? "-"}
                 </span>
               </Link>
             ))}
