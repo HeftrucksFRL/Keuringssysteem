@@ -446,34 +446,33 @@ export async function generateInspectionDocuments(
       font: boldFont,
       color: brandBlue
     });
-    page.drawText(form.title, {
+    page.drawText(`Keurnummer ${inspection.inspectionNumber}`, {
       x: contentLeft + 14,
-      y: cursorY - 38,
-      size: 11,
-      font: regularFont,
-      color: mutedText
+      y: cursorY - 40,
+      size: 12,
+      font: boldFont,
+      color: darkText
     });
 
     const metaItems = [
-      ["Keurnummer", inspection.inspectionNumber],
       ["Datum", inspection.inspectionDate],
       ["Status", inspectionStatusLabel(inspection)]
     ] as const;
-    const columnWidth = 108;
+    const columnWidth = 124;
     metaItems.forEach(([label, value], index) => {
       const x = contentRight - 14 - columnWidth * (metaItems.length - index);
       page.drawText(label, {
         x,
-        y: cursorY - 54,
+        y: cursorY - 34,
         size: 8.5,
         font: boldFont,
         color: mutedText
       });
       page.drawText(value, {
         x,
-        y: cursorY - 70,
-        size: 10,
-        font: regularFont,
+        y: cursorY - 56,
+        size: label === "Status" ? 12 : 10.5,
+        font: boldFont,
         color: darkText,
         maxWidth: columnWidth - 8
       });
