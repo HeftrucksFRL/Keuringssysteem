@@ -79,6 +79,14 @@ function isoDate(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
+function weekChunks<T>(items: T[], size: number) {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+}
+
 function monthKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
@@ -228,7 +236,7 @@ export function PlanningCalendar({
       while (cursor <= last) {
         const day = isoDate(cursor);
         days.push({
-          key: `rental-${rental.id}-${day}`,
+          key: `rental-${rental.id}`,
           kind: "rental",
           dueDate: day,
           customer,
@@ -302,6 +310,80 @@ export function PlanningCalendar({
 
   const selectedEvent = agendaEvents.find((event) => event.key === selectedEventKey) ?? null;
   const selectedPrimaryMachine = selectedEvent?.machineList[0] ?? null;
+  const calendarWeeks = useMemo(() => weekChunks(calendarDays, 7), [calendarDays]);
+  const rentalBarsByWeek = useMemo(() => {
+    return calendarWeeks.map((weekDays) => {
+      const weekStart = isoDate(weekDays[0]);
+      const weekEnd = isoDate(weekDays[6]);
+      const visibleRentals = rentals
+        .map((rental) => {
+          const customer = customers.find((entry) => entry.id === rental.customerId);
+          const machine = machines.find((entry) => entry.id === rental.machineId);
+          if (!machine) {
+            return null;
+          }
+
+          const haystack = [
+            customer?.companyName,
+            placeLabel(customer),
+            machine.internalNumber,
+            machine.machineNumber,
+            machine.brand,
+            machine.model,
+            machine.serialNumber
+          ]
+            .join(" ")
+            .toLowerCase();
+
+          if (query.trim() && !haystack.includes(query.trim().toLowerCase())) {
+            return null;
+          }
+
+          const segmentStart = rental.startDate > weekStart ? rental.startDate : weekStart;
+          const segmentEnd = rental.endDate < weekEnd ? rental.endDate : weekEnd;
+          if (segmentStart > segmentEnd) {
+            return null;
+          }
+
+          const startCol = weekDays.findIndex((day) => isoDate(day) === segmentStart) + 1;
+          const endCol = weekDays.findIndex((day) => isoDate(day) === segmentEnd) + 1;
+          if (startCol <= 0 || endCol <= 0) {
+            return null;
+          }
+
+          return {
+            key: `rental-${rental.id}`,
+            customer,
+            machine,
+            rental,
+            startCol,
+            endCol
+          };
+        })
+        .filter((item) => item !== null)
+        .sort((left, right) => {
+          if (left.startCol !== right.startCol) {
+            return left.startCol - right.startCol;
+          }
+          return left.endCol - right.endCol;
+        });
+
+      const lanes: Array<Array<{ startCol: number; endCol: number }>> = [];
+      return visibleRentals.map((bar) => {
+        let laneIndex = lanes.findIndex((lane) =>
+          lane.every((item) => bar.endCol < item.startCol || bar.startCol > item.endCol)
+        );
+
+        if (laneIndex === -1) {
+          lanes.push([]);
+          laneIndex = lanes.length - 1;
+        }
+
+        lanes[laneIndex].push({ startCol: bar.startCol, endCol: bar.endCol });
+        return { ...bar, lane: laneIndex };
+      });
+    });
+  }, [calendarWeeks, customers, machines, query, rentals]);
 
   return (
     <div className="panel">
@@ -366,9 +448,18 @@ export function PlanningCalendar({
                   key={event.key}
                   className={`agenda-row ${event.kind === "rental" ? "scheduled" : event.state}`}
                   type="button"
+                  style={
+                    event.kind === "rental"
+                      ? { borderLeftColor: "#0d8d59", background: "#ecfdf3" }
+                      : undefined
+                  }
                   onClick={() => setSelectedEventKey(event.key)}
                 >
-                  <div className="agenda-time">{event.kind === "rental" ? "Verhuur" : event.place}</div>
+                  <div className="agenda-time">
+                    {event.kind === "rental"
+                      ? event.machineList[0]?.internalNumber || event.machineList[0]?.machineNumber || "Machine"
+                      : event.place}
+                  </div>
                   <div className="agenda-main">
                     <strong>{event.customer?.companyName ?? "Onbekende klant"}</strong>
                     <span>
@@ -389,40 +480,105 @@ export function PlanningCalendar({
             <span key={label}>{label}</span>
           ))}
         </div>
-        <div className="month-grid">
-          {calendarDays.map((day) => {
-            const dayKey = isoDate(day);
-            const dayEvents = eventsByDay.get(dayKey) ?? [];
-            const isCurrentMonth = day.getMonth() === anchorDate.getMonth();
-            const isToday = dayKey === isoDate(new Date());
+        <div style={{ display: "grid", gap: 0 }}>
+          {calendarWeeks.map((weekDays, weekIndex) => (
+            <div key={isoDate(weekDays[0])} style={{ position: "relative" }}>
+              <div className="month-grid">
+                {weekDays.map((day) => {
+                  const dayKey = isoDate(day);
+                  const dayEvents = (eventsByDay.get(dayKey) ?? []).filter((event) => event.kind !== "rental");
+                  const isCurrentMonth = day.getMonth() === anchorDate.getMonth();
+                  const isToday = dayKey === isoDate(new Date());
 
-            return (
-              <div
-                className={`month-cell ${isCurrentMonth ? "" : "is-outside"} ${isToday ? "is-today" : ""}`}
-                key={dayKey}
-              >
-                <div className="month-cell-date">{dateNumber(day)}</div>
-                <div className="month-cell-events">
-                  {dayEvents.map((event) => (
-                    <button
-                      key={event.key}
-                      className={`month-event ${event.kind === "rental" ? "scheduled" : event.state}`}
-                      type="button"
-                      onClick={() => setSelectedEventKey(event.key)}
+                  return (
+                    <div
+                      className={`month-cell ${isCurrentMonth ? "" : "is-outside"} ${isToday ? "is-today" : ""}`}
+                      key={dayKey}
                     >
-                      <strong>
-                        {event.kind === "rental" ? "Verhuur" : event.customer?.companyName ?? "Onbekende klant"}
+                      <div className="month-cell-date">{dateNumber(day)}</div>
+                      <div className="month-cell-events">
+                        {dayEvents.map((event) => (
+                          <button
+                            key={event.key}
+                            className={`month-event ${event.state}`}
+                            type="button"
+                            onClick={() => setSelectedEventKey(event.key)}
+                          >
+                            <strong>{event.customer?.companyName ?? "Onbekende klant"}</strong>
+                            <span>{event.place}</span>
+                            <span>
+                              {event.machineList.length} machine{event.machineList.length === 1 ? "" : "s"}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {rentalBarsByWeek[weekIndex]?.length ? (
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: "2.7rem 0 auto 0",
+                    display: "grid",
+                    gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
+                    gap: "0.2rem",
+                    padding: "0 0.35rem",
+                    pointerEvents: "none"
+                  }}
+                >
+                  {rentalBarsByWeek[weekIndex].map((bar) => (
+                    <button
+                      key={`${bar.key}-${weekIndex}`}
+                      type="button"
+                      style={{
+                        pointerEvents: "auto",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "0.55rem",
+                        minHeight: "18px",
+                        padding: "0.15rem 0.5rem",
+                        borderRadius: "999px",
+                        border: "1px solid #abefc6",
+                        background: "#dff6ec",
+                        color: "#0d8d59",
+                        fontSize: "0.74rem",
+                        lineHeight: "1.1",
+                        boxShadow: "0 2px 8px rgba(13, 141, 89, 0.12)",
+                        overflow: "hidden",
+                        whiteSpace: "nowrap",
+                        textOverflow: "ellipsis",
+                        gridColumn: `${bar.startCol} / ${bar.endCol + 1}`,
+                        marginTop: `${bar.lane * 24}px`
+                      }}
+                      onClick={() => setSelectedEventKey(bar.key)}
+                    >
+                      <strong
+                        style={{
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap"
+                        }}
+                      >
+                        {bar.machine.internalNumber || bar.machine.machineNumber || "Machine"}
                       </strong>
-                      <span>{event.kind === "rental" ? event.customer?.companyName ?? "-" : event.place}</span>
-                      <span>
-                        {event.machineList.length} machine{event.machineList.length === 1 ? "" : "s"}
+                      <span
+                        style={{
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap"
+                        }}
+                      >
+                        {bar.customer?.companyName ?? "-"}
                       </span>
                     </button>
                   ))}
                 </div>
-              </div>
-            );
-          })}
+              ) : null}
+            </div>
+          ))}
         </div>
       </div>
 
