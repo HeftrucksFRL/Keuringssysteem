@@ -1,9 +1,9 @@
-import { getCustomers, getInspections, getMachines } from "@/lib/inspection-service";
+import { getInspections, getMachines, getVisibleCustomers } from "@/lib/inspection-service";
 import { CustomersTable } from "@/components/customers-table";
 import Link from "next/link";
 
 export default async function CustomersPage() {
-  const customers = await getCustomers();
+  const customers = await getVisibleCustomers();
   const inspections = await getInspections();
   const machines = await getMachines();
 

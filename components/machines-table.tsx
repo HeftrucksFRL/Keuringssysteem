@@ -93,8 +93,20 @@ export function MachinesTable({
             ? customers.find((customer) => customer.id === activeRental.customerId) ?? null
             : null;
 
-          return (
-            <Link className="dataset-row" href={`/machines/${machine.id}`} key={machine.id}>
+        return (
+            <Link
+              className="dataset-row"
+              href={`/machines/${machine.id}`}
+              key={machine.id}
+              style={
+                activeRental
+                  ? {
+                      background: "#ecfdf3",
+                      borderColor: "#abefc6"
+                    }
+                  : undefined
+              }
+            >
               <strong>
                 {[machine.brand, machine.model].filter(Boolean).join(" ") || "Machine"} ·{" "}
                 {machine.internalNumber || machine.machineNumber}

@@ -7,7 +7,9 @@ import { updateCustomerAction } from "@/app/klanten/actions";
 import {
   getCustomerById,
   getInspections,
-  getMachinesForCustomer
+  getMachines,
+  getMachinesForCustomer,
+  getRentalsForCustomer
 } from "@/lib/inspection-service";
 
 export default async function CustomerDetailPage({
@@ -26,6 +28,8 @@ export default async function CustomerDetailPage({
   }
 
   const machines = await getMachinesForCustomer(customer.id);
+  const allMachines = await getMachines();
+  const rentals = await getRentalsForCustomer(customer.id);
   const inspections = (await getInspections()).filter(
     (inspection) => inspection.customerId === customer.id
   );
@@ -101,6 +105,30 @@ export default async function CustomerDetailPage({
                 <strong>Open</strong>
               </Link>
             ))}
+            {rentals
+              .filter((rental) => rental.status === "active")
+              .map((rental) => {
+                const machine = allMachines.find((item) => item.id === rental.machineId);
+                return (
+                  <Link
+                    className="list-item"
+                    key={`rental-${rental.id}`}
+                    href={`/machines/${rental.machineId}`}
+                    style={{ background: "#ecfdf3", borderColor: "#abefc6" }}
+                  >
+                    <span>
+                      <strong>
+                        {machine
+                          ? `${machine.internalNumber || machine.machineNumber} · ${machine.brand} ${machine.model}`.trim()
+                          : "Verhuurde machine"}
+                      </strong>
+                      <br />
+                      {rental.startDate} t/m {rental.endDate}
+                    </span>
+                    <strong>In verhuur</strong>
+                  </Link>
+                );
+              })}
           </div>
         </section>
       </section>

@@ -1159,6 +1159,11 @@ export async function getCustomers() {
   return data.customers;
 }
 
+export async function getVisibleCustomers() {
+  const customers = await getCustomers();
+  return customers.filter((customer) => !isRentalStockCustomer(customer));
+}
+
 export async function getMachines() {
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
@@ -1355,6 +1360,11 @@ export async function getRentalsForMachine(machineId: string) {
   return rentals.filter((rental) => rental.machineId === machineId);
 }
 
+export async function getRentalsForCustomer(customerId: string) {
+  const rentals = await getRentals();
+  return rentals.filter((rental) => rental.customerId === customerId);
+}
+
 function normalizeRentalOwnerText(value: string | undefined) {
   return (value ?? "").trim().toLowerCase();
 }
@@ -1370,6 +1380,15 @@ export function isRentalStockCustomer(
     email.includes("@heftrucks.frl") ||
     email.includes("heftrucks.frl")
   );
+}
+
+export async function getRentalStockMachines() {
+  const [machines, customers] = await Promise.all([getMachines(), getCustomers()]);
+  const stockCustomerIds = new Set(
+    customers.filter((customer) => isRentalStockCustomer(customer)).map((customer) => customer.id)
+  );
+
+  return machines.filter((machine) => stockCustomerIds.has(machine.customerId));
 }
 
 export async function createCustomer(input: {
