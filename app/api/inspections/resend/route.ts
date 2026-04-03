@@ -47,9 +47,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const customRecipient = body.customerRecipient?.trim() || undefined;
+    const shouldSendPdf =
+      customRecipient !== undefined ? true : Boolean(body.sendPdfToCustomer);
+
     await resendInspectionMail(body.inspectionId, {
-      customerRecipient: body.customerRecipient,
-      sendPdfToCustomer: body.sendPdfToCustomer
+      customerRecipient: customRecipient,
+      sendPdfToCustomer: shouldSendPdf
     });
     return NextResponse.json({ ok: true });
   } catch (error) {

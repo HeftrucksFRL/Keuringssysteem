@@ -2386,20 +2386,14 @@ export async function resendInspectionMail(
           : undefined
     },
     {
-      sendPdfToCustomer: options?.sendPdfToCustomer ?? inspection.sendPdfToCustomer
+      sendPdfToCustomer: options?.sendPdfToCustomer ?? inspection.sendPdfToCustomer,
+      sendInternalMail: false
     }
   );
 
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
-    await supabase.from("mail_events").insert([
-      {
-        inspection_id: inspection.id,
-        recipient: appConfig.mailInternalTo,
-        subject: `Opnieuw verzonden ${inspection.inspectionNumber}`,
-        channel: "internal",
-        delivery_status: sendResult.internal
-      },
+    const mailEvents = [
       ...((options?.sendPdfToCustomer ?? inspection.sendPdfToCustomer)
         ? [
             {
@@ -2412,20 +2406,15 @@ export async function resendInspectionMail(
             }
           ]
         : [])
-    ]);
+    ];
+
+    if (mailEvents.length > 0) {
+      await supabase.from("mail_events").insert(mailEvents);
+    }
     return;
   }
 
   const data = await readAppData();
-  data.mailEvents.unshift({
-    id: randomUUID(),
-    inspectionId: inspection.id,
-    recipient: appConfig.mailInternalTo,
-    subject: `Opnieuw verzonden ${inspection.inspectionNumber}`,
-    channel: "internal",
-    deliveryStatus: sendResult.internal,
-    createdAt: nowIso()
-  });
   if (options?.sendPdfToCustomer ?? inspection.sendPdfToCustomer) {
     data.mailEvents.unshift({
       id: randomUUID(),
