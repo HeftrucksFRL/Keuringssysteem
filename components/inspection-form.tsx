@@ -908,7 +908,7 @@ export function InspectionForm({
               <div className="field">
                 <label className="status-chip" htmlFor="send_pdf_to_customer">
                   <input id="send_pdf_to_customer" type="checkbox" name="send_pdf_to_customer" />
-                  Mail de PDF ook naar de klant
+                  Mail de keuring ook naar de klant
                 </label>
               </div>
               <div className="field">
