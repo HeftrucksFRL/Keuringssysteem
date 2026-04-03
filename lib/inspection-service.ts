@@ -155,6 +155,7 @@ function buildCustomerSnapshot(customer: {
   companyName: string;
   address: string;
   contactName: string;
+  contactDepartment?: string;
   phone: string;
   email: string;
 }) {
@@ -162,6 +163,7 @@ function buildCustomerSnapshot(customer: {
     customer_name: customer.companyName,
     customer_address: customer.address,
     customer_contact: customer.contactName,
+    customer_contact_department: customer.contactDepartment ?? "",
     customer_phone: customer.phone,
     customer_email: customer.email
   };
@@ -175,6 +177,7 @@ function mergeCustomerContactFields(
     companyName: trimContactValue(input.companyName) || customer.companyName,
     address: trimContactValue(input.address) || customer.address,
     contactName: trimContactValue(input.contactName) || customer.contactName,
+    contactDepartment: trimContactValue(input.contactDepartment),
     phone: trimContactValue(input.phone) || customer.phone,
     email: trimContactValue(input.email) || customer.email
   };
@@ -197,6 +200,7 @@ function customerContactFromCustomer(customer: CustomerRecord): CustomerContactR
     id: `legacy-${customer.id}`,
     customerId: customer.id,
     name,
+    department: "",
     phone,
     email,
     isPrimary: true,
@@ -273,6 +277,7 @@ function upsertDemoCustomerContact(
   input: CreateInspectionInput["customer"]
 ) {
   const nextName = trimContactValue(input.contactName);
+  const nextDepartment = trimContactValue(input.contactDepartment);
   const nextPhone = trimContactValue(input.phone);
   const nextEmail = trimContactValue(input.email);
   const shouldAddAsNew = input.saveAsNewContact || !input.contactId;
@@ -289,6 +294,7 @@ function upsertDemoCustomerContact(
       id: randomUUID(),
       customerId: customer.id,
       name: nextName || customer.contactName || customer.companyName,
+      department: nextDepartment,
       phone: nextPhone,
       email: nextEmail,
       isPrimary: true,
@@ -298,6 +304,7 @@ function upsertDemoCustomerContact(
     data.customerContacts.unshift(contact);
   } else {
     contact.name = nextName;
+    contact.department = nextDepartment;
     contact.phone = nextPhone;
     contact.email = nextEmail;
     contact.isPrimary = true;
@@ -321,6 +328,7 @@ async function upsertSupabaseCustomerContact(
   input: CreateInspectionInput["customer"]
 ) {
   const nextName = trimContactValue(input.contactName);
+  const nextDepartment = trimContactValue(input.contactDepartment);
   const nextPhone = trimContactValue(input.phone);
   const nextEmail = trimContactValue(input.email);
   const shouldAddAsNew = input.saveAsNewContact || !input.contactId;
@@ -332,6 +340,7 @@ async function upsertSupabaseCustomerContact(
       .from("customer_contacts")
       .update({
         name: nextName,
+        department: nextDepartment,
         phone: nextPhone,
         email: nextEmail,
         is_primary: true
@@ -349,6 +358,7 @@ async function upsertSupabaseCustomerContact(
       .insert({
         customer_id: customerId,
         name: nextName || "Contactpersoon",
+        department: nextDepartment,
         phone: nextPhone,
         email: nextEmail,
         is_primary: true
@@ -468,7 +478,10 @@ async function createDemoInspection(input: CreateInspectionInput) {
     nextInspectionDate,
     status: statusFromResultLabels(input.resultLabels),
     sendPdfToCustomer: input.sendPdfToCustomer,
-    customerSnapshot: buildCustomerSnapshot(customer),
+    customerSnapshot: buildCustomerSnapshot({
+      ...customer,
+      contactDepartment: input.customer.contactDepartment
+    }),
     machineSnapshot: buildMachineSnapshot(machine),
     checklist: input.checklist,
     findings: input.findings,
@@ -772,6 +785,7 @@ function mapCustomerContactRow(row: Record<string, unknown>): CustomerContactRec
     id: String(row.id),
     customerId: String(row.customer_id),
     name: String(row.name ?? ""),
+    department: String(row.department ?? ""),
     phone: String(row.phone ?? ""),
     email: String(row.email ?? ""),
     isPrimary: Boolean(row.is_primary),
@@ -1167,7 +1181,10 @@ export async function updateInspectionFromForm(
     inspection.nextInspectionDate = addTwelveMonths(input.inspectionDate);
     inspection.status = statusFromResultLabels(input.resultLabels);
     inspection.sendPdfToCustomer = input.sendPdfToCustomer;
-    inspection.customerSnapshot = buildCustomerSnapshot(customer);
+    inspection.customerSnapshot = buildCustomerSnapshot({
+      ...customer,
+      contactDepartment: input.customer.contactDepartment
+    });
     inspection.machineSnapshot = buildMachineSnapshot(machine);
     inspection.checklist = input.checklist;
     inspection.findings = input.findings;
@@ -1754,7 +1771,7 @@ export async function getRentalStockMachines() {
 export async function createCustomer(input: {
   companyName: string;
   address: string;
-  contactName: string;
+  contactName?: string;
   phone: string;
   email: string;
   city?: string;
@@ -1784,7 +1801,7 @@ export async function createCustomer(input: {
     await upsertSupabaseCustomerContact(supabase, String(data.id), {
       companyName: input.companyName,
       address: input.address,
-      contactName: input.contactName,
+      contactName: input.contactName ?? "",
       phone: input.phone,
       email: input.email,
       saveAsNewContact: true
@@ -1804,7 +1821,7 @@ export async function createCustomer(input: {
     upsertDemoCustomerContact(data, existing, {
       companyName: input.companyName,
       address: input.address,
-      contactName: input.contactName,
+      contactName: input.contactName ?? "",
       phone: input.phone,
       email: input.email,
       saveAsNewContact: true
@@ -1818,7 +1835,7 @@ export async function createCustomer(input: {
     companyName: input.companyName,
     address: input.address,
     city: input.city ?? "",
-    contactName: input.contactName,
+    contactName: input.contactName ?? "",
     phone: input.phone,
     email: input.email,
     createdAt: nowIso(),
@@ -1829,7 +1846,7 @@ export async function createCustomer(input: {
   upsertDemoCustomerContact(data, customer, {
     companyName: input.companyName,
     address: input.address,
-    contactName: input.contactName,
+    contactName: input.contactName ?? "",
     phone: input.phone,
     email: input.email,
     saveAsNewContact: true
@@ -1843,7 +1860,7 @@ export async function updateCustomer(input: {
   companyName: string;
   address: string;
   city?: string;
-  contactName: string;
+  contactName?: string;
   phone: string;
   email: string;
 }) {
@@ -1864,7 +1881,7 @@ export async function updateCustomer(input: {
     await upsertSupabaseCustomerContact(supabase, input.id, {
       companyName: input.companyName,
       address: input.address,
-      contactName: input.contactName,
+      contactName: input.contactName ?? "",
       phone: input.phone,
       email: input.email,
       saveAsNewContact: false
@@ -1885,7 +1902,7 @@ export async function updateCustomer(input: {
   upsertDemoCustomerContact(data, customer, {
     companyName: input.companyName,
     address: input.address,
-    contactName: input.contactName,
+    contactName: input.contactName ?? "",
     phone: input.phone,
     email: input.email,
     contactId: data.customerContacts.find(
@@ -1898,6 +1915,7 @@ export async function updateCustomer(input: {
 export async function addCustomerContact(input: {
   customerId: string;
   name: string;
+  department?: string;
   phone: string;
   email: string;
   makePrimary?: boolean;
@@ -1909,6 +1927,7 @@ export async function addCustomerContact(input: {
       .insert({
         customer_id: input.customerId,
         name: input.name,
+        department: input.department ?? "",
         phone: input.phone,
         email: input.email,
         is_primary: Boolean(input.makePrimary)
@@ -1944,6 +1963,7 @@ export async function addCustomerContact(input: {
     id: randomUUID(),
     customerId: input.customerId,
     name: input.name,
+    department: input.department ?? "",
     phone: input.phone,
     email: input.email,
     isPrimary: Boolean(input.makePrimary),
@@ -1964,6 +1984,146 @@ export async function addCustomerContact(input: {
   data.customerContacts.unshift(contact);
   await writeAppData(data);
   return contact;
+}
+
+export async function updateCustomerContact(input: {
+  id: string;
+  customerId: string;
+  name: string;
+  department?: string;
+  phone: string;
+  email: string;
+  makePrimary?: boolean;
+}) {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data } = await supabase
+      .from("customer_contacts")
+      .update({
+        name: input.name,
+        department: input.department ?? "",
+        phone: input.phone,
+        email: input.email,
+        is_primary: Boolean(input.makePrimary)
+      })
+      .eq("id", input.id)
+      .eq("customer_id", input.customerId)
+      .select("*")
+      .maybeSingle();
+
+    if (input.makePrimary && data) {
+      await supabase
+        .from("customer_contacts")
+        .update({ is_primary: false })
+        .eq("customer_id", input.customerId)
+        .neq("id", input.id);
+
+      await supabase
+        .from("customers")
+        .update({ contact_name: input.name })
+        .eq("id", input.customerId);
+    }
+
+    return data ? mapCustomerContactRow(data) : null;
+  }
+
+  const data = await readAppData();
+  const contact = data.customerContacts.find(
+    (item) => item.id === input.id && item.customerId === input.customerId
+  );
+  const customer = data.customers.find((item) => item.id === input.customerId);
+  if (!contact) {
+    return null;
+  }
+
+  contact.name = input.name;
+  contact.department = input.department ?? "";
+  contact.phone = input.phone;
+  contact.email = input.email;
+  contact.updatedAt = nowIso();
+
+  if (input.makePrimary) {
+    data.customerContacts = data.customerContacts.map((item) =>
+      item.customerId === input.customerId
+        ? { ...item, isPrimary: item.id === input.id, updatedAt: nowIso() }
+        : item
+    );
+    if (customer) {
+      customer.contactName = input.name;
+      customer.updatedAt = nowIso();
+    }
+  }
+
+  await writeAppData(data);
+  return contact;
+}
+
+export async function deleteCustomerContact(input: {
+  id: string;
+  customerId: string;
+}) {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data: contactRow } = await supabase
+      .from("customer_contacts")
+      .select("*")
+      .eq("id", input.id)
+      .eq("customer_id", input.customerId)
+      .maybeSingle();
+
+    await supabase
+      .from("customer_contacts")
+      .delete()
+      .eq("id", input.id)
+      .eq("customer_id", input.customerId);
+
+    if (contactRow?.is_primary) {
+      const { data: nextContactRow } = await supabase
+        .from("customer_contacts")
+        .select("*")
+        .eq("customer_id", input.customerId)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      await supabase
+        .from("customers")
+        .update({
+          contact_name: nextContactRow ? String(nextContactRow.name ?? "") : ""
+        })
+        .eq("id", input.customerId);
+
+      if (nextContactRow) {
+        await supabase
+          .from("customer_contacts")
+          .update({ is_primary: true })
+          .eq("id", String(nextContactRow.id));
+      }
+    }
+
+    return;
+  }
+
+  const data = await readAppData();
+  const deletedContact = data.customerContacts.find(
+    (item) => item.id === input.id && item.customerId === input.customerId
+  );
+  data.customerContacts = data.customerContacts.filter((item) => item.id !== input.id);
+
+  if (deletedContact?.isPrimary) {
+    const nextContact = data.customerContacts.find((item) => item.customerId === input.customerId) ?? null;
+    const customer = data.customers.find((item) => item.id === input.customerId);
+    if (nextContact) {
+      nextContact.isPrimary = true;
+      nextContact.updatedAt = nowIso();
+    }
+    if (customer) {
+      customer.contactName = nextContact?.name ?? "";
+      customer.updatedAt = nowIso();
+    }
+  }
+
+  await writeAppData(data);
 }
 
 export async function createMachine(input: {

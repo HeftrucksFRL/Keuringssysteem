@@ -5,7 +5,9 @@ import { redirect } from "next/navigation";
 import {
   addCustomerContact,
   createCustomer,
+  deleteCustomerContact,
   updateCustomer,
+  updateCustomerContact,
   updatePlanningItem
 } from "@/lib/inspection-service";
 
@@ -58,9 +60,43 @@ export async function addCustomerContactAction(formData: FormData) {
   await addCustomerContact({
     customerId,
     name: String(formData.get("name") || ""),
+    department: String(formData.get("department") || ""),
     phone: String(formData.get("phone") || ""),
     email: String(formData.get("email") || ""),
     makePrimary: formData.get("makePrimary") === "on"
+  });
+
+  revalidatePath("/klanten");
+  revalidatePath(`/klanten/${customerId}`);
+  revalidatePath("/keuringen/nieuw");
+  redirect(`/klanten/${customerId}?contactSaved=1`);
+}
+
+export async function updateCustomerContactAction(formData: FormData) {
+  const customerId = String(formData.get("customerId") || "");
+
+  await updateCustomerContact({
+    id: String(formData.get("contactId") || ""),
+    customerId,
+    name: String(formData.get("name") || ""),
+    department: String(formData.get("department") || ""),
+    phone: String(formData.get("phone") || ""),
+    email: String(formData.get("email") || ""),
+    makePrimary: formData.get("makePrimary") === "on"
+  });
+
+  revalidatePath("/klanten");
+  revalidatePath(`/klanten/${customerId}`);
+  revalidatePath("/keuringen/nieuw");
+  redirect(`/klanten/${customerId}?contactSaved=1`);
+}
+
+export async function deleteCustomerContactAction(formData: FormData) {
+  const customerId = String(formData.get("customerId") || "");
+
+  await deleteCustomerContact({
+    id: String(formData.get("contactId") || ""),
+    customerId
   });
 
   revalidatePath("/klanten");

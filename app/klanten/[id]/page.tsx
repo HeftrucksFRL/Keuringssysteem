@@ -3,7 +3,12 @@ import { getInspectionAttachments } from "@/lib/inspection-service";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Route } from "next";
-import { addCustomerContactAction, updateCustomerAction } from "@/app/klanten/actions";
+import {
+  addCustomerContactAction,
+  deleteCustomerContactAction,
+  updateCustomerAction,
+  updateCustomerContactAction
+} from "@/app/klanten/actions";
 import {
   getCustomerById,
   getCustomerContacts,
@@ -75,10 +80,6 @@ export default async function CustomerDetailPage({
               <input id="city" name="city" defaultValue={customer.city} />
             </div>
             <div className="field">
-              <label htmlFor="contactName">Huidige contactpersoon</label>
-              <input id="contactName" name="contactName" defaultValue={customer.contactName} />
-            </div>
-            <div className="field">
               <label htmlFor="phone">Algemeen telefoonnummer</label>
               <input id="phone" name="phone" defaultValue={customer.phone} />
             </div>
@@ -87,6 +88,7 @@ export default async function CustomerDetailPage({
               <input id="email" name="email" defaultValue={customer.email} />
             </div>
           </div>
+          <input type="hidden" name="contactName" value={customer.contactName} />
           <div className="actions">
             <button className="button" type="submit">
               Gegevens opslaan
@@ -99,13 +101,59 @@ export default async function CustomerDetailPage({
           <h2>Alle contactpersonen</h2>
           <div className="list" style={{ marginBottom: "1rem" }}>
             {contacts.map((contact) => (
-              <div className="list-item" key={contact.id}>
-                <span>
-                  <strong>{contact.name || "-"}</strong>
-                  <br />
-                  {contact.email || contact.phone || "-"}
-                </span>
-                <strong>{contact.isPrimary ? "Huidig" : "Extra"}</strong>
+              <div className="panel" key={contact.id} style={{ padding: "1rem", marginBottom: "0.75rem" }}>
+                <form action={updateCustomerContactAction}>
+                  <input type="hidden" name="customerId" value={customer.id} />
+                  <input type="hidden" name="contactId" value={contact.id} />
+                  <div className="form-grid-wide">
+                    <div className="field">
+                      <label htmlFor={`contact-name-${contact.id}`}>Naam</label>
+                      <input id={`contact-name-${contact.id}`} name="name" defaultValue={contact.name} />
+                    </div>
+                    <div className="field">
+                      <label htmlFor={`contact-department-${contact.id}`}>Afdeling / functie</label>
+                      <input
+                        id={`contact-department-${contact.id}`}
+                        name="department"
+                        defaultValue={contact.department}
+                        placeholder="Bijv. keuring, verhuur of planning"
+                      />
+                    </div>
+                    <div className="field">
+                      <label htmlFor={`contact-phone-${contact.id}`}>Telefoon</label>
+                      <input id={`contact-phone-${contact.id}`} name="phone" defaultValue={contact.phone} />
+                    </div>
+                    <div className="field">
+                      <label htmlFor={`contact-email-${contact.id}`}>E-mail</label>
+                      <input id={`contact-email-${contact.id}`} name="email" type="email" defaultValue={contact.email} />
+                    </div>
+                    <div className="field">
+                      <label className="status-chip" htmlFor={`contact-primary-${contact.id}`}>
+                        <input
+                          id={`contact-primary-${contact.id}`}
+                          name="makePrimary"
+                          type="checkbox"
+                          defaultChecked={contact.isPrimary}
+                        />
+                        Maak dit de huidige contactpersoon
+                      </label>
+                    </div>
+                  </div>
+                  <div className="actions">
+                    <button className="button-secondary" type="submit">
+                      Contactpersoon opslaan
+                    </button>
+                  </div>
+                </form>
+                <form action={deleteCustomerContactAction}>
+                  <input type="hidden" name="customerId" value={customer.id} />
+                  <input type="hidden" name="contactId" value={contact.id} />
+                  <div className="actions" style={{ marginTop: "0.75rem" }}>
+                    <button className="button-secondary" type="submit">
+                      Contactpersoon verwijderen
+                    </button>
+                  </div>
+                </form>
               </div>
             ))}
           </div>
@@ -119,6 +167,14 @@ export default async function CustomerDetailPage({
               <div className="field">
                 <label htmlFor="contact-phone">Telefoon</label>
                 <input id="contact-phone" name="phone" />
+              </div>
+              <div className="field">
+                <label htmlFor="contact-department">Afdeling / functie</label>
+                <input
+                  id="contact-department"
+                  name="department"
+                  placeholder="Bijv. keuring, verhuur of planning"
+                />
               </div>
               <div className="field">
                 <label htmlFor="contact-email">E-mail</label>

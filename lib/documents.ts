@@ -245,6 +245,7 @@ function summaryRows(inspection: InspectionRecord): Array<[string, string]> {
     ["Klant", inspection.customerSnapshot.customer_name ?? "-"],
     ["Adres", inspection.customerSnapshot.customer_address ?? "-"],
     ["Contactpersoon", inspection.customerSnapshot.customer_contact ?? "-"],
+    ["Afdeling / functie", inspection.customerSnapshot.customer_contact_department ?? "-"],
     ["Telefoon", inspection.customerSnapshot.customer_phone ?? "-"],
     ["E-mail", inspection.customerSnapshot.customer_email ?? "-"],
     [
@@ -500,12 +501,12 @@ export async function generateInspectionDocuments(
         ["Intern nummer", inspection.machineSnapshot.internal_number ?? "-"]
       ],
       [
-        ["Telefoon", inspection.customerSnapshot.customer_phone ?? "-"],
+        ["Afdeling / functie", inspection.customerSnapshot.customer_contact_department ?? "-"],
         ["Serienummer", inspection.machineSnapshot.serial_number ?? "-"]
       ],
       [
-        ["E-mail", inspection.customerSnapshot.customer_email ?? "-"],
-        ["", ""]
+        ["Telefoon", inspection.customerSnapshot.customer_phone ?? "-"],
+        ["E-mail", inspection.customerSnapshot.customer_email ?? "-"]
       ]
     ];
 

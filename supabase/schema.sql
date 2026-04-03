@@ -60,6 +60,7 @@ create table if not exists public.customer_contacts (
   id uuid primary key default gen_random_uuid(),
   customer_id uuid not null references public.customers(id) on delete cascade,
   name text not null,
+  department text,
   phone text,
   email text,
   is_primary boolean not null default false,

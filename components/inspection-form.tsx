@@ -78,17 +78,19 @@ function customerValues(customer?: CustomerRecord | null) {
     customer_name: customer?.companyName ?? "",
     customer_address: customer?.address ?? "",
     customer_contact: customer?.contactName ?? "",
+    customer_contact_department: "",
     customer_phone: customer?.phone ?? "",
     customer_email: customer?.email ?? ""
   };
 }
 
 function customerContactValues(
-  contact?: Pick<CustomerContactRecord, "name" | "phone" | "email"> | null,
+  contact?: Pick<CustomerContactRecord, "name" | "department" | "phone" | "email"> | null,
   customer?: Pick<CustomerRecord, "phone" | "email"> | null
 ) {
   return {
     customer_contact: contact?.name ?? "",
+    customer_contact_department: contact?.department ?? "",
     customer_phone: contact?.phone || customer?.phone || "",
     customer_email: contact?.email || customer?.email || ""
   };
@@ -217,6 +219,8 @@ export function InspectionForm({
           customer_name: existingInspection.customerSnapshot.customer_name ?? "",
           customer_address: existingInspection.customerSnapshot.customer_address ?? "",
           customer_contact: existingInspection.customerSnapshot.customer_contact ?? "",
+          customer_contact_department:
+            existingInspection.customerSnapshot.customer_contact_department ?? "",
           customer_phone: existingInspection.customerSnapshot.customer_phone ?? "",
           customer_email: existingInspection.customerSnapshot.customer_email ?? "",
           brand: existingInspection.machineSnapshot.brand ?? "",
@@ -533,6 +537,7 @@ export function InspectionForm({
       setValues((current) => ({
         ...current,
         customer_contact: "",
+        customer_contact_department: "",
         customer_phone: "",
         customer_email: ""
       }));
@@ -780,11 +785,23 @@ export function InspectionForm({
                   >
                     {availableContacts.map((contact) => (
                       <option key={contact.id} value={contact.id}>
-                        {contact.name || "Contactpersoon"}{contact.isPrimary ? " · huidig" : ""}
+                        {contact.name || "Contactpersoon"}
+                        {contact.department ? ` · ${contact.department}` : ""}
+                        {contact.isPrimary ? " · huidig" : ""}
                       </option>
                     ))}
                     <option value="__new__">Nieuwe contactpersoon toevoegen</option>
                   </select>
+                </div>
+                <div className="field">
+                  <label htmlFor="customer_contact_department">Afdeling / functie</label>
+                  <input
+                    id="customer_contact_department"
+                    name="customer_contact_department"
+                    value={values.customer_contact_department ?? ""}
+                    placeholder="Bijv. keuring, verhuur of planning"
+                    onChange={(event) => setFieldValue("customer_contact_department", event.target.value)}
+                  />
                 </div>
                 <div className="info-card">
                   <strong>
@@ -794,7 +811,8 @@ export function InspectionForm({
                   </strong>
                   <span>
                     {contactMode === "existing"
-                      ? selectedContact?.email ||
+                      ? selectedContact?.department ||
+                        selectedContact?.email ||
                         selectedContact?.phone ||
                         selectedCustomer?.email ||
                         "Wordt gebruikt in deze keuring."
@@ -958,6 +976,10 @@ export function InspectionForm({
                   <span>Contactpersoon</span>
                 </div>
                 <div className="info-card">
+                  <strong>{values.customer_contact_department || "-"}</strong>
+                  <span>Afdeling / functie</span>
+                </div>
+                <div className="info-card">
                   <strong>{[values.brand, values.model].filter(Boolean).join(" ") || "-"}</strong>
                   <span>Gekozen machine</span>
                 </div>
@@ -996,7 +1018,9 @@ export function InspectionForm({
                       >
                         {availableContacts.map((contact) => (
                           <option key={contact.id} value={contact.id}>
-                            {contact.name || "Contactpersoon"}{contact.isPrimary ? " · huidig" : ""}
+                            {contact.name || "Contactpersoon"}
+                            {contact.department ? ` · ${contact.department}` : ""}
+                            {contact.isPrimary ? " · huidig" : ""}
                           </option>
                         ))}
                         <option value="__new__">Nieuwe contactpersoon toevoegen</option>
@@ -1011,6 +1035,16 @@ export function InspectionForm({
                         value={values.customer_email ?? ""}
                         placeholder="Algemeen of persoonlijk e-mailadres"
                         onChange={(event) => setFieldValue("customer_email", event.target.value)}
+                      />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="customer_contact_department_step4">Afdeling / functie</label>
+                      <input
+                        id="customer_contact_department_step4"
+                        name="customer_contact_department"
+                        value={values.customer_contact_department ?? ""}
+                        placeholder="Bijv. keuring, verhuur of planning"
+                        onChange={(event) => setFieldValue("customer_contact_department", event.target.value)}
                       />
                     </div>
                   </>

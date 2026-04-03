@@ -19,6 +19,7 @@ export interface CustomerContactRecord {
   id: string;
   customerId: string;
   name: string;
+  department: string;
   phone: string;
   email: string;
   isPrimary: boolean;
@@ -137,6 +138,7 @@ export interface CreateInspectionInput {
     companyName: string;
     address: string;
     contactName: string;
+    contactDepartment?: string;
     phone: string;
     email: string;
     contactId?: string;
