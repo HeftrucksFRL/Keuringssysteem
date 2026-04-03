@@ -37,7 +37,7 @@ export function CustomersTable({
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Zoek op klantnaam, contact of e-mail"
+          placeholder="Zoek op klantnaam, contact of algemeen e-mailadres"
         />
       </div>
       <div className="dataset-list">

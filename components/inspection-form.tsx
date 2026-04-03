@@ -83,11 +83,14 @@ function customerValues(customer?: CustomerRecord | null) {
   };
 }
 
-function customerContactValues(contact?: Pick<CustomerContactRecord, "name" | "phone" | "email"> | null) {
+function customerContactValues(
+  contact?: Pick<CustomerContactRecord, "name" | "phone" | "email"> | null,
+  customer?: Pick<CustomerRecord, "phone" | "email"> | null
+) {
   return {
     customer_contact: contact?.name ?? "",
-    customer_phone: contact?.phone ?? "",
-    customer_email: contact?.email ?? ""
+    customer_phone: contact?.phone || customer?.phone || "",
+    customer_email: contact?.email || customer?.email || ""
   };
 }
 
@@ -435,8 +438,8 @@ export function InspectionForm({
       return;
     }
 
-    setValues((current) => ({ ...current, ...customerContactValues(selectedContact) }));
-  }, [contactMode, isEditingExisting, selectedContact]);
+    setValues((current) => ({ ...current, ...customerContactValues(selectedContact, selectedCustomer) }));
+  }, [contactMode, isEditingExisting, selectedContact, selectedCustomer]);
 
   useEffect(() => {
     if (isEditingExisting) return;
@@ -543,7 +546,7 @@ export function InspectionForm({
 
     if (fallbackContact) {
       setSelectedContactId(fallbackContact.id);
-      setValues((current) => ({ ...current, ...customerContactValues(fallbackContact) }));
+      setValues((current) => ({ ...current, ...customerContactValues(fallbackContact, selectedCustomer) }));
     }
   }
 
@@ -768,7 +771,10 @@ export function InspectionForm({
                       setContactMode("existing");
                       const nextContact = availableContacts.find((contact) => contact.id === nextValue);
                       if (nextContact) {
-                        setValues((current) => ({ ...current, ...customerContactValues(nextContact) }));
+                        setValues((current) => ({
+                          ...current,
+                          ...customerContactValues(nextContact, selectedCustomer)
+                        }));
                       }
                     }}
                   >
@@ -788,7 +794,10 @@ export function InspectionForm({
                   </strong>
                   <span>
                     {contactMode === "existing"
-                      ? selectedContact?.email || selectedContact?.phone || "Wordt gebruikt in deze keuring."
+                      ? selectedContact?.email ||
+                        selectedContact?.phone ||
+                        selectedCustomer?.email ||
+                        "Wordt gebruikt in deze keuring."
                       : "Deze contactpersoon wordt bewaard bij de klant."}
                   </span>
                 </div>
@@ -978,7 +987,10 @@ export function InspectionForm({
                           setContactMode("existing");
                           const nextContact = availableContacts.find((contact) => contact.id === nextValue);
                           if (nextContact) {
-                            setValues((current) => ({ ...current, ...customerContactValues(nextContact) }));
+                            setValues((current) => ({
+                              ...current,
+                              ...customerContactValues(nextContact, selectedCustomer)
+                            }));
                           }
                         }}
                       >

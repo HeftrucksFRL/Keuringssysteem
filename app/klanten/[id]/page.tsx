@@ -79,11 +79,11 @@ export default async function CustomerDetailPage({
               <input id="contactName" name="contactName" defaultValue={customer.contactName} />
             </div>
             <div className="field">
-              <label htmlFor="phone">Telefoon</label>
+              <label htmlFor="phone">Algemeen telefoonnummer</label>
               <input id="phone" name="phone" defaultValue={customer.phone} />
             </div>
             <div className="field">
-              <label htmlFor="email">E-mail</label>
+              <label htmlFor="email">Algemeen e-mailadres</label>
               <input id="email" name="email" defaultValue={customer.email} />
             </div>
           </div>

@@ -29,11 +29,11 @@ export default function NewCustomerPage() {
             <input id="city" name="city" />
           </div>
           <div className="field">
-            <label htmlFor="phone">Telefoon</label>
+            <label htmlFor="phone">Algemeen telefoonnummer</label>
             <input id="phone" name="phone" />
           </div>
           <div className="field">
-            <label htmlFor="email">E-mail</label>
+            <label htmlFor="email">Algemeen e-mailadres</label>
             <input id="email" name="email" type="email" />
           </div>
         </div>

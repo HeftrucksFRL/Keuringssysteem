@@ -221,8 +221,6 @@ function syncCustomerMainFields(
   contact: Pick<CustomerContactRecord, "name" | "phone" | "email"> | null
 ) {
   customer.contactName = contact?.name || customer.contactName;
-  customer.phone = contact?.phone || customer.phone;
-  customer.email = contact?.email || customer.email;
 }
 
 function findOrCreateCustomer(
@@ -380,8 +378,8 @@ async function upsertSupabaseCustomerContact(
     .from("customers")
     .update({
       contact_name: String(selectedContactRow.name ?? ""),
-      phone: String(selectedContactRow.phone ?? "") || String(currentCustomerRow?.phone ?? "") || null,
-      email: String(selectedContactRow.email ?? "") || String(currentCustomerRow?.email ?? "") || null
+      phone: String(currentCustomerRow?.phone ?? "") || null,
+      email: String(currentCustomerRow?.email ?? "") || null
     })
     .eq("id", customerId);
 
@@ -1928,9 +1926,7 @@ export async function addCustomerContact(input: {
       await supabase
         .from("customers")
         .update({
-          contact_name: input.name,
-          phone: input.phone,
-          email: input.email
+          contact_name: input.name
         })
         .eq("id", input.customerId);
     }
@@ -1961,7 +1957,7 @@ export async function addCustomerContact(input: {
         ? { ...item, isPrimary: false, updatedAt: nowIso() }
         : item
     );
-    syncCustomerMainFields(customer, contact);
+    customer.contactName = input.name;
     customer.updatedAt = nowIso();
   }
 

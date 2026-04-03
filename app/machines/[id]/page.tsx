@@ -193,11 +193,11 @@ export default async function MachineDetailPage({
               <strong>{customer?.contactName ?? "-"}</strong>
             </div>
             <div className="list-item">
-              <span>E-mail</span>
+              <span>Algemeen e-mailadres</span>
               <strong>{customer?.email ?? "-"}</strong>
             </div>
             <div className="list-item">
-              <span>Telefoon</span>
+              <span>Algemeen telefoonnummer</span>
               <strong>{customer?.phone ?? "-"}</strong>
             </div>
             {activeRental ? (
