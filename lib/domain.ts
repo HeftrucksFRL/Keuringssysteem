@@ -97,6 +97,16 @@ export interface MailEventRecord {
   createdAt: string;
 }
 
+export interface MailAlertRecord {
+  id: string;
+  inspectionId: string;
+  inspectionNumber: string;
+  recipient: string;
+  subject: string;
+  channel: "internal" | "customer";
+  createdAt: string;
+}
+
 export interface AppDataSnapshot {
   customers: CustomerRecord[];
   machines: MachineRecord[];

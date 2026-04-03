@@ -16,6 +16,7 @@ import type {
   CreateInspectionInput,
   CustomerRecord,
   InspectionRecord,
+  MailAlertRecord,
   MachineRecord,
   PlanningRecord,
   RentalRecord
@@ -1138,7 +1139,7 @@ export async function getDashboardData() {
   sunday.setDate(sunday.getDate() + 6);
   sunday.setHours(23, 59, 59, 999);
 
-  return {
+    return {
       drafts,
       inspectionsToday: data.inspections.filter((item) => item.inspectionDate === now.toISOString().slice(0, 10)).length,
       inspectionsThisMonth: data.inspections.filter((item) => item.inspectionDate.startsWith(monthPrefix)).length,
@@ -1150,6 +1151,63 @@ export async function getDashboardData() {
       upcoming,
       overdue
     };
+}
+
+export async function getFailedMailAlerts(limit = 5): Promise<MailAlertRecord[]> {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data: mailRows } = await supabase
+      .from("mail_events")
+      .select("id, inspection_id, recipient, subject, channel, created_at")
+      .eq("delivery_status", "failed")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    const inspectionIds = Array.from(
+      new Set((mailRows ?? []).map((row) => String(row.inspection_id)).filter(Boolean))
+    );
+
+    let inspectionNumberById = new Map<string, string>();
+    if (inspectionIds.length > 0) {
+      const { data: inspectionRows } = await supabase
+        .from("inspections")
+        .select("id, inspection_number")
+        .in("id", inspectionIds);
+
+      inspectionNumberById = new Map(
+        (inspectionRows ?? []).map((row) => [String(row.id), String(row.inspection_number)])
+      );
+    }
+
+    return (mailRows ?? []).map((row) => ({
+      id: String(row.id),
+      inspectionId: String(row.inspection_id),
+      inspectionNumber: inspectionNumberById.get(String(row.inspection_id)) ?? "-",
+      recipient: String(row.recipient),
+      subject: String(row.subject),
+      channel: row.channel,
+      createdAt: String(row.created_at)
+    }));
+  }
+
+  const data = await readAppData();
+  const inspectionNumberById = new Map(
+    data.inspections.map((inspection) => [inspection.id, inspection.inspectionNumber] as const)
+  );
+
+  return data.mailEvents
+    .filter((event) => event.deliveryStatus === "failed")
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+    .slice(0, limit)
+    .map((event) => ({
+      id: event.id,
+      inspectionId: event.inspectionId,
+      inspectionNumber: inspectionNumberById.get(event.inspectionId) ?? "-",
+      recipient: event.recipient,
+      subject: event.subject,
+      channel: event.channel,
+      createdAt: event.createdAt
+    }));
 }
 
 export async function getCustomers() {

@@ -4,6 +4,7 @@ import {
   getCustomerDisplayName,
   getDashboardData,
   getCustomers,
+  getFailedMailAlerts,
   getMachines,
   getPlanningItems
 } from "@/lib/inspection-service";
@@ -15,9 +16,13 @@ export default async function HomePage({
 }) {
   const dashboard = await getDashboardData();
   const params = await searchParams;
-  const planning = (await getPlanningItems()).slice(0, 3);
-  const machines = await getMachines();
-  const customers = await getCustomers();
+  const [planningRows, machines, customers, failedMailAlerts] = await Promise.all([
+    getPlanningItems(),
+    getMachines(),
+    getCustomers(),
+    getFailedMailAlerts()
+  ]);
+  const planning = planningRows.slice(0, 3);
 
   const kpis: { label: string; value: string; helper: string; href: UrlObject }[] = [
     {
@@ -75,6 +80,25 @@ export default async function HomePage({
           ))}
         </div>
       </section>
+
+      {failedMailAlerts.length > 0 ? (
+        <section className="panel" style={{ marginTop: "1rem" }}>
+          <div className="eyebrow">Mailcontrole</div>
+          <h2>Mislukte mailverzoeken</h2>
+          <div className="list">
+            {failedMailAlerts.map((alert) => (
+              <Link className="list-item" href={`/keuringen/${alert.inspectionId}`} key={alert.id}>
+                <span>
+                  <strong>Keuring {alert.inspectionNumber}</strong>
+                  <br />
+                  {alert.channel === "internal" ? "Interne mail" : "Klantmail"} naar {alert.recipient}
+                </span>
+                <strong>Controleren</strong>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="grid-2" style={{ marginTop: "1rem" }}>
         <article className="panel">

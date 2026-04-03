@@ -71,7 +71,7 @@ export async function sendInspectionEmails(
     };
   }
 
-  let customerStatus: "sent" | "skipped" | "not_requested" = "not_requested";
+  let customerStatus: "sent" | "skipped" | "not_requested" | "failed" = "not_requested";
 
   if ((options?.sendPdfToCustomer ?? inspection.sendPdfToCustomer) && customerEmail && files?.pdf) {
     const customerMail = buildCustomerMail(customerName);
@@ -95,7 +95,7 @@ export async function sendInspectionEmails(
         recipient: customerEmail,
         error
       });
-      customerStatus = "skipped";
+      customerStatus = "failed";
     }
   }
 
