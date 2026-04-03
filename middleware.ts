@@ -1,7 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { ensureCsrfCookie } from "@/lib/security";
 
-export async function middleware(_request: NextRequest) {
-  return NextResponse.next();
+export async function middleware(request: NextRequest) {
+  const response = NextResponse.next();
+  return ensureCsrfCookie(request, response);
 }
 
 export const config = {

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { getCsrfHeaders } from "@/lib/client-security";
 import { getFormDefinition } from "@/lib/form-definitions";
 import { previewNextInspectionNumber } from "@/lib/inspection-number";
 import { addTwelveMonths } from "@/lib/utils";
@@ -496,7 +497,11 @@ export function InspectionForm({
 
     setMessage(null);
     startTransition(async () => {
-      const response = await fetch("/api/inspections", { method: "POST", body: formData });
+      const response = await fetch("/api/inspections", {
+        method: "POST",
+        body: formData,
+        headers: getCsrfHeaders()
+      });
       const result = (await response.json()) as
         | { ok: true; inspectionId: string; inspectionNumber: string; status: InspectionRecord["status"] }
         | { ok: false; message: string };
@@ -549,6 +554,14 @@ export function InspectionForm({
       ))}
       <input type="hidden" name="existing_customer_id" value={selectedCustomerId} />
       <input type="hidden" name="existing_machine_id" value={selectedMachineId} />
+      <input
+        type="text"
+        name="website"
+        tabIndex={-1}
+        autoComplete="off"
+        style={{ position: "absolute", left: "-9999px", opacity: 0, pointerEvents: "none" }}
+        aria-hidden="true"
+      />
 
       <section className="keurnummer-banner inspection-card-full">
         <span>Keurnummer</span>

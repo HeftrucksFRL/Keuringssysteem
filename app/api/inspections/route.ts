@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { getFormDefinition } from "@/lib/form-definitions";
 import { createInspection, updateInspectionFromForm } from "@/lib/inspection-service";
+import { applyRateLimit, validateCsrf, validateOrigin } from "@/lib/security";
 import type { ChecklistOption, MachineType } from "@/lib/types";
 
 function buildMachineDossier(serialNumber: string, internalNumber: string) {
@@ -27,9 +28,32 @@ function parseChecklist(
   ) as Record<string, ChecklistOption>;
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const originError = validateOrigin(request);
+    if (originError) {
+      return NextResponse.json({ ok: false, message: originError }, { status: 403 });
+    }
+
+    const csrfError = validateCsrf(request);
+    if (csrfError) {
+      return NextResponse.json({ ok: false, message: csrfError }, { status: 403 });
+    }
+
+    const rateLimitError = applyRateLimit(request, "inspection-save", 30);
+    if (rateLimitError) {
+      return NextResponse.json({ ok: false, message: rateLimitError }, { status: 429 });
+    }
+
     const formData = await request.formData();
+    const honeypot = String(formData.get("website") || "").trim();
+    if (honeypot) {
+      return NextResponse.json(
+        { ok: false, message: "Opslaan is niet gelukt. Probeer het opnieuw." },
+        { status: 400 }
+      );
+    }
+
     const machineType = String(formData.get("machine_type") || "") as MachineType;
     const checklist = String(formData.get("checklist") || "");
     const existingCustomerId = String(formData.get("existing_customer_id") || "").trim();

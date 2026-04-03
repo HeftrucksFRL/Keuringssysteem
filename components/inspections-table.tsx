@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { getCsrfHeaders } from "@/lib/client-security";
 import { fileUrl } from "@/lib/file-urls";
 import type {
   CustomerRecord,
@@ -109,7 +110,10 @@ export function InspectionsTable({
     startTransition(async () => {
       const response = await fetch("/api/inspections/resend", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...getCsrfHeaders()
+        },
         body: JSON.stringify({
           inspectionId,
           customerRecipient: customRecipient.trim() || undefined,
@@ -118,7 +122,8 @@ export function InspectionsTable({
       });
 
       if (!response.ok) {
-        setFeedback("Mail opnieuw versturen is niet gelukt.");
+        const result = (await response.json().catch(() => null)) as { message?: string } | null;
+        setFeedback(result?.message || "Mail opnieuw versturen is niet gelukt.");
         return;
       }
 
