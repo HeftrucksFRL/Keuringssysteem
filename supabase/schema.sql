@@ -56,6 +56,17 @@ create table if not exists public.customers (
 create unique index if not exists idx_customers_company_name_unique
 on public.customers(company_name);
 
+create table if not exists public.customer_contacts (
+  id uuid primary key default gen_random_uuid(),
+  customer_id uuid not null references public.customers(id) on delete cascade,
+  name text not null,
+  phone text,
+  email text,
+  is_primary boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.machines (
   id uuid primary key default gen_random_uuid(),
   customer_id uuid not null references public.customers(id) on delete cascade,
@@ -209,6 +220,11 @@ create trigger trg_customers_updated_at
 before update on public.customers
 for each row execute procedure public.set_updated_at();
 
+drop trigger if exists trg_customer_contacts_updated_at on public.customer_contacts;
+create trigger trg_customer_contacts_updated_at
+before update on public.customer_contacts
+for each row execute procedure public.set_updated_at();
+
 drop trigger if exists trg_machines_updated_at on public.machines;
 create trigger trg_machines_updated_at
 before update on public.machines
@@ -235,6 +251,7 @@ before insert or update on public.inspections
 for each row execute procedure public.finalize_inspection();
 
 alter table public.customers enable row level security;
+alter table public.customer_contacts enable row level security;
 alter table public.machines enable row level security;
 alter table public.inspections enable row level security;
 alter table public.inspection_attachments enable row level security;
@@ -246,6 +263,12 @@ create policy "authenticated read customers" on public.customers
 for select to authenticated using (true);
 
 create policy "authenticated write customers" on public.customers
+for all to authenticated using (true) with check (true);
+
+create policy "authenticated read customer contacts" on public.customer_contacts
+for select to authenticated using (true);
+
+create policy "authenticated write customer contacts" on public.customer_contacts
 for all to authenticated using (true) with check (true);
 
 create policy "authenticated read machines" on public.machines
@@ -279,6 +302,7 @@ create policy "authenticated write rentals" on public.rentals
 for all to authenticated using (true) with check (true);
 
 create index if not exists idx_machines_customer_id on public.machines(customer_id);
+create index if not exists idx_customer_contacts_customer_id on public.customer_contacts(customer_id);
 create index if not exists idx_inspections_machine_id on public.inspections(machine_id);
 create index if not exists idx_inspections_customer_id on public.inspections(customer_id);
 create index if not exists idx_inspections_date on public.inspections(inspection_date desc);

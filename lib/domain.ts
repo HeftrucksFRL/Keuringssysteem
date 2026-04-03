@@ -15,6 +15,17 @@ export interface CustomerRecord {
   updatedAt: string;
 }
 
+export interface CustomerContactRecord {
+  id: string;
+  customerId: string;
+  name: string;
+  phone: string;
+  email: string;
+  isPrimary: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface MachineRecord {
   id: string;
   customerId: string;
@@ -109,6 +120,7 @@ export interface MailAlertRecord {
 
 export interface AppDataSnapshot {
   customers: CustomerRecord[];
+  customerContacts: CustomerContactRecord[];
   machines: MachineRecord[];
   inspections: InspectionRecord[];
   planningItems: PlanningRecord[];
@@ -127,6 +139,8 @@ export interface CreateInspectionInput {
     contactName: string;
     phone: string;
     email: string;
+    contactId?: string;
+    saveAsNewContact?: boolean;
   };
   machine: {
     machineNumber: string;

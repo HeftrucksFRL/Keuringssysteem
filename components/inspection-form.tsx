@@ -6,11 +6,17 @@ import { getCsrfHeaders } from "@/lib/client-security";
 import { getFormDefinition } from "@/lib/form-definitions";
 import { previewNextInspectionNumber } from "@/lib/inspection-number";
 import { addTwelveMonths } from "@/lib/utils";
-import type { CustomerRecord, InspectionRecord, MachineRecord } from "@/lib/domain";
+import type {
+  CustomerContactRecord,
+  CustomerRecord,
+  InspectionRecord,
+  MachineRecord
+} from "@/lib/domain";
 import type { ChecklistOption, MachineType } from "@/lib/types";
 
 interface Props {
   customers: CustomerRecord[];
+  customerContacts: CustomerContactRecord[];
   machines: MachineRecord[];
   inspections: InspectionRecord[];
   defaultType?: MachineType;
@@ -33,6 +39,8 @@ type SavedDraft = {
   machineQuery: string;
   selectedCustomerId: string;
   selectedMachineId: string;
+  selectedContactId: string;
+  contactMode: "existing" | "new";
   values: Record<string, string>;
   checklist: Record<string, ChecklistOption>;
   savedAt: string;
@@ -72,6 +80,14 @@ function customerValues(customer?: CustomerRecord | null) {
     customer_contact: customer?.contactName ?? "",
     customer_phone: customer?.phone ?? "",
     customer_email: customer?.email ?? ""
+  };
+}
+
+function customerContactValues(contact?: Pick<CustomerContactRecord, "name" | "phone" | "email"> | null) {
+  return {
+    customer_contact: contact?.name ?? "",
+    customer_phone: contact?.phone ?? "",
+    customer_email: contact?.email ?? ""
   };
 }
 
@@ -167,6 +183,7 @@ async function compressImage(file: File) {
 
 export function InspectionForm({
   customers,
+  customerContacts,
   machines,
   inspections,
   defaultType = "heftruck_reachtruck",
@@ -189,6 +206,8 @@ export function InspectionForm({
   const [machineMenuOpen, setMachineMenuOpen] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState(existingInspection?.customerId ?? defaultCustomerId);
   const [selectedMachineId, setSelectedMachineId] = useState(existingInspection?.machineId ?? defaultMachineId);
+  const [selectedContactId, setSelectedContactId] = useState("");
+  const [contactMode, setContactMode] = useState<"existing" | "new">("existing");
   const [values, setValues] = useState<Record<string, string>>(() =>
     existingInspection
       ? {
@@ -225,6 +244,38 @@ export function InspectionForm({
   const form = useMemo(() => getFormDefinition(type), [type]);
   const selectedCustomer = customers.find((item) => item.id === selectedCustomerId) ?? null;
   const selectedMachine = machines.find((item) => item.id === selectedMachineId) ?? null;
+  const availableContacts = useMemo(
+    () =>
+      selectedCustomerId
+        ? customerContacts.filter((item) => item.customerId === selectedCustomerId)
+        : [],
+    [customerContacts, selectedCustomerId]
+  );
+  const resolvedSelectedContactId = useMemo(() => {
+    if (selectedContactId && availableContacts.some((item) => item.id === selectedContactId)) {
+      return selectedContactId;
+    }
+
+    const byExactValues = availableContacts.find(
+      (item) =>
+        item.name === (values.customer_contact ?? "") &&
+        item.phone === (values.customer_phone ?? "") &&
+        item.email === (values.customer_email ?? "")
+    );
+
+    return byExactValues?.id ?? availableContacts.find((item) => item.isPrimary)?.id ?? availableContacts[0]?.id ?? "";
+  }, [
+    availableContacts,
+    selectedContactId,
+    values.customer_contact,
+    values.customer_email,
+    values.customer_phone
+  ]);
+  const selectedContact =
+    availableContacts.find((item) => item.id === resolvedSelectedContactId) ??
+    availableContacts.find((item) => item.isPrimary) ??
+    availableContacts[0] ??
+    null;
   const nextInspectionDate = addTwelveMonths(values.inspection_date);
   const previewInspectionNumber = useMemo(() => {
     if (existingInspection?.inspectionNumber) {
@@ -307,6 +358,8 @@ export function InspectionForm({
       setMachineQuery(draft.machineQuery);
       setSelectedCustomerId(draft.selectedCustomerId);
       setSelectedMachineId(draft.selectedMachineId);
+      setSelectedContactId(draft.selectedContactId);
+      setContactMode(draft.contactMode);
       setValues(draft.values);
       setChecklist(draft.checklist);
       setMessage({ type: "info", text: "Concept opnieuw geladen." });
@@ -355,6 +408,37 @@ export function InspectionForm({
   }, [selectedCustomer, customerQuery, isEditingExisting]);
 
   useEffect(() => {
+    if (isEditingExisting) {
+      return;
+    }
+
+    if (availableContacts.length === 0) {
+      setSelectedContactId("");
+      setContactMode("new");
+      return;
+    }
+
+    setSelectedContactId((current) =>
+      current && availableContacts.some((contact) => contact.id === current)
+        ? current
+        : (availableContacts.find((contact) => contact.isPrimary)?.id ?? availableContacts[0].id)
+    );
+    setContactMode("existing");
+  }, [availableContacts, isEditingExisting]);
+
+  useEffect(() => {
+    if (isEditingExisting) {
+      return;
+    }
+
+    if (contactMode !== "existing" || !selectedContact) {
+      return;
+    }
+
+    setValues((current) => ({ ...current, ...customerContactValues(selectedContact) }));
+  }, [contactMode, isEditingExisting, selectedContact]);
+
+  useEffect(() => {
     if (isEditingExisting) return;
     if (!selectedMachine) return;
     setType(selectedMachine.machineType);
@@ -390,6 +474,8 @@ export function InspectionForm({
   function chooseCustomer(customer: CustomerRecord) {
     setCustomerMode("existing");
     setSelectedCustomerId(customer.id);
+    setSelectedContactId("");
+    setContactMode("existing");
     setCustomerQuery(customer.companyName);
     setSelectedMachineId("");
     setMachineQuery("");
@@ -405,6 +491,8 @@ export function InspectionForm({
   function resetForCustomerMode(mode: Mode) {
     setCustomerMode(mode);
     setSelectedCustomerId("");
+    setSelectedContactId("");
+    setContactMode("new");
     setCustomerQuery("");
     setSelectedMachineId("");
     setMachineQuery("");
@@ -431,6 +519,32 @@ export function InspectionForm({
     setDraftNotice("");
     setValues((current) => ({ ...current, ...machineValues(null) }));
     setChecklist(buildDefaultChecklist(type));
+  }
+
+  function chooseContactMode(nextMode: "existing" | "new") {
+    setContactMode(nextMode);
+    setDraftNotice("");
+
+    if (nextMode === "new") {
+      setSelectedContactId("");
+      setValues((current) => ({
+        ...current,
+        customer_contact: "",
+        customer_phone: "",
+        customer_email: ""
+      }));
+      return;
+    }
+
+    const fallbackContact =
+      availableContacts.find((contact) => contact.id === selectedContactId) ??
+      availableContacts.find((contact) => contact.isPrimary) ??
+      availableContacts[0];
+
+    if (fallbackContact) {
+      setSelectedContactId(fallbackContact.id);
+      setValues((current) => ({ ...current, ...customerContactValues(fallbackContact) }));
+    }
   }
 
   function validateStep(targetStep: Step) {
@@ -535,6 +649,8 @@ export function InspectionForm({
       machineQuery,
       selectedCustomerId,
       selectedMachineId,
+      selectedContactId,
+      contactMode,
       values,
       checklist,
       savedAt: new Date().toISOString()
@@ -554,6 +670,8 @@ export function InspectionForm({
       ))}
       <input type="hidden" name="existing_customer_id" value={selectedCustomerId} />
       <input type="hidden" name="existing_machine_id" value={selectedMachineId} />
+      <input type="hidden" name="selected_contact_id" value={contactMode === "existing" ? resolvedSelectedContactId : ""} />
+      <input type="hidden" name="save_as_new_contact" value={contactMode === "new" ? "1" : ""} />
       <input
         type="text"
         name="website"
@@ -632,6 +750,50 @@ export function InspectionForm({
           <div className="eyebrow">Stap 2</div>
           <h2>Klantgegevens</h2>
           <div className="form-block">
+            {selectedCustomer ? (
+              <div className="form-grid-wide" style={{ marginBottom: "1rem" }}>
+                <div className="field">
+                  <label htmlFor="contact-choice">Contactpersoon</label>
+                  <select
+                    id="contact-choice"
+                    value={contactMode === "new" ? "__new__" : resolvedSelectedContactId}
+                    onChange={(event) => {
+                      const nextValue = event.target.value;
+                      if (nextValue === "__new__") {
+                        chooseContactMode("new");
+                        return;
+                      }
+
+                      setSelectedContactId(nextValue);
+                      setContactMode("existing");
+                      const nextContact = availableContacts.find((contact) => contact.id === nextValue);
+                      if (nextContact) {
+                        setValues((current) => ({ ...current, ...customerContactValues(nextContact) }));
+                      }
+                    }}
+                  >
+                    {availableContacts.map((contact) => (
+                      <option key={contact.id} value={contact.id}>
+                        {contact.name || "Contactpersoon"}{contact.isPrimary ? " · huidig" : ""}
+                      </option>
+                    ))}
+                    <option value="__new__">Nieuwe contactpersoon toevoegen</option>
+                  </select>
+                </div>
+                <div className="info-card">
+                  <strong>
+                    {contactMode === "existing"
+                      ? selectedContact?.name || "Geen contactpersoon"
+                      : "Nieuwe contactpersoon"}
+                  </strong>
+                  <span>
+                    {contactMode === "existing"
+                      ? selectedContact?.email || selectedContact?.phone || "Wordt gebruikt in deze keuring."
+                      : "Deze contactpersoon wordt bewaard bij de klant."}
+                  </span>
+                </div>
+              </div>
+            ) : null}
             <div className="form-grid-wide">
               {form.machineFields.filter((field) => field.key.startsWith("customer_")).map((field) => (
                 <div className="field" key={field.key}>
@@ -781,6 +943,10 @@ export function InspectionForm({
                 <div className="info-card">
                   <strong>{values.customer_name || "-"}</strong>
                   <span>Gekozen klant</span>
+                </div>
+                <div className="info-card">
+                  <strong>{values.customer_contact || "-"}</strong>
+                  <span>Contactpersoon</span>
                 </div>
                 <div className="info-card">
                   <strong>{[values.brand, values.model].filter(Boolean).join(" ") || "-"}</strong>

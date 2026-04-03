@@ -19,6 +19,7 @@ export async function readAppData(): Promise<AppDataSnapshot> {
 
   return {
     customers: parsed.customers ?? demoData.customers,
+    customerContacts: parsed.customerContacts ?? demoData.customerContacts,
     machines: parsed.machines ?? demoData.machines,
     inspections: parsed.inspections ?? demoData.inspections,
     planningItems: parsed.planningItems ?? demoData.planningItems,

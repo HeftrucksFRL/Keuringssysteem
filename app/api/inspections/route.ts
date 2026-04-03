@@ -106,7 +106,9 @@ export async function POST(request: NextRequest) {
         address: String(formData.get("customer_address") || ""),
         contactName: String(formData.get("customer_contact") || ""),
         phone: String(formData.get("customer_phone") || ""),
-        email: String(formData.get("customer_email") || "")
+        email: String(formData.get("customer_email") || ""),
+        contactId: String(formData.get("selected_contact_id") || "").trim() || undefined,
+        saveAsNewContact: String(formData.get("save_as_new_contact") || "").trim() === "1"
       },
       machine: {
         machineNumber: buildMachineDossier(serialNumber, internalNumber),

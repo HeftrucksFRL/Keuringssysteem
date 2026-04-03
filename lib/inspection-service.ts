@@ -14,6 +14,7 @@ import { getYearSequenceStart } from "@/lib/inspection-number";
 import type {
   AppDataSnapshot,
   CreateInspectionInput,
+  CustomerContactRecord,
   CustomerRecord,
   InspectionRecord,
   MailAlertRecord,
@@ -166,6 +167,51 @@ function buildCustomerSnapshot(customer: {
   };
 }
 
+function trimContactValue(value?: string) {
+  return (value ?? "").trim();
+}
+
+function customerContactFromCustomer(customer: CustomerRecord): CustomerContactRecord | null {
+  const name = trimContactValue(customer.contactName);
+  const phone = trimContactValue(customer.phone);
+  const email = trimContactValue(customer.email);
+
+  if (!name && !phone && !email) {
+    return null;
+  }
+
+  return {
+    id: `legacy-${customer.id}`,
+    customerId: customer.id,
+    name,
+    phone,
+    email,
+    isPrimary: true,
+    createdAt: customer.createdAt,
+    updatedAt: customer.updatedAt
+  };
+}
+
+function pickPrimaryContact(
+  customer: CustomerRecord,
+  contacts: CustomerContactRecord[]
+) {
+  return (
+    contacts.find((contact) => contact.isPrimary) ??
+    contacts[0] ??
+    customerContactFromCustomer(customer)
+  );
+}
+
+function syncCustomerMainFields(
+  customer: CustomerRecord,
+  contact: Pick<CustomerContactRecord, "name" | "phone" | "email"> | null
+) {
+  customer.contactName = contact?.name ?? "";
+  customer.phone = contact?.phone ?? "";
+  customer.email = contact?.email ?? "";
+}
+
 function findOrCreateCustomer(
   data: AppDataSnapshot,
   input: CreateInspectionInput["customer"]
@@ -196,6 +242,119 @@ function findOrCreateCustomer(
   };
   data.customers.unshift(customer);
   return customer;
+}
+
+function upsertDemoCustomerContact(
+  data: AppDataSnapshot,
+  customer: CustomerRecord,
+  input: CreateInspectionInput["customer"]
+) {
+  const nextName = trimContactValue(input.contactName);
+  const nextPhone = trimContactValue(input.phone);
+  const nextEmail = trimContactValue(input.email);
+  const shouldAddAsNew = input.saveAsNewContact || !input.contactId;
+
+  let contact =
+    (!shouldAddAsNew
+      ? data.customerContacts.find(
+          (item) => item.id === input.contactId && item.customerId === customer.id
+        )
+      : null) ?? null;
+
+  if (!contact) {
+    contact = {
+      id: randomUUID(),
+      customerId: customer.id,
+      name: nextName,
+      phone: nextPhone,
+      email: nextEmail,
+      isPrimary: true,
+      createdAt: nowIso(),
+      updatedAt: nowIso()
+    };
+    data.customerContacts.unshift(contact);
+  } else {
+    contact.name = nextName;
+    contact.phone = nextPhone;
+    contact.email = nextEmail;
+    contact.isPrimary = true;
+    contact.updatedAt = nowIso();
+  }
+
+  data.customerContacts = data.customerContacts.map((item) =>
+    item.customerId === customer.id && item.id !== contact!.id
+      ? { ...item, isPrimary: false, updatedAt: nowIso() }
+      : item
+  );
+
+  syncCustomerMainFields(customer, contact);
+  customer.updatedAt = nowIso();
+  return contact;
+}
+
+async function upsertSupabaseCustomerContact(
+  supabase: ReturnType<typeof createSupabaseAdmin>,
+  customerId: string,
+  input: CreateInspectionInput["customer"]
+) {
+  const nextName = trimContactValue(input.contactName);
+  const nextPhone = trimContactValue(input.phone);
+  const nextEmail = trimContactValue(input.email);
+  const shouldAddAsNew = input.saveAsNewContact || !input.contactId;
+
+  let selectedContactRow: Record<string, unknown> | null = null;
+
+  if (!shouldAddAsNew && input.contactId) {
+    const { data } = await supabase
+      .from("customer_contacts")
+      .update({
+        name: nextName,
+        phone: nextPhone,
+        email: nextEmail,
+        is_primary: true
+      })
+      .eq("id", input.contactId)
+      .eq("customer_id", customerId)
+      .select("*")
+      .maybeSingle();
+    selectedContactRow = data;
+  }
+
+  if (!selectedContactRow) {
+    const { data } = await supabase
+      .from("customer_contacts")
+      .insert({
+        customer_id: customerId,
+        name: nextName || "Contactpersoon",
+        phone: nextPhone,
+        email: nextEmail,
+        is_primary: true
+      })
+      .select("*")
+      .single();
+    selectedContactRow = data;
+  }
+
+  if (!selectedContactRow) {
+    throw new Error("Contactpersoon kon niet worden opgeslagen.");
+  }
+
+  await supabase
+    .from("customer_contacts")
+    .update({ is_primary: false })
+    .eq("customer_id", customerId)
+    .neq("id", String(selectedContactRow.id));
+
+  await supabase
+    .from("customers")
+    .update({
+      contact_name: String(selectedContactRow.name ?? ""),
+      phone: String(selectedContactRow.phone ?? ""),
+      email: String(selectedContactRow.email ?? "")
+    })
+    .eq("id", customerId);
+
+  return selectedContactRow;
 }
 
 function findOrCreateMachine(
@@ -250,10 +409,7 @@ async function createDemoInspection(input: CreateInspectionInput) {
       ? data.customers.find((item) => item.id === input.customerId)
       : null) ?? findOrCreateCustomer(data, input.customer);
   customer.address = input.customer.address;
-  customer.contactName = input.customer.contactName;
-  customer.phone = input.customer.phone;
-  customer.email = input.customer.email;
-  customer.updatedAt = nowIso();
+  upsertDemoCustomerContact(data, customer, input.customer);
 
   const machine =
     (input.machineId
@@ -582,6 +738,19 @@ function mapCustomerRow(row: Record<string, unknown>): CustomerRecord {
   };
 }
 
+function mapCustomerContactRow(row: Record<string, unknown>): CustomerContactRecord {
+  return {
+    id: String(row.id),
+    customerId: String(row.customer_id),
+    name: String(row.name ?? ""),
+    phone: String(row.phone ?? ""),
+    email: String(row.email ?? ""),
+    isPrimary: Boolean(row.is_primary),
+    createdAt: String(row.created_at ?? ""),
+    updatedAt: String(row.updated_at ?? "")
+  };
+}
+
 function mapMachineRow(row: Record<string, unknown>): MachineRecord {
   return {
     id: String(row.id),
@@ -694,6 +863,12 @@ export async function createInspection(input: CreateInspectionInput) {
       .single();
     customerRow = data;
   }
+
+  if (!customerRow) {
+    throw new Error("Klant kon niet worden opgeslagen.");
+  }
+
+  await upsertSupabaseCustomerContact(supabase, String(customerRow.id), input.customer);
 
   let machineRow: Record<string, unknown> | null = null;
   if (input.machineId) {
@@ -919,10 +1094,7 @@ export async function updateInspectionFromForm(
         ? data.customers.find((item) => item.id === input.customerId)
         : null) ?? findOrCreateCustomer(data, input.customer);
     customer.address = input.customer.address;
-    customer.contactName = input.customer.contactName;
-    customer.phone = input.customer.phone;
-    customer.email = input.customer.email;
-    customer.updatedAt = nowIso();
+    upsertDemoCustomerContact(data, customer, input.customer);
 
     const machine =
       (input.machineId
@@ -1044,6 +1216,8 @@ export async function updateInspectionFromForm(
   if (!customerRow || !machineRow) {
     throw new Error("Klant of machine kon niet worden bijgewerkt.");
   }
+
+  await upsertSupabaseCustomerContact(supabase, String(customerRow.id), input.customer);
 
   const nextInspectionDate = addTwelveMonths(input.inspectionDate);
   const status = statusFromResultLabels(input.resultLabels);
@@ -1221,6 +1395,48 @@ export async function getCustomers() {
   }
   const data = await listDemoData();
   return data.customers;
+}
+
+export async function getCustomerContacts(customerId?: string) {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    let query = supabase
+      .from("customer_contacts")
+      .select("*")
+      .order("is_primary", { ascending: false })
+      .order("name", { ascending: true });
+
+    if (customerId) {
+      query = query.eq("customer_id", customerId);
+    }
+
+    const { data } = await query;
+    const contacts = (data ?? []).map((row) => mapCustomerContactRow(row));
+
+    if (contacts.length > 0 || !customerId) {
+      return contacts;
+    }
+
+    const customer = await getCustomerById(customerId);
+    return customer ? [customerContactFromCustomer(customer)].filter(Boolean) as CustomerContactRecord[] : [];
+  }
+
+  const data = await listDemoData();
+  const contacts = customerId
+    ? data.customerContacts.filter((contact) => contact.customerId === customerId)
+    : data.customerContacts;
+
+  if (contacts.length === 0 && customerId) {
+    const customer = data.customers.find((item) => item.id === customerId);
+    return customer ? [customerContactFromCustomer(customer)].filter(Boolean) as CustomerContactRecord[] : [];
+  }
+
+  return contacts.sort((left, right) => {
+    if (left.isPrimary !== right.isPrimary) {
+      return left.isPrimary ? -1 : 1;
+    }
+    return left.name.localeCompare(right.name);
+  });
 }
 
 export async function getVisibleCustomers() {
@@ -1495,7 +1711,20 @@ export async function createCustomer(input: {
       .select()
       .single();
 
-    return data ? mapCustomerRow(data).id : "";
+    if (!data) {
+      return "";
+    }
+
+    await upsertSupabaseCustomerContact(supabase, String(data.id), {
+      companyName: input.companyName,
+      address: input.address,
+      contactName: input.contactName,
+      phone: input.phone,
+      email: input.email,
+      saveAsNewContact: true
+    });
+
+    return mapCustomerRow(data).id;
   }
 
   const data = await readAppData();
@@ -1506,10 +1735,14 @@ export async function createCustomer(input: {
   if (existing) {
     existing.address = input.address;
     existing.city = input.city ?? "";
-    existing.contactName = input.contactName;
-    existing.phone = input.phone;
-    existing.email = input.email;
-    existing.updatedAt = nowIso();
+    upsertDemoCustomerContact(data, existing, {
+      companyName: input.companyName,
+      address: input.address,
+      contactName: input.contactName,
+      phone: input.phone,
+      email: input.email,
+      saveAsNewContact: true
+    });
     await writeAppData(data);
     return existing.id;
   }
@@ -1527,6 +1760,14 @@ export async function createCustomer(input: {
   };
 
   data.customers.unshift(customer);
+  upsertDemoCustomerContact(data, customer, {
+    companyName: input.companyName,
+    address: input.address,
+    contactName: input.contactName,
+    phone: input.phone,
+    email: input.email,
+    saveAsNewContact: true
+  });
   await writeAppData(data);
   return customer.id;
 }
@@ -1554,6 +1795,15 @@ export async function updateCustomer(input: {
       })
       .eq("id", input.id);
 
+    await upsertSupabaseCustomerContact(supabase, input.id, {
+      companyName: input.companyName,
+      address: input.address,
+      contactName: input.contactName,
+      phone: input.phone,
+      email: input.email,
+      saveAsNewContact: false
+    });
+
     return;
   }
 
@@ -1566,11 +1816,90 @@ export async function updateCustomer(input: {
   customer.companyName = input.companyName;
   customer.address = input.address;
   customer.city = input.city ?? "";
-  customer.contactName = input.contactName;
-  customer.phone = input.phone;
-  customer.email = input.email;
-  customer.updatedAt = nowIso();
+  upsertDemoCustomerContact(data, customer, {
+    companyName: input.companyName,
+    address: input.address,
+    contactName: input.contactName,
+    phone: input.phone,
+    email: input.email,
+    contactId: data.customerContacts.find(
+      (contact) => contact.customerId === customer.id && contact.isPrimary
+    )?.id
+  });
   await writeAppData(data);
+}
+
+export async function addCustomerContact(input: {
+  customerId: string;
+  name: string;
+  phone: string;
+  email: string;
+  makePrimary?: boolean;
+}) {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data } = await supabase
+      .from("customer_contacts")
+      .insert({
+        customer_id: input.customerId,
+        name: input.name,
+        phone: input.phone,
+        email: input.email,
+        is_primary: Boolean(input.makePrimary)
+      })
+      .select("*")
+      .single();
+
+    if (input.makePrimary && data) {
+      await supabase
+        .from("customer_contacts")
+        .update({ is_primary: false })
+        .eq("customer_id", input.customerId)
+        .neq("id", String(data.id));
+
+      await supabase
+        .from("customers")
+        .update({
+          contact_name: input.name,
+          phone: input.phone,
+          email: input.email
+        })
+        .eq("id", input.customerId);
+    }
+
+    return data ? mapCustomerContactRow(data) : null;
+  }
+
+  const data = await readAppData();
+  const customer = data.customers.find((item) => item.id === input.customerId);
+  if (!customer) {
+    return null;
+  }
+
+  const contact: CustomerContactRecord = {
+    id: randomUUID(),
+    customerId: input.customerId,
+    name: input.name,
+    phone: input.phone,
+    email: input.email,
+    isPrimary: Boolean(input.makePrimary),
+    createdAt: nowIso(),
+    updatedAt: nowIso()
+  };
+
+  if (input.makePrimary) {
+    data.customerContacts = data.customerContacts.map((item) =>
+      item.customerId === input.customerId
+        ? { ...item, isPrimary: false, updatedAt: nowIso() }
+        : item
+    );
+    syncCustomerMainFields(customer, contact);
+    customer.updatedAt = nowIso();
+  }
+
+  data.customerContacts.unshift(contact);
+  await writeAppData(data);
+  return contact;
 }
 
 export async function createMachine(input: {

@@ -244,6 +244,9 @@ function summaryRows(inspection: InspectionRecord): Array<[string, string]> {
     ["Status", inspectionStatusLabel(inspection)],
     ["Klant", inspection.customerSnapshot.customer_name ?? "-"],
     ["Adres", inspection.customerSnapshot.customer_address ?? "-"],
+    ["Contactpersoon", inspection.customerSnapshot.customer_contact ?? "-"],
+    ["Telefoon", inspection.customerSnapshot.customer_phone ?? "-"],
+    ["E-mail", inspection.customerSnapshot.customer_email ?? "-"],
     [
       "Machine",
       `${inspection.machineSnapshot.brand ?? ""} ${inspection.machineSnapshot.model ?? ""}`.trim() ||
@@ -493,8 +496,16 @@ export async function generateInspectionDocuments(
         ["Bouwjaar", inspection.machineSnapshot.build_year ?? "-"]
       ],
       [
-        ["Intern nummer", inspection.machineSnapshot.internal_number ?? "-"],
+        ["Contactpersoon", inspection.customerSnapshot.customer_contact ?? "-"],
+        ["Intern nummer", inspection.machineSnapshot.internal_number ?? "-"]
+      ],
+      [
+        ["Telefoon", inspection.customerSnapshot.customer_phone ?? "-"],
         ["Serienummer", inspection.machineSnapshot.serial_number ?? "-"]
+      ],
+      [
+        ["E-mail", inspection.customerSnapshot.customer_email ?? "-"],
+        ["", ""]
       ]
     ];
 
@@ -522,6 +533,9 @@ export async function generateInspectionDocuments(
       }
 
       const drawEntry = (x: number, label: string, value: string) => {
+        if (!label) {
+          return;
+        }
         page.drawText(label, {
           x,
           y: rowTop - 2,

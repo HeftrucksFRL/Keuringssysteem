@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
+  addCustomerContact,
   createCustomer,
   updateCustomer,
   updatePlanningItem
@@ -49,4 +50,21 @@ export async function movePlanningItemAction(formData: FormData) {
 
   revalidatePath("/planning");
   revalidatePath("/");
+}
+
+export async function addCustomerContactAction(formData: FormData) {
+  const customerId = String(formData.get("customerId") || "");
+
+  await addCustomerContact({
+    customerId,
+    name: String(formData.get("name") || ""),
+    phone: String(formData.get("phone") || ""),
+    email: String(formData.get("email") || ""),
+    makePrimary: formData.get("makePrimary") === "on"
+  });
+
+  revalidatePath("/klanten");
+  revalidatePath(`/klanten/${customerId}`);
+  revalidatePath("/keuringen/nieuw");
+  redirect(`/klanten/${customerId}?contactSaved=1`);
 }

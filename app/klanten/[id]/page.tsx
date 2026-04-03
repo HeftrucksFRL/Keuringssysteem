@@ -3,9 +3,10 @@ import { getInspectionAttachments } from "@/lib/inspection-service";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Route } from "next";
-import { updateCustomerAction } from "@/app/klanten/actions";
+import { addCustomerContactAction, updateCustomerAction } from "@/app/klanten/actions";
 import {
   getCustomerById,
+  getCustomerContacts,
   getInspections,
   getMachines,
   getMachinesForCustomer,
@@ -17,7 +18,7 @@ export default async function CustomerDetailPage({
   searchParams
 }: {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ saved?: string; created?: string }>;
+  searchParams?: Promise<{ saved?: string; created?: string; contactSaved?: string }>;
 }) {
   const { id } = await params;
   const query = await searchParams;
@@ -28,6 +29,7 @@ export default async function CustomerDetailPage({
   }
 
   const machines = await getMachinesForCustomer(customer.id);
+  const contacts = await getCustomerContacts(customer.id);
   const allMachines = await getMachines();
   const rentals = await getRentalsForCustomer(customer.id);
   const inspections = (await getInspections()).filter(
@@ -43,6 +45,7 @@ export default async function CustomerDetailPage({
         <p>Beheer hier de klantgegevens, machines en start direct een nieuwe keuring.</p>
         {query?.saved ? <p className="form-message success">Klant opgeslagen.</p> : null}
         {query?.created ? <p className="form-message success">Klant toegevoegd.</p> : null}
+        {query?.contactSaved ? <p className="form-message success">Contactpersoon toegevoegd.</p> : null}
         <div className="actions">
           <Link className="button" href={`/keuringen/nieuw?customerId=${customer.id}`}>
             Nieuwe keuring starten
@@ -64,16 +67,16 @@ export default async function CustomerDetailPage({
               <input id="companyName" name="companyName" defaultValue={customer.companyName} />
             </div>
             <div className="field">
-              <label htmlFor="contactName">Contactpersoon</label>
-              <input id="contactName" name="contactName" defaultValue={customer.contactName} />
-            </div>
-            <div className="field">
               <label htmlFor="address">Adres</label>
               <input id="address" name="address" defaultValue={customer.address} />
             </div>
             <div className="field">
               <label htmlFor="city">Plaats</label>
               <input id="city" name="city" defaultValue={customer.city} />
+            </div>
+            <div className="field">
+              <label htmlFor="contactName">Huidige contactpersoon</label>
+              <input id="contactName" name="contactName" defaultValue={customer.contactName} />
             </div>
             <div className="field">
               <label htmlFor="phone">Telefoon</label>
@@ -90,6 +93,51 @@ export default async function CustomerDetailPage({
             </button>
           </div>
         </form>
+
+        <section className="panel">
+          <div className="eyebrow">Contactpersonen</div>
+          <h2>Alle contactpersonen</h2>
+          <div className="list" style={{ marginBottom: "1rem" }}>
+            {contacts.map((contact) => (
+              <div className="list-item" key={contact.id}>
+                <span>
+                  <strong>{contact.name || "-"}</strong>
+                  <br />
+                  {contact.email || contact.phone || "-"}
+                </span>
+                <strong>{contact.isPrimary ? "Huidig" : "Extra"}</strong>
+              </div>
+            ))}
+          </div>
+          <form action={addCustomerContactAction}>
+            <input type="hidden" name="customerId" value={customer.id} />
+            <div className="form-grid-wide">
+              <div className="field">
+                <label htmlFor="contact-name">Nieuwe contactpersoon</label>
+                <input id="contact-name" name="name" />
+              </div>
+              <div className="field">
+                <label htmlFor="contact-phone">Telefoon</label>
+                <input id="contact-phone" name="phone" />
+              </div>
+              <div className="field">
+                <label htmlFor="contact-email">E-mail</label>
+                <input id="contact-email" name="email" type="email" />
+              </div>
+              <div className="field">
+                <label className="status-chip" htmlFor="makePrimary">
+                  <input id="makePrimary" name="makePrimary" type="checkbox" />
+                  Maak dit de huidige contactpersoon
+                </label>
+              </div>
+            </div>
+            <div className="actions">
+              <button className="button-secondary" type="submit">
+                Contactpersoon toevoegen
+              </button>
+            </div>
+          </form>
+        </section>
 
         <section className="panel">
           <div className="eyebrow">Machines</div>

@@ -25,6 +25,28 @@ export const demoData: AppDataSnapshot = {
       updatedAt: now
     }
   ],
+  customerContacts: [
+    {
+      id: "contact-1",
+      customerId: "customer-1",
+      name: "Jan de Boer",
+      phone: "0612345678",
+      email: "jan@bouwbedrijfnoord.nl",
+      isPrimary: true,
+      createdAt: now,
+      updatedAt: now
+    },
+    {
+      id: "contact-2",
+      customerId: "customer-2",
+      name: "Marije Postma",
+      phone: "0687654321",
+      email: "marije@fryslanlogistiek.nl",
+      isPrimary: true,
+      createdAt: now,
+      updatedAt: now
+    }
+  ],
   machines: [
     {
       id: "machine-1",
