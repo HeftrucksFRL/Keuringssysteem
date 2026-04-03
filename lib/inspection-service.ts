@@ -167,6 +167,19 @@ function buildCustomerSnapshot(customer: {
   };
 }
 
+function mergeCustomerContactFields(
+  customer: Pick<CustomerRecord, "companyName" | "address" | "contactName" | "phone" | "email">,
+  input: CreateInspectionInput["customer"]
+) {
+  return {
+    companyName: trimContactValue(input.companyName) || customer.companyName,
+    address: trimContactValue(input.address) || customer.address,
+    contactName: trimContactValue(input.contactName) || customer.contactName,
+    phone: trimContactValue(input.phone) || customer.phone,
+    email: trimContactValue(input.email) || customer.email
+  };
+}
+
 function trimContactValue(value?: string) {
   return (value ?? "").trim();
 }
@@ -207,9 +220,9 @@ function syncCustomerMainFields(
   customer: CustomerRecord,
   contact: Pick<CustomerContactRecord, "name" | "phone" | "email"> | null
 ) {
-  customer.contactName = contact?.name ?? "";
-  customer.phone = contact?.phone ?? "";
-  customer.email = contact?.email ?? "";
+  customer.contactName = contact?.name || customer.contactName;
+  customer.phone = contact?.phone || customer.phone;
+  customer.email = contact?.email || customer.email;
 }
 
 function findOrCreateCustomer(
@@ -222,21 +235,33 @@ function findOrCreateCustomer(
   );
 
   if (match) {
-    match.address = input.address;
-    match.contactName = input.contactName;
-    match.phone = input.phone;
-    match.email = input.email;
+    const merged = mergeCustomerContactFields(match, input);
+    match.address = merged.address;
+    match.contactName = merged.contactName;
+    match.phone = merged.phone;
+    match.email = merged.email;
     match.updatedAt = nowIso();
     return match;
   }
 
+  const merged = mergeCustomerContactFields(
+    {
+      companyName: input.companyName,
+      address: input.address,
+      contactName: "",
+      phone: "",
+      email: ""
+    },
+    input
+  );
+
   const customer: CustomerRecord = {
     id: randomUUID(),
-    companyName: input.companyName,
-    address: input.address,
-    contactName: input.contactName,
-    phone: input.phone,
-    email: input.email,
+    companyName: merged.companyName,
+    address: merged.address,
+    contactName: merged.contactName,
+    phone: merged.phone,
+    email: merged.email,
     createdAt: nowIso(),
     updatedAt: nowIso()
   };
@@ -265,7 +290,7 @@ function upsertDemoCustomerContact(
     contact = {
       id: randomUUID(),
       customerId: customer.id,
-      name: nextName,
+      name: nextName || customer.contactName || customer.companyName,
       phone: nextPhone,
       email: nextEmail,
       isPrimary: true,
@@ -339,6 +364,12 @@ async function upsertSupabaseCustomerContact(
     throw new Error("Contactpersoon kon niet worden opgeslagen.");
   }
 
+  const { data: currentCustomerRow } = await supabase
+    .from("customers")
+    .select("contact_name, phone, email")
+    .eq("id", customerId)
+    .maybeSingle();
+
   await supabase
     .from("customer_contacts")
     .update({ is_primary: false })
@@ -349,8 +380,8 @@ async function upsertSupabaseCustomerContact(
     .from("customers")
     .update({
       contact_name: String(selectedContactRow.name ?? ""),
-      phone: String(selectedContactRow.phone ?? ""),
-      email: String(selectedContactRow.email ?? "")
+      phone: String(selectedContactRow.phone ?? "") || String(currentCustomerRow?.phone ?? "") || null,
+      email: String(selectedContactRow.email ?? "") || String(currentCustomerRow?.email ?? "") || null
     })
     .eq("id", customerId);
 
@@ -832,15 +863,29 @@ export async function createInspection(input: CreateInspectionInput) {
   const nextInspectionDate = addTwelveMonths(input.inspectionDate);
 
   let customerRow: Record<string, unknown> | null = null;
+  const existingCustomer =
+    input.customerId
+      ? await getCustomerById(input.customerId)
+      : null;
+  const mergedCustomer = mergeCustomerContactFields(
+    existingCustomer ?? {
+      companyName: input.customer.companyName,
+      address: input.customer.address,
+      contactName: "",
+      phone: "",
+      email: ""
+    },
+    input.customer
+  );
   if (input.customerId) {
     const { data } = await supabase
       .from("customers")
       .update({
-        company_name: input.customer.companyName,
-        address_line_1: input.customer.address,
-        contact_name: input.customer.contactName,
-        phone: input.customer.phone,
-        email: input.customer.email
+        company_name: mergedCustomer.companyName,
+        address_line_1: mergedCustomer.address,
+        contact_name: mergedCustomer.contactName,
+        phone: mergedCustomer.phone || null,
+        email: mergedCustomer.email || null
       })
       .eq("id", input.customerId)
       .select()
@@ -851,11 +896,11 @@ export async function createInspection(input: CreateInspectionInput) {
       .from("customers")
       .upsert(
         {
-          company_name: input.customer.companyName,
-          address_line_1: input.customer.address,
-          contact_name: input.customer.contactName,
-          phone: input.customer.phone,
-          email: input.customer.email
+          company_name: mergedCustomer.companyName,
+          address_line_1: mergedCustomer.address,
+          contact_name: mergedCustomer.contactName,
+          phone: mergedCustomer.phone || null,
+          email: mergedCustomer.email || null
         },
         { onConflict: "company_name" }
       )
@@ -868,7 +913,13 @@ export async function createInspection(input: CreateInspectionInput) {
     throw new Error("Klant kon niet worden opgeslagen.");
   }
 
-  await upsertSupabaseCustomerContact(supabase, String(customerRow.id), input.customer);
+  await upsertSupabaseCustomerContact(supabase, String(customerRow.id), {
+    ...input.customer,
+    companyName: mergedCustomer.companyName,
+    address: mergedCustomer.address,
+    phone: trimContactValue(input.customer.phone),
+    email: trimContactValue(input.customer.email)
+  });
 
   let machineRow: Record<string, unknown> | null = null;
   if (input.machineId) {
@@ -934,7 +985,7 @@ export async function createInspection(input: CreateInspectionInput) {
       status,
       send_pdf_to_customer: input.sendPdfToCustomer,
       checklist: input.checklist,
-      customer_snapshot: buildCustomerSnapshot(input.customer),
+      customer_snapshot: buildCustomerSnapshot(mergedCustomer),
       machine_snapshot: buildMachineSnapshot({
         machineNumber: input.machine.machineNumber,
         brand: input.machine.brand,
@@ -1040,9 +1091,9 @@ export async function createInspection(input: CreateInspectionInput) {
   const internalMail = buildInternalMail(input.customer.companyName, inspection.inspectionNumber);
   const sendResult = await sendInspectionEmails(
     mailInspection,
-    input.customer.email,
-    input.customer.contactName,
-    input.customer.companyName,
+    mergedCustomer.email,
+    mergedCustomer.contactName,
+    mergedCustomer.companyName,
     {
       pdf: {
         filename: documents.pdfFileName,
@@ -1064,10 +1115,10 @@ export async function createInspection(input: CreateInspectionInput) {
   });
 
   if (inspection.sendPdfToCustomer) {
-    const customerMail = buildCustomerMail(input.customer.contactName);
+    const customerMail = buildCustomerMail(mergedCustomer.contactName);
     await supabase.from("mail_events").insert({
       inspection_id: inspection.id,
-      recipient: input.customer.email,
+      recipient: mergedCustomer.email,
       subject: customerMail.subject,
       channel: "customer",
       delivery_status:
@@ -1156,17 +1207,28 @@ export async function updateInspectionFromForm(
   const currentInspection = mapInspectionRow(currentInspectionRow);
   const resolvedCustomerId = input.customerId ?? currentInspection.customerId;
   const resolvedMachineId = input.machineId ?? currentInspection.machineId;
+  const existingCustomer = resolvedCustomerId ? await getCustomerById(resolvedCustomerId) : null;
+  const mergedCustomer = mergeCustomerContactFields(
+    existingCustomer ?? {
+      companyName: input.customer.companyName,
+      address: input.customer.address,
+      contactName: "",
+      phone: "",
+      email: ""
+    },
+    input.customer
+  );
 
   let customerRow: Record<string, unknown> | null = null;
   if (resolvedCustomerId) {
     const { data } = await supabase
       .from("customers")
       .update({
-        company_name: input.customer.companyName,
-        address_line_1: input.customer.address,
-        contact_name: input.customer.contactName,
-        phone: input.customer.phone,
-        email: input.customer.email
+        company_name: mergedCustomer.companyName,
+        address_line_1: mergedCustomer.address,
+        contact_name: mergedCustomer.contactName,
+        phone: mergedCustomer.phone || null,
+        email: mergedCustomer.email || null
       })
       .eq("id", resolvedCustomerId)
       .select()
@@ -1217,7 +1279,13 @@ export async function updateInspectionFromForm(
     throw new Error("Klant of machine kon niet worden bijgewerkt.");
   }
 
-  await upsertSupabaseCustomerContact(supabase, String(customerRow.id), input.customer);
+  await upsertSupabaseCustomerContact(supabase, String(customerRow.id), {
+    ...input.customer,
+    companyName: mergedCustomer.companyName,
+    address: mergedCustomer.address,
+    phone: trimContactValue(input.customer.phone),
+    email: trimContactValue(input.customer.email)
+  });
 
   const nextInspectionDate = addTwelveMonths(input.inspectionDate);
   const status = statusFromResultLabels(input.resultLabels);
@@ -1233,7 +1301,7 @@ export async function updateInspectionFromForm(
       status,
       send_pdf_to_customer: input.sendPdfToCustomer,
       checklist: input.checklist,
-      customer_snapshot: buildCustomerSnapshot(input.customer),
+      customer_snapshot: buildCustomerSnapshot(mergedCustomer),
       machine_snapshot: buildMachineSnapshot({
         machineNumber: input.machine.machineNumber,
         brand: input.machine.brand,

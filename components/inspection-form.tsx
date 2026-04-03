@@ -960,6 +960,49 @@ export function InspectionForm({
             </div>
             <div className="form-block">
               <div className="form-grid-wide">
+                {selectedCustomer ? (
+                  <>
+                    <div className="field">
+                      <label htmlFor="contact-choice-step4">Contactpersoon voor deze keuring</label>
+                      <select
+                        id="contact-choice-step4"
+                        value={contactMode === "new" ? "__new__" : resolvedSelectedContactId}
+                        onChange={(event) => {
+                          const nextValue = event.target.value;
+                          if (nextValue === "__new__") {
+                            chooseContactMode("new");
+                            return;
+                          }
+
+                          setSelectedContactId(nextValue);
+                          setContactMode("existing");
+                          const nextContact = availableContacts.find((contact) => contact.id === nextValue);
+                          if (nextContact) {
+                            setValues((current) => ({ ...current, ...customerContactValues(nextContact) }));
+                          }
+                        }}
+                      >
+                        {availableContacts.map((contact) => (
+                          <option key={contact.id} value={contact.id}>
+                            {contact.name || "Contactpersoon"}{contact.isPrimary ? " · huidig" : ""}
+                          </option>
+                        ))}
+                        <option value="__new__">Nieuwe contactpersoon toevoegen</option>
+                      </select>
+                    </div>
+                    <div className="field">
+                      <label htmlFor="customer_email">Mailadres voor deze keuring</label>
+                      <input
+                        id="customer_email"
+                        name="customer_email"
+                        type="email"
+                        value={values.customer_email ?? ""}
+                        placeholder="Algemeen of persoonlijk e-mailadres"
+                        onChange={(event) => setFieldValue("customer_email", event.target.value)}
+                      />
+                    </div>
+                  </>
+                ) : null}
                 {form.machineFields
                   .filter((field) => visibleField(field.key) && !field.key.startsWith("customer_") && field.key !== "inspection_date")
                   .map((field) => (
