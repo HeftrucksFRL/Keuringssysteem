@@ -505,7 +505,7 @@ export default async function MachineDetailPage({
         </article>
       </section>
 
-      {machine.machineType !== "batterij_lader" ? (
+      {machine.machineType !== "batterij_lader" && isRentalStockMachine ? (
       <section className="grid-2" id="verhuur" style={{ marginTop: "1rem" }}>
         <article className="panel">
           <div className="eyebrow">Verhuur</div>
