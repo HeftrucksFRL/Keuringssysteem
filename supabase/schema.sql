@@ -165,6 +165,7 @@ create table if not exists public.rentals (
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
+set search_path = public
 as $$
 begin
   new.updated_at = now();
@@ -175,6 +176,7 @@ $$;
 create or replace function public.next_inspection_number(target_date date default current_date)
 returns integer
 language plpgsql
+set search_path = public
 as $$
 declare
   target_year integer := extract(year from target_date);
@@ -202,6 +204,7 @@ $$;
 create or replace function public.finalize_inspection()
 returns trigger
 language plpgsql
+set search_path = public
 as $$
 begin
   if new.status in ('completed', 'approved', 'rejected') and coalesce(new.inspection_number, 0) = 0 then
@@ -268,47 +271,6 @@ for select to authenticated using (auth.uid() = id);
 create policy "authenticated update own profile" on public.profiles
 for update to authenticated using (auth.uid() = id) with check (auth.uid() = id);
 
-create policy "authenticated read customers" on public.customers
-for select to authenticated using (true);
-
-create policy "authenticated write customers" on public.customers
-for all to authenticated using (true) with check (true);
-
-create policy "authenticated read customer contacts" on public.customer_contacts
-for select to authenticated using (true);
-
-create policy "authenticated write customer contacts" on public.customer_contacts
-for all to authenticated using (true) with check (true);
-
-create policy "authenticated read machines" on public.machines
-for select to authenticated using (true);
-
-create policy "authenticated write machines" on public.machines
-for all to authenticated using (true) with check (true);
-
-create policy "authenticated read inspections" on public.inspections
-for select to authenticated using (true);
-
-create policy "authenticated write inspections" on public.inspections
-for all to authenticated using (true) with check (true);
-
-create policy "authenticated read attachments" on public.inspection_attachments
-for select to authenticated using (true);
-
-create policy "authenticated write attachments" on public.inspection_attachments
-for all to authenticated using (true) with check (true);
-
-create policy "authenticated read planning" on public.planning_items
-for select to authenticated using (true);
-
-create policy "authenticated write planning" on public.planning_items
-for all to authenticated using (true) with check (true);
-
-create policy "authenticated read rentals" on public.rentals
-for select to authenticated using (true);
-
-create policy "authenticated write rentals" on public.rentals
-for all to authenticated using (true) with check (true);
 
 create index if not exists idx_machines_customer_id on public.machines(customer_id);
 create index if not exists idx_customer_contacts_customer_id on public.customer_contacts(customer_id);

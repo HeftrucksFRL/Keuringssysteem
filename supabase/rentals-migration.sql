@@ -43,36 +43,6 @@ create index if not exists idx_rentals_end_date on public.rentals(end_date);
 
 alter table public.rentals enable row level security;
 
-do $$
-begin
-  if not exists (
-    select 1
-    from pg_policies
-    where schemaname = 'public'
-      and tablename = 'rentals'
-      and policyname = 'authenticated read rentals'
-  ) then
-    create policy "authenticated read rentals" on public.rentals
-      for select to authenticated using (true);
-  end if;
-end
-$$;
-
-do $$
-begin
-  if not exists (
-    select 1
-    from pg_policies
-    where schemaname = 'public'
-      and tablename = 'rentals'
-      and policyname = 'authenticated write rentals'
-  ) then
-    create policy "authenticated write rentals" on public.rentals
-      for all to authenticated using (true) with check (true);
-  end if;
-end
-$$;
-
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql

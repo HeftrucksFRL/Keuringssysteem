@@ -27,14 +27,6 @@ for each row execute procedure public.set_updated_at();
 
 alter table public.customer_contacts enable row level security;
 
-drop policy if exists "authenticated read customer contacts" on public.customer_contacts;
-create policy "authenticated read customer contacts" on public.customer_contacts
-for select to authenticated using (true);
-
-drop policy if exists "authenticated write customer contacts" on public.customer_contacts;
-create policy "authenticated write customer contacts" on public.customer_contacts
-for all to authenticated using (true) with check (true);
-
 create index if not exists idx_customer_contacts_customer_id
 on public.customer_contacts(customer_id);
 
