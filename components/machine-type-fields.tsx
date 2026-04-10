@@ -16,6 +16,7 @@ type MachineTypeFieldsProps = {
   machineType: MachineType;
   values?: Record<string, string>;
   disabled?: boolean;
+  hiddenKeys?: string[];
 };
 
 function editableFields(machineType: MachineType) {
@@ -88,8 +89,10 @@ function groupedFieldKeys(machineType: MachineType) {
 export function MachineTypeFields({
   machineType,
   values = {},
-  disabled = false
+  disabled = false,
+  hiddenKeys = []
 }: MachineTypeFieldsProps) {
+  const hiddenKeySet = new Set(hiddenKeys);
   const groups = groupedFieldKeys(machineType);
 
   return (
@@ -98,7 +101,9 @@ export function MachineTypeFields({
         <div key={group.key} style={{ marginTop: group.title ? "1rem" : 0 }}>
           {group.title ? <div className="eyebrow">{group.title}</div> : null}
           <div className="form-grid-wide">
-            {group.fields.map((field) => (
+            {group.fields
+              .filter((field) => !hiddenKeySet.has(field.key))
+              .map((field) => (
               <div className="field" key={field.key}>
                 <label htmlFor={field.key}>{field.label}</label>
                 <input

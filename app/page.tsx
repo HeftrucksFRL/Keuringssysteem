@@ -3,7 +3,6 @@ import type { UrlObject } from "node:url";
 import {
   addTodoItemAction,
   deleteTodoItemAction,
-  toggleTodoItemCompletedAction,
   updateTodoItemAction
 } from "@/app/dashboard-actions";
 import { requireUser } from "@/lib/auth";
@@ -147,20 +146,9 @@ export default async function HomePage({
                     className="todo-inline-input"
                     name="title"
                     defaultValue={buildTodoNote(item.title, item.description)}
+                    title="Druk op Enter om de notitie bij te werken"
                     required
                   />
-                  <button className="button-secondary todo-inline-button" type="submit">
-                    Opslaan
-                  </button>
-                  <button
-                    className={`button-secondary todo-inline-button ${item.completed ? "todo-reopen-button" : "todo-complete-button"}`}
-                    formAction={toggleTodoItemCompletedAction}
-                    name="nextCompleted"
-                    type="submit"
-                    value={String(!item.completed)}
-                  >
-                    {item.completed ? "Open zetten" : "Gereed"}
-                  </button>
                   <button
                     className="button-secondary todo-inline-button"
                     formAction={deleteTodoItemAction}

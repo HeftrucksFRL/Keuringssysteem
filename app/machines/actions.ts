@@ -59,6 +59,11 @@ function getMachinePayload(formData: FormData, machineType: MachineType) {
     )
   );
 
+  const linkedMachineId = String(formData.get("linked_machine_id") || "").trim();
+  if (machineType === "batterij_lader" && linkedMachineId) {
+    details.linked_machine_id = linkedMachineId;
+  }
+
   return {
     brand,
     model,
@@ -71,11 +76,16 @@ function getMachinePayload(formData: FormData, machineType: MachineType) {
 
 export async function createMachineAction(formData: FormData) {
   const toStock = String(formData.get("toStock") || "") === "1";
-  const customerId = toStock
-    ? await ensureRentalStockCustomerId()
-    : String(formData.get("customerId") || "");
   const machineType = String(formData.get("machineType") || "heftruck_reachtruck") as MachineType;
   const payload = getMachinePayload(formData, machineType);
+  const linkedMachineId = String(formData.get("linked_machine_id") || "").trim();
+  const linkedMachine =
+    linkedMachineId ? await getMachineById(linkedMachineId, { includeArchived: true }) : null;
+  const customerId = toStock
+    ? await ensureRentalStockCustomerId()
+    : machineType === "batterij_lader"
+      ? linkedMachine?.customerId || (await ensureRentalStockCustomerId())
+      : String(formData.get("customerId") || "");
 
   const id = await createMachine({
     customerId,

@@ -17,6 +17,7 @@ export default async function NewMachinePage({
     ? await getMachineById(query.linkedMachineId)
     : null;
   const defaultType = (query?.type as MachineType | undefined) ?? "heftruck_reachtruck";
+  const isBatteryChargerFlow = defaultType === "batterij_lader";
   const resolvedCustomerId = query?.customerId || linkedMachine?.customerId;
   const preselectedCustomer = query?.customerId
     ? await getCustomerById(query.customerId)
@@ -31,9 +32,17 @@ export default async function NewMachinePage({
     <>
       <section className="hero">
         <div className="eyebrow">Machinebestand</div>
-        <h1>{toStock ? "Machine aan voorraad toevoegen" : "Machine toevoegen"}</h1>
+        <h1>
+          {isBatteryChargerFlow
+            ? "Batterij / lader toevoegen"
+            : toStock
+              ? "Machine aan voorraad toevoegen"
+              : "Machine toevoegen"}
+        </h1>
         <p>
-          {toStock
+          {isBatteryChargerFlow
+            ? "Vul eerst de gegevens van de batterij of lader in. Koppelen aan een machine is daarna optioneel."
+            : toStock
             ? "Voeg een machine direct toe aan de eigen voorraad van Heftrucks Friesland."
             : "Voeg een machine los toe aan een klant, ook als de keuring later pas volgt."}
         </p>
@@ -42,7 +51,7 @@ export default async function NewMachinePage({
       <form action={createMachineAction} className="panel" style={{ marginTop: "1rem" }}>
         <input type="hidden" name="toStock" value={toStock ? "1" : ""} />
         <div className="form-grid-wide">
-          {toStock ? (
+          {isBatteryChargerFlow ? null : toStock ? (
             <div className="field">
               <label>Bestemming</label>
               <div className="selected-summary">
@@ -79,7 +88,7 @@ export default async function NewMachinePage({
         />
         <div className="actions">
           <button className="button" type="submit">
-            Machine toevoegen
+            {isBatteryChargerFlow ? "Batterij / lader opslaan" : "Machine toevoegen"}
           </button>
           <Link
             className="button-secondary"

@@ -121,6 +121,16 @@ export default async function MachineDetailPage({
     machine.machineType === "batterij_lader" && linkedMachineId
       ? machines.find((item) => item.id === linkedMachineId) ?? null
       : null;
+  const hiddenBatteryVehicleFields =
+    machine.machineType === "batterij_lader" && linkedMachine
+      ? [
+          "vehicle_brand",
+          "vehicle_type",
+          "vehicle_build_year",
+          "vehicle_internal_number",
+          "vehicle_serial_number"
+        ]
+      : [];
   const linkableMachines = machines.filter(
     (item) =>
       item.id !== machine.id &&
@@ -256,7 +266,17 @@ export default async function MachineDetailPage({
             machineType={machine.machineType}
             values={machineFormValues(machine)}
             disabled={isArchived}
+            hiddenKeys={hiddenBatteryVehicleFields}
           />
+          {machine.machineType === "batterij_lader" && linkedMachine ? (
+            <div className="selected-summary" style={{ marginTop: "1rem" }}>
+              <strong>Voertuig volgt uit gekoppelde machine</strong>
+              <span>
+                {[linkedMachine.brand, linkedMachine.model].filter(Boolean).join(" ") || "Machine"} -{" "}
+                {linkedMachine.internalNumber || linkedMachine.machineNumber || "-"}
+              </span>
+            </div>
+          ) : null}
           <div className="actions">
             {isArchived ? (
               <span className="muted">
@@ -266,7 +286,7 @@ export default async function MachineDetailPage({
               </span>
             ) : (
               <button className="button" type="submit">
-                Machine opslaan
+                {machine.machineType === "batterij_lader" ? "Batterij / lader opslaan" : "Machine opslaan"}
               </button>
             )}
           </div>

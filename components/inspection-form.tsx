@@ -295,6 +295,12 @@ export function InspectionForm({
   const form = useMemo(() => getFormDefinition(type), [type]);
   const selectedCustomer = customers.find((item) => item.id === selectedCustomerId) ?? null;
   const selectedMachine = machines.find((item) => item.id === selectedMachineId) ?? null;
+  const selectedBatteryLinkedMachineId =
+    type === "batterij_lader" ? String(selectedMachine?.configuration.linked_machine_id ?? "").trim() : "";
+  const selectedBatteryLinkedMachine =
+    selectedBatteryLinkedMachineId
+      ? machines.find((item) => item.id === selectedBatteryLinkedMachineId) ?? null
+      : null;
   const availableContacts = useMemo(
     () =>
       selectedCustomerId
@@ -1044,7 +1050,23 @@ export function InspectionForm({
                   </select>
                 </div>
                 {form.machineFields
-                  .filter((field) => !field.key.startsWith("customer_") && visibleField(field.key) && field.key !== "inspection_date")
+                  .filter(
+                    (field) =>
+                      !field.key.startsWith("customer_") &&
+                      visibleField(field.key) &&
+                      field.key !== "inspection_date" &&
+                      !(
+                        type === "batterij_lader" &&
+                        selectedBatteryLinkedMachine &&
+                        [
+                          "vehicle_brand",
+                          "vehicle_type",
+                          "vehicle_build_year",
+                          "vehicle_internal_number",
+                          "vehicle_serial_number"
+                        ].includes(field.key)
+                      )
+                  )
                   .map((field) => (
                     <div className="field" key={field.key}>
                       <label htmlFor={field.key}>{field.label}</label>
@@ -1220,8 +1242,37 @@ export function InspectionForm({
                     ) : null}
                   </>
                 ) : null}
+                {type === "batterij_lader" && selectedBatteryLinkedMachine ? (
+                  <div className="selected-summary">
+                    <strong>Voertuig volgt uit gekoppelde machine</strong>
+                    <span>
+                      {[selectedBatteryLinkedMachine.brand, selectedBatteryLinkedMachine.model]
+                        .filter(Boolean)
+                        .join(" ") || "Machine"} -{" "}
+                      {selectedBatteryLinkedMachine.internalNumber ||
+                        selectedBatteryLinkedMachine.machineNumber ||
+                        "-"}
+                    </span>
+                  </div>
+                ) : null}
                 {form.machineFields
-                  .filter((field) => visibleField(field.key) && !field.key.startsWith("customer_") && field.key !== "inspection_date")
+                  .filter(
+                    (field) =>
+                      visibleField(field.key) &&
+                      !field.key.startsWith("customer_") &&
+                      field.key !== "inspection_date" &&
+                      !(
+                        type === "batterij_lader" &&
+                        selectedBatteryLinkedMachine &&
+                        [
+                          "vehicle_brand",
+                          "vehicle_type",
+                          "vehicle_build_year",
+                          "vehicle_internal_number",
+                          "vehicle_serial_number"
+                        ].includes(field.key)
+                      )
+                  )
                   .map((field) => (
                     <div className="field" key={field.key}>
                       <label htmlFor={field.key}>{field.label}</label>

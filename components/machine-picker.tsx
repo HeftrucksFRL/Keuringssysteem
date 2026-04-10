@@ -10,6 +10,7 @@ interface MachinePickerProps {
   defaultMachineId?: string;
   placeholder?: string;
   required?: boolean;
+  onSelectedMachineChange?: (machine: MachineRecord | null) => void;
 }
 
 function machineSearchText(machine: MachineRecord) {
@@ -69,7 +70,8 @@ export function MachinePicker({
   label = "Machine",
   defaultMachineId = "",
   placeholder = "Zoek op intern nummer of serienummer",
-  required = false
+  required = false,
+  onSelectedMachineChange
 }: MachinePickerProps) {
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState(defaultMachineId);
@@ -87,6 +89,10 @@ export function MachinePicker({
       setQuery("");
     }
   }, [defaultMachineId, selectedMachine]);
+
+  useEffect(() => {
+    onSelectedMachineChange?.(selectedMachine);
+  }, [onSelectedMachineChange, selectedMachine]);
 
   const filteredMachines = useMemo(() => {
     const needle = query.trim().toLowerCase();
