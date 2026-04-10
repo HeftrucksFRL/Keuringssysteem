@@ -5,6 +5,7 @@ import { completeRentalAction, createRentalAction } from "@/app/verhuur/actions"
 import {
   archiveMachineAction,
   assignMachineToCustomerAction,
+  unarchiveMachineAction,
   updateMachineAction
 } from "@/app/machines/actions";
 import { CustomerPicker } from "@/components/customer-picker";
@@ -53,6 +54,7 @@ export default async function MachineDetailPage({
     assigned?: string;
     rented?: string;
     returned?: string;
+    unarchived?: string;
     error?: string;
   }>;
 }) {
@@ -108,7 +110,7 @@ export default async function MachineDetailPage({
   );
   const statusBadge =
     isArchived
-      ? { label: "Gearchiveerd", style: { background: "#fee4e2", color: "#b42318" } }
+      ? { label: "Machine gearchiveerd", style: { background: "#fee4e2", color: "#b42318" } }
       : machine.availabilityStatus === "rented"
       ? { label: "In verhuur", style: { background: "#dff6ec", color: "#0d8d59" } }
       : machine.availabilityStatus === "maintenance"
@@ -147,6 +149,7 @@ export default async function MachineDetailPage({
         {query?.assigned ? <p className="form-message success">Machine gekoppeld aan klant.</p> : null}
         {query?.rented ? <p className="form-message success">Verhuur gestart.</p> : null}
         {query?.returned ? <p className="form-message success">Verhuur afgerond.</p> : null}
+        {query?.unarchived ? <p className="form-message success">Archiveren is ongedaan gemaakt.</p> : null}
         {query?.error ? <p className="form-message error">{decodeURIComponent(query.error)}</p> : null}
         <div className="actions">
           {!isArchived ? (
@@ -157,12 +160,6 @@ export default async function MachineDetailPage({
               >
                 Start nieuwe keuring
               </Link>
-              <Link className="button-secondary" href={`/machines/nieuw?customerId=${machine.customerId}`}>
-                Machine toevoegen
-              </Link>
-              <a className="button-secondary" href="#verhuur">
-                Start verhuur
-              </a>
               <form action={archiveMachineAction}>
                 <input type="hidden" name="machineId" value={machine.id} />
                 <button className="button-secondary" type="submit">
@@ -171,9 +168,19 @@ export default async function MachineDetailPage({
               </form>
             </>
           ) : (
-            <Link className="button-secondary" href="/machines">
-              Terug naar machines
-            </Link>
+            <>
+              {!archiveLocked ? (
+                <form action={unarchiveMachineAction}>
+                  <input type="hidden" name="machineId" value={machine.id} />
+                  <button className="button" type="submit">
+                    Archiveren ongedaan maken
+                  </button>
+                </form>
+              ) : null}
+              <Link className="button-secondary" href="/machines">
+                Terug naar machines
+              </Link>
+            </>
           )}
         </div>
       </section>
@@ -192,11 +199,11 @@ export default async function MachineDetailPage({
           <div className="form-grid-wide">
             <div className="field">
               <label htmlFor="brand">Merk</label>
-              <input id="brand" name="brand" defaultValue={machine.brand} disabled={archiveLocked} />
+              <input id="brand" name="brand" defaultValue={machine.brand} disabled={isArchived} />
             </div>
             <div className="field">
               <label htmlFor="model">Type</label>
-              <input id="model" name="model" defaultValue={machine.model} disabled={archiveLocked} />
+              <input id="model" name="model" defaultValue={machine.model} disabled={isArchived} />
             </div>
             <div className="field">
               <label htmlFor="serialNumber">Serienummer</label>
@@ -204,12 +211,12 @@ export default async function MachineDetailPage({
                 id="serialNumber"
                 name="serialNumber"
                 defaultValue={machine.serialNumber}
-                disabled={archiveLocked}
+                disabled={isArchived}
               />
             </div>
             <div className="field">
               <label htmlFor="buildYear">Bouwjaar</label>
-              <input id="buildYear" name="buildYear" defaultValue={machine.buildYear} disabled={archiveLocked} />
+              <input id="buildYear" name="buildYear" defaultValue={machine.buildYear} disabled={isArchived} />
             </div>
             <div className="field">
               <label htmlFor="internalNumber">Intern nummer</label>
@@ -217,7 +224,7 @@ export default async function MachineDetailPage({
                 id="internalNumber"
                 name="internalNumber"
                 defaultValue={machine.internalNumber}
-                disabled={archiveLocked}
+                disabled={isArchived}
               />
             </div>
             {extraFields.map((field) => (
@@ -228,14 +235,18 @@ export default async function MachineDetailPage({
                   name={field.key}
                   type={field.type ?? "text"}
                   defaultValue={machine.configuration[field.key] ?? ""}
-                  disabled={archiveLocked}
+                  disabled={isArchived}
                 />
               </div>
             ))}
           </div>
           <div className="actions">
-            {archiveLocked ? (
-              <span className="muted">Deze machine is langer dan 7 dagen gearchiveerd en kan niet meer worden aangepast.</span>
+            {isArchived ? (
+              <span className="muted">
+                {archiveLocked
+                  ? "Deze machine is langer dan 7 dagen gearchiveerd en kan niet meer worden aangepast."
+                  : "Deze machine is gearchiveerd. Maak archiveren eerst ongedaan als je weer iets wilt wijzigen."}
+              </span>
             ) : (
               <button className="button" type="submit">
                 Machine opslaan
@@ -250,7 +261,7 @@ export default async function MachineDetailPage({
             {isRentalStockMachine ? (
               <div className="list-item">
                 <span>Status</span>
-                <strong>Machine in voorraad.</strong>
+                <strong>Machine in voorraad</strong>
               </div>
             ) : (
               <>
@@ -309,7 +320,7 @@ export default async function MachineDetailPage({
               );
             })}
           </div>
-          {!archiveLocked ? (
+          {!isArchived ? (
             <form action={assignMachineToCustomerAction} style={{ marginTop: "1rem" }}>
               <input type="hidden" name="machineId" value={machine.id} />
               <CustomerPicker
@@ -324,6 +335,13 @@ export default async function MachineDetailPage({
                 </button>
               </div>
             </form>
+          ) : null}
+          {isRentalStockMachine && !isArchived ? (
+            <div className="actions" style={{ marginTop: "0.75rem" }}>
+              <a className="button-secondary" href="#verhuur">
+                Start verhuur
+              </a>
+            </div>
           ) : null}
         </article>
       </section>

@@ -227,7 +227,7 @@ export default async function CustomerDetailPage({
                   <br />
                   {machine.brand} {machine.model}
                 </span>
-                <strong>{getMachineArchivedAt(machine) ? "Gearchiveerd" : "Open"}</strong>
+                <strong>{getMachineArchivedAt(machine) ? "Machine gearchiveerd" : "Open"}</strong>
               </Link>
             ))}
             {rentals

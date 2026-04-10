@@ -155,7 +155,7 @@ export function MachinesTable({
             ? { background: "#fee4e2", color: "#b42318" }
             : statusBadgeStyle(machine.availabilityStatus, stockMachine);
           const badgeLabel = archived
-            ? "Gearchiveerd"
+            ? "Machine gearchiveerd"
             : statusLabel(machine.availabilityStatus, stockMachine);
 
           return (

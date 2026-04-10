@@ -1,5 +1,4 @@
 import "./globals.css";
-import Image from "next/image";
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { AuthStatus } from "@/components/auth-status";
@@ -23,14 +22,12 @@ export default function RootLayout({
           </Suspense>
           <header className="topbar">
             <div className="brand">
-              <Image
+              <img
                 className="brand-logo"
-                src="/heftrucks-friesland-logo.svg"
+                src="/logo-heftrucks-frl.png"
                 alt="Heftrucks Friesland"
                 width={196}
                 height={54}
-                unoptimized
-                priority
               />
               <span>Keuringssysteem</span>
             </div>

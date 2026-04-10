@@ -2199,6 +2199,10 @@ function normalizeRentalOwnerText(value: string | undefined) {
   return (value ?? "").trim().toLowerCase();
 }
 
+const STOCK_CUSTOMER_COMPANY = "Heftrucks.frl";
+const STOCK_CUSTOMER_EMAIL = "info@heftrucks.frl";
+const STOCK_CUSTOMER_PHONE = "0653842843";
+
 export function stockOwnerLabel() {
   return "Eigen voorraad · Heftrucks.frl";
 }
@@ -2233,6 +2237,65 @@ export async function getRentalStockMachines() {
   );
 
   return machines.filter((machine) => stockCustomerIds.has(machine.customerId));
+}
+
+export async function ensureRentalStockCustomerId() {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data: existingRows } = await supabase
+      .from("customers")
+      .select("*")
+      .order("created_at", { ascending: true });
+
+    const existingRow = (existingRows ?? []).find((row) =>
+      isRentalStockCustomer(mapCustomerRow(row))
+    );
+
+    if (existingRow) {
+      return String(existingRow.id);
+    }
+
+    const { data: insertedRow } = await supabase
+      .from("customers")
+      .insert({
+        company_name: STOCK_CUSTOMER_COMPANY,
+        address_line_1: "",
+        city: "",
+        contact_name: "Eigen voorraad",
+        phone: STOCK_CUSTOMER_PHONE,
+        email: STOCK_CUSTOMER_EMAIL
+      })
+      .select("*")
+      .single();
+
+    if (!insertedRow) {
+      throw new Error("Voorraadeigenaar kon niet worden aangemaakt.");
+    }
+
+    return String(insertedRow.id);
+  }
+
+  const data = await readAppData();
+  const existingCustomer = data.customers.find((customer) => isRentalStockCustomer(customer));
+  if (existingCustomer) {
+    return existingCustomer.id;
+  }
+
+  const customer: CustomerRecord = {
+    id: randomUUID(),
+    companyName: STOCK_CUSTOMER_COMPANY,
+    address: "",
+    city: "",
+    contactName: "Eigen voorraad",
+    phone: STOCK_CUSTOMER_PHONE,
+    email: STOCK_CUSTOMER_EMAIL,
+    createdAt: nowIso(),
+    updatedAt: nowIso()
+  };
+
+  data.customers.unshift(customer);
+  await writeAppData(data);
+  return customer.id;
 }
 
 export async function createCustomer(input: {

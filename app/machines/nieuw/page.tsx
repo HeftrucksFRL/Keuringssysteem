@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { MachineType } from "@/lib/types";
-import { getCustomerById, getCustomers } from "@/lib/inspection-service";
+import { getCustomerById, getVisibleCustomers } from "@/lib/inspection-service";
 import { createMachineAction } from "@/app/machines/actions";
 import { CustomerPicker } from "@/components/customer-picker";
 
@@ -18,29 +18,45 @@ const machineTypeOptions: { value: MachineType; label: string }[] = [
 export default async function NewMachinePage({
   searchParams
 }: {
-  searchParams?: Promise<{ customerId?: string }>;
+  searchParams?: Promise<{ customerId?: string; stock?: string }>;
 }) {
   const query = await searchParams;
-  const customers = await getCustomers();
+  const customers = await getVisibleCustomers();
   const preselectedCustomer = query?.customerId
     ? await getCustomerById(query.customerId)
     : null;
+  const toStock = query?.stock === "1";
 
   return (
     <>
       <section className="hero">
         <div className="eyebrow">Machinebestand</div>
-        <h1>Machine toevoegen</h1>
-        <p>Voeg een machine los toe aan een klant, ook als de keuring later pas volgt.</p>
+        <h1>{toStock ? "Machine aan voorraad toevoegen" : "Machine toevoegen"}</h1>
+        <p>
+          {toStock
+            ? "Voeg een machine direct toe aan de eigen voorraad van Heftrucks Friesland."
+            : "Voeg een machine los toe aan een klant, ook als de keuring later pas volgt."}
+        </p>
       </section>
 
       <form action={createMachineAction} className="panel" style={{ marginTop: "1rem" }}>
+        <input type="hidden" name="toStock" value={toStock ? "1" : ""} />
         <div className="form-grid-wide">
-          <CustomerPicker
-            customers={customers}
-            defaultCustomerId={preselectedCustomer?.id}
-            required
-          />
+          {toStock ? (
+            <div className="field">
+              <label>Bestemming</label>
+              <div className="selected-summary">
+                <strong>Eigen voorraad</strong>
+                <span>Deze machine blijft beschikbaar voor verhuur of verkoop.</span>
+              </div>
+            </div>
+          ) : (
+            <CustomerPicker
+              customers={customers}
+              defaultCustomerId={preselectedCustomer?.id}
+              required
+            />
+          )}
           <div className="field">
             <label htmlFor="machineType">Soort</label>
             <select id="machineType" name="machineType" defaultValue="heftruck_reachtruck">
@@ -78,7 +94,7 @@ export default async function NewMachinePage({
           </button>
           <Link
             className="button-secondary"
-            href={preselectedCustomer ? `/klanten/${preselectedCustomer.id}` : "/machines"}
+            href={preselectedCustomer && !toStock ? `/klanten/${preselectedCustomer.id}` : "/machines"}
           >
             Terug
           </Link>

@@ -6,13 +6,22 @@ import {
   archiveMachine,
   assignMachineToCustomer,
   createMachine,
+  ensureRentalStockCustomerId,
+  getMachineArchiveLockDate,
+  getMachineById,
+  isMachineArchived,
   updateMachine
 } from "@/lib/inspection-service";
 import { getFormDefinition } from "@/lib/form-definitions";
 
 export async function createMachineAction(formData: FormData) {
+  const toStock = String(formData.get("toStock") || "") === "1";
+  const customerId = toStock
+    ? await ensureRentalStockCustomerId()
+    : String(formData.get("customerId") || "");
+
   const id = await createMachine({
-    customerId: String(formData.get("customerId") || ""),
+    customerId,
     machineType: String(formData.get("machineType") || "heftruck_reachtruck") as Parameters<
       typeof createMachine
     >[0]["machineType"],
@@ -122,4 +131,41 @@ export async function archiveMachineAction(formData: FormData) {
   revalidatePath("/keuringen/nieuw");
   revalidatePath("/verhuur");
   redirect("/machines?archived=1");
+}
+
+export async function unarchiveMachineAction(formData: FormData) {
+  const machineId = String(formData.get("machineId") || "");
+  if (!machineId) {
+    return;
+  }
+
+  const machine = await getMachineById(machineId, { includeArchived: true });
+  if (!machine || !isMachineArchived(machine)) {
+    redirect(`/machines/${machineId}`);
+  }
+
+  if (getMachineArchiveLockDate(machine)?.getTime() ?? 0 <= Date.now()) {
+    redirect(`/machines/${machineId}?error=${encodeURIComponent("Archiveren ongedaan maken is alleen binnen 7 dagen mogelijk.")}`);
+  }
+
+  const clearedDetails = Object.fromEntries(
+    Object.entries(machine.configuration).filter(([key]) => key !== "__archivedAt")
+  );
+
+  await updateMachine({
+    id: machine.id,
+    machineType: machine.machineType,
+    brand: machine.brand,
+    model: machine.model,
+    serialNumber: machine.serialNumber,
+    buildYear: machine.buildYear,
+    internalNumber: machine.internalNumber,
+    details: clearedDetails
+  });
+
+  revalidatePath("/machines");
+  revalidatePath(`/machines/${machineId}`);
+  revalidatePath("/klanten");
+  revalidatePath("/verhuur");
+  redirect(`/machines/${machineId}?unarchived=1`);
 }
