@@ -94,7 +94,7 @@ export default async function RentalsPage({
                   {stockMachines.map((machine) => {
                     const activeRental = groups.active.find((rental) => rental.machineId === machine.id);
                     return (
-                      <option key={machine.id} value={machine.id} disabled={Boolean(activeRental)}>
+                      <option key={machine.id} value={machine.id}>
                         {(machine.internalNumber || machine.machineNumber) +
                           " · " +
                           [machine.brand, machine.model].filter(Boolean).join(" ") +

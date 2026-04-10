@@ -21,6 +21,17 @@ import { getFormDefinition } from "@/lib/form-definitions";
 import { fileUrl } from "@/lib/file-urls";
 import { titleCase } from "@/lib/utils";
 
+function rentalPhase(rental: { startDate: string; endDate: string; status: "active" | "completed" }) {
+  const today = new Date().toISOString().slice(0, 10);
+  if (rental.status === "completed" || rental.endDate < today) {
+    return "completed" as const;
+  }
+  if (rental.startDate > today) {
+    return "upcoming" as const;
+  }
+  return "active" as const;
+}
+
 export default async function MachineDetailPage({
   params,
   searchParams
@@ -70,7 +81,8 @@ export default async function MachineDetailPage({
       )
     }))
   );
-  const activeRental = rentals.find((rental) => rental.status === "active") ?? null;
+  const activeRental = rentals.find((rental) => rentalPhase(rental) === "active") ?? null;
+  const upcomingRentals = rentals.filter((rental) => rentalPhase(rental) === "upcoming");
   const rentalCustomer = activeRental
     ? customers.find((item) => item.id === activeRental.customerId) ?? null
     : null;
@@ -88,8 +100,9 @@ export default async function MachineDetailPage({
         <div className="eyebrow">Machinedossier</div>
         <h1>{[machine.brand, machine.model].filter(Boolean).join(" ") || "Machine"}</h1>
         <p>
-          Intern nummer {machine.internalNumber || "-"} bij {customer?.companyName ?? "onbekende klant"}.
-          Vanuit dit dossier kun je eerdere keuringen openen en de volgende inspectie voorbereiden.
+          {isRentalStockMachine
+            ? `Intern nummer ${machine.internalNumber || "-"} uit de eigen voorraad. Vanuit dit dossier kun je keuringen en verhuur voorbereiden.`
+            : `Intern nummer ${machine.internalNumber || "-"} bij ${customer?.companyName ?? "onbekende klant"}. Vanuit dit dossier kun je eerdere keuringen openen en de volgende inspectie voorbereiden.`}
         </p>
         <p>
           <span className="badge" style={statusBadge.style}>
@@ -182,24 +195,33 @@ export default async function MachineDetailPage({
         </form>
 
         <article className="panel">
-          <div className="eyebrow">Klant</div>
+          <div className="eyebrow">{isRentalStockMachine ? "Voorraad" : "Klant"}</div>
           <div className="list">
-            <div className="list-item">
-              <span>Bedrijf</span>
-              <strong>{customer?.companyName ?? "-"}</strong>
-            </div>
-            <div className="list-item">
-              <span>Contactpersoon</span>
-              <strong>{customer?.contactName ?? "-"}</strong>
-            </div>
-            <div className="list-item">
-              <span>Algemeen e-mailadres</span>
-              <strong>{customer?.email ?? "-"}</strong>
-            </div>
-            <div className="list-item">
-              <span>Algemeen telefoonnummer</span>
-              <strong>{customer?.phone ?? "-"}</strong>
-            </div>
+            {isRentalStockMachine ? (
+              <div className="list-item">
+                <span>Status</span>
+                <strong>Machine in voorraad.</strong>
+              </div>
+            ) : (
+              <>
+                <div className="list-item">
+                  <span>Bedrijf</span>
+                  <strong>{customer?.companyName ?? "-"}</strong>
+                </div>
+                <div className="list-item">
+                  <span>Contactpersoon</span>
+                  <strong>{customer?.contactName ?? "-"}</strong>
+                </div>
+                <div className="list-item">
+                  <span>Algemeen e-mailadres</span>
+                  <strong>{customer?.email ?? "-"}</strong>
+                </div>
+                <div className="list-item">
+                  <span>Algemeen telefoonnummer</span>
+                  <strong>{customer?.phone ?? "-"}</strong>
+                </div>
+              </>
+            )}
             {activeRental ? (
               <div
                 className="list-item"
@@ -216,21 +238,43 @@ export default async function MachineDetailPage({
                 </strong>
               </div>
             ) : null}
+            {upcomingRentals.map((rental) => {
+              const upcomingCustomer = customers.find((item) => item.id === rental.customerId) ?? null;
+              return (
+                <div
+                  className="list-item"
+                  key={rental.id}
+                  style={{
+                    background: "#eaf4fe",
+                    borderRadius: "0.9rem",
+                    padding: "0.9rem 1rem",
+                    border: "1px solid #b9d8f4"
+                  }}
+                >
+                  <span>Aanstaande huur</span>
+                  <strong>
+                    {upcomingCustomer?.companyName ?? "-"} · {rental.startDate} t/m {rental.endDate}
+                  </strong>
+                </div>
+              );
+            })}
           </div>
-          <form action={assignMachineToCustomerAction} style={{ marginTop: "1rem" }}>
-            <input type="hidden" name="machineId" value={machine.id} />
-            <CustomerPicker
-              customers={customers}
-              defaultCustomerId={machine.customerId}
-              label="Toevoegen aan klant"
-              required
-            />
-            <div className="actions">
-              <button className="button-secondary" type="submit">
-                Machine koppelen
-              </button>
-            </div>
-          </form>
+          {!isRentalStockMachine ? (
+            <form action={assignMachineToCustomerAction} style={{ marginTop: "1rem" }}>
+              <input type="hidden" name="machineId" value={machine.id} />
+              <CustomerPicker
+                customers={customers}
+                defaultCustomerId={machine.customerId}
+                label="Toevoegen aan klant"
+                required
+              />
+              <div className="actions">
+                <button className="button-secondary" type="submit">
+                  Machine koppelen
+                </button>
+              </div>
+            </form>
+          ) : null}
         </article>
       </section>
 
@@ -253,7 +297,7 @@ export default async function MachineDetailPage({
                     id="startDate"
                     name="startDate"
                     type="date"
-                    defaultValue={new Date().toISOString().slice(0, 10)}
+                    defaultValue={activeRental?.endDate || new Date().toISOString().slice(0, 10)}
                   />
                 </div>
                 <div className="field">
@@ -284,7 +328,7 @@ export default async function MachineDetailPage({
         </article>
 
         <article className="panel">
-          <div className="eyebrow">Lopende verhuur</div>
+          <div className="eyebrow">Verhuur</div>
           <h2>Huidige stand</h2>
           {activeRental ? (
             <>
@@ -315,6 +359,21 @@ export default async function MachineDetailPage({
           ) : (
             <p className="muted">Deze machine is nu niet verhuurd.</p>
           )}
+          {upcomingRentals.length > 0 ? (
+            <div className="list" style={{ marginTop: "1rem" }}>
+              {upcomingRentals.map((rental) => {
+                const upcomingCustomer = customers.find((item) => item.id === rental.customerId) ?? null;
+                return (
+                  <div className="list-item" key={rental.id}>
+                    <span>Aanstaande huur</span>
+                    <strong>
+                      {upcomingCustomer?.companyName ?? "-"} · {rental.startDate} t/m {rental.endDate}
+                    </strong>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
         </article>
       </section>
 

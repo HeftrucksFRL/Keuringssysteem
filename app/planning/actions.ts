@@ -67,7 +67,15 @@ export async function updateRentalAction(formData: FormData) {
     redirect(`/planning?month=${month}&error=De%20einddatum%20moet%20na%20de%20startdatum%20liggen`);
   }
 
-  await updateRental({ rentalId, startDate, endDate, customerId: customerId || undefined, price });
+  try {
+    await updateRental({ rentalId, startDate, endDate, customerId: customerId || undefined, price });
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? encodeURIComponent(error.message)
+        : encodeURIComponent("Verhuur bijwerken is niet gelukt.");
+    redirect(`/planning?month=${month || startDate.slice(0, 7)}&error=${message}`);
+  }
 
   revalidatePath("/planning");
   revalidatePath("/verhuur");

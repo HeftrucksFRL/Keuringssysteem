@@ -53,12 +53,76 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function rentalCompletionStatus(rental: { status: RentalRecord["status"]; endDate: string }) {
+function rentalCompletionStatus(rental: {
+  status: RentalRecord["status"];
+  startDate: string;
+  endDate: string;
+}) {
   if (rental.status === "completed") {
     return "completed" as const;
   }
 
-  return rental.endDate < todayIso() ? "completed" : "active";
+  if (rental.endDate < todayIso()) {
+    return "completed" as const;
+  }
+
+  if (rental.startDate > todayIso()) {
+    return "upcoming" as const;
+  }
+
+  return "active" as const;
+}
+
+function rentalsOverlapWithSwitchDay(
+  existingStartDate: string,
+  existingEndDate: string,
+  nextStartDate: string,
+  nextEndDate: string
+) {
+  return nextStartDate < existingEndDate && nextEndDate > existingStartDate;
+}
+
+function ensureRentalPeriodIsFree(
+  rentals: RentalRecord[],
+  machineId: string,
+  startDate: string,
+  endDate: string,
+  excludedRentalId?: string
+) {
+  const conflictingRental = rentals.find(
+    (rental) =>
+      rental.machineId === machineId &&
+      rental.id !== excludedRentalId &&
+      rentalCompletionStatus(rental) !== "completed" &&
+      rentalsOverlapWithSwitchDay(rental.startDate, rental.endDate, startDate, endDate)
+  );
+
+  if (conflictingRental) {
+    throw new Error(
+      `Deze machine is al verhuurd van ${conflictingRental.startDate} t/m ${conflictingRental.endDate}.`
+    );
+  }
+}
+
+function getMachineAvailabilityStatus(
+  machine: Pick<MachineRecord, "id" | "availabilityStatus">,
+  rentals: RentalRecord[]
+) {
+  const hasActiveRental = rentals.some(
+    (rental) =>
+      rental.machineId === machine.id &&
+      rentalCompletionStatus(rental) === "active"
+  );
+
+  if (hasActiveRental) {
+    return "rented" as const;
+  }
+
+  if (machine.availabilityStatus === "maintenance") {
+    return "maintenance" as const;
+  }
+
+  return "available" as const;
 }
 
 function normalizeValue(value: string) {
@@ -2563,17 +2627,18 @@ export async function createRental(input: {
       throw new Error("Alleen voorraadmachines van Heftrucks Friesland zijn verhuurbaar.");
     }
 
-    const { data: existingRental } = await supabase
+    const { data: existingRentals } = await supabase
       .from("rentals")
-      .select("id")
+      .select("*")
       .eq("machine_id", input.machineId)
-      .eq("status", "active")
-      .limit(1)
-      .maybeSingle();
+      .eq("status", "active");
 
-    if (existingRental) {
-      throw new Error("Deze machine staat al in verhuur.");
-    }
+    ensureRentalPeriodIsFree(
+      (existingRentals ?? []).map((row) => mapRentalRow(row)),
+      input.machineId,
+      input.startDate,
+      input.endDate
+    );
 
     const { data } = await supabase
       .from("rentals")
@@ -2590,7 +2655,12 @@ export async function createRental(input: {
 
     await supabase
       .from("machines")
-      .update({ availability_status: "rented" })
+      .update({
+        availability_status: getMachineAvailabilityStatus(machine, [
+          ...((existingRentals ?? []).map((row) => mapRentalRow(row))),
+          mapRentalRow(data)
+        ])
+      })
       .eq("id", input.machineId);
 
     return mapRentalRow(data);
@@ -2607,12 +2677,12 @@ export async function createRental(input: {
     throw new Error("Alleen voorraadmachines van Heftrucks Friesland zijn verhuurbaar.");
   }
 
-  const existingRental = data.rentals.find(
-    (item) => item.machineId === input.machineId && item.status === "active"
+  ensureRentalPeriodIsFree(
+    data.rentals,
+    input.machineId,
+    input.startDate,
+    input.endDate
   );
-  if (existingRental) {
-    throw new Error("Deze machine staat al in verhuur.");
-  }
 
   const rental: RentalRecord = {
     id: randomUUID(),
@@ -2627,7 +2697,7 @@ export async function createRental(input: {
   };
 
   data.rentals.unshift(rental);
-  machine.availabilityStatus = "rented";
+  machine.availabilityStatus = getMachineAvailabilityStatus(machine, data.rentals);
   machine.updatedAt = nowIso();
   await writeAppData(data);
   return rental;
@@ -2650,14 +2720,26 @@ export async function completeRental(rentalId: string) {
     const rental = mapRentalRow(rentalRow);
     const { data: openRentals } = await supabase
       .from("rentals")
-      .select("id")
+      .select("*")
       .eq("machine_id", rental.machineId)
       .eq("status", "active");
 
-    if ((openRentals ?? []).length === 0) {
+    const { data: machineRow } = await supabase
+      .from("machines")
+      .select("*")
+      .eq("id", rental.machineId)
+      .maybeSingle();
+
+    if (machineRow) {
+      const machine = mapMachineRow(machineRow);
       await supabase
         .from("machines")
-        .update({ availability_status: "available" })
+        .update({
+          availability_status: getMachineAvailabilityStatus(
+            machine,
+            (openRentals ?? []).map((row) => mapRentalRow(row))
+          )
+        })
         .eq("id", rental.machineId);
     }
     return;
@@ -2672,19 +2754,13 @@ export async function completeRental(rentalId: string) {
   rental.status = "completed";
   rental.updatedAt = nowIso();
 
-  const hasOpenRental = data.rentals.some(
-    (item) =>
-      item.machineId === rental.machineId &&
-      item.id !== rentalId &&
-      rentalCompletionStatus(item) === "active"
-  );
-
-  if (!hasOpenRental) {
-    const machine = data.machines.find((item) => item.id === rental.machineId);
-    if (machine) {
-      machine.availabilityStatus = "available";
-      machine.updatedAt = nowIso();
-    }
+  const machine = data.machines.find((item) => item.id === rental.machineId);
+  if (machine) {
+    machine.availabilityStatus = getMachineAvailabilityStatus(
+      machine,
+      data.rentals.filter((item) => item.machineId === rental.machineId)
+    );
+    machine.updatedAt = nowIso();
   }
 
   await writeAppData(data);
@@ -2830,6 +2906,42 @@ export async function updateRental(input: {
 }) {
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
+    const { data: currentRentalRow } = await supabase
+      .from("rentals")
+      .select("*")
+      .eq("id", input.rentalId)
+      .maybeSingle();
+
+    if (!currentRentalRow) {
+      throw new Error("Verhuur niet gevonden.");
+    }
+
+    const currentRental = mapRentalRow(currentRentalRow);
+    const { data: machineRow } = await supabase
+      .from("machines")
+      .select("*")
+      .eq("id", currentRental.machineId)
+      .maybeSingle();
+
+    if (!machineRow) {
+      throw new Error("Machine niet gevonden.");
+    }
+
+    const machine = mapMachineRow(machineRow);
+    const { data: machineRentals } = await supabase
+      .from("rentals")
+      .select("*")
+      .eq("machine_id", currentRental.machineId)
+      .eq("status", "active");
+
+    ensureRentalPeriodIsFree(
+      (machineRentals ?? []).map((row) => mapRentalRow(row)),
+      currentRental.machineId,
+      input.startDate,
+      input.endDate,
+      input.rentalId
+    );
+
     await supabase
       .from("rentals")
       .update({
@@ -2839,6 +2951,28 @@ export async function updateRental(input: {
         price: input.price?.trim() || null
       })
       .eq("id", input.rentalId);
+
+    await supabase
+      .from("machines")
+      .update({
+        availability_status: getMachineAvailabilityStatus(
+          machine,
+          (machineRentals ?? [])
+            .map((row) => mapRentalRow(row))
+            .map((rental) =>
+              rental.id === input.rentalId
+                ? {
+                    ...rental,
+                    startDate: input.startDate,
+                    endDate: input.endDate,
+                    customerId: input.customerId || rental.customerId,
+                    price: input.price?.trim() || undefined
+                  }
+                : rental
+            )
+        )
+      })
+      .eq("id", currentRental.machineId);
     return;
   }
 
@@ -2848,6 +2982,14 @@ export async function updateRental(input: {
     return;
   }
 
+  ensureRentalPeriodIsFree(
+    data.rentals,
+    rental.machineId,
+    input.startDate,
+    input.endDate,
+    input.rentalId
+  );
+
   rental.startDate = input.startDate;
   rental.endDate = input.endDate;
   if (input.customerId) {
@@ -2855,6 +2997,15 @@ export async function updateRental(input: {
   }
   rental.price = input.price?.trim() || undefined;
   rental.updatedAt = nowIso();
+
+  const machine = data.machines.find((item) => item.id === rental.machineId);
+  if (machine) {
+    machine.availabilityStatus = getMachineAvailabilityStatus(
+      machine,
+      data.rentals.filter((item) => item.machineId === rental.machineId)
+    );
+    machine.updatedAt = nowIso();
+  }
   await writeAppData(data);
 }
 

@@ -18,6 +18,17 @@ import {
   getRentalsForCustomer
 } from "@/lib/inspection-service";
 
+function rentalPhase(rental: { startDate: string; endDate: string; status: "active" | "completed" }) {
+  const today = new Date().toISOString().slice(0, 10);
+  if (rental.status === "completed" || rental.endDate < today) {
+    return "completed" as const;
+  }
+  if (rental.startDate > today) {
+    return "upcoming" as const;
+  }
+  return "active" as const;
+}
+
 export default async function CustomerDetailPage({
   params,
   searchParams
@@ -210,7 +221,7 @@ export default async function CustomerDetailPage({
               </Link>
             ))}
             {rentals
-              .filter((rental) => rental.status === "active")
+              .filter((rental) => rentalPhase(rental) === "active")
               .map((rental) => {
                 const machine = allMachines.find((item) => item.id === rental.machineId);
                 return (
@@ -230,6 +241,30 @@ export default async function CustomerDetailPage({
                       {rental.startDate} t/m {rental.endDate}
                     </span>
                     <strong>In verhuur</strong>
+                  </Link>
+                );
+              })}
+            {rentals
+              .filter((rental) => rentalPhase(rental) === "upcoming")
+              .map((rental) => {
+                const machine = allMachines.find((item) => item.id === rental.machineId);
+                return (
+                  <Link
+                    className="list-item"
+                    key={`upcoming-rental-${rental.id}`}
+                    href={`/machines/${rental.machineId}`}
+                    style={{ background: "#eaf4fe", borderColor: "#b9d8f4" }}
+                  >
+                    <span>
+                      <strong>
+                        {machine
+                          ? `${machine.internalNumber || machine.machineNumber} · ${machine.brand} ${machine.model}`.trim()
+                          : "Aanstaande huur"}
+                      </strong>
+                      <br />
+                      {rental.startDate} t/m {rental.endDate}
+                    </span>
+                    <strong>Aanstaande huur</strong>
                   </Link>
                 );
               })}
