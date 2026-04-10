@@ -162,6 +162,27 @@ create table if not exists public.rentals (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.todo_items (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  title text not null,
+  description text,
+  due_date date,
+  completed boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.agenda_events (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  title text not null,
+  description text,
+  event_date date not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
@@ -249,6 +270,16 @@ create trigger trg_rentals_updated_at
 before update on public.rentals
 for each row execute procedure public.set_updated_at();
 
+drop trigger if exists trg_todo_items_updated_at on public.todo_items;
+create trigger trg_todo_items_updated_at
+before update on public.todo_items
+for each row execute procedure public.set_updated_at();
+
+drop trigger if exists trg_agenda_events_updated_at on public.agenda_events;
+create trigger trg_agenda_events_updated_at
+before update on public.agenda_events
+for each row execute procedure public.set_updated_at();
+
 drop trigger if exists trg_finalize_inspection on public.inspections;
 create trigger trg_finalize_inspection
 before insert or update on public.inspections
@@ -264,12 +295,26 @@ alter table public.planning_items enable row level security;
 alter table public.rentals enable row level security;
 alter table public.profiles enable row level security;
 alter table public.inspection_sequences enable row level security;
+alter table public.todo_items enable row level security;
+alter table public.agenda_events enable row level security;
 
 create policy "authenticated read own profile" on public.profiles
 for select to authenticated using (auth.uid() = id);
 
 create policy "authenticated update own profile" on public.profiles
 for update to authenticated using (auth.uid() = id) with check (auth.uid() = id);
+
+create policy "authenticated read own todo items" on public.todo_items
+for select to authenticated using (auth.uid() = owner_id);
+
+create policy "authenticated write own todo items" on public.todo_items
+for all to authenticated using (auth.uid() = owner_id) with check (auth.uid() = owner_id);
+
+create policy "authenticated read own agenda events" on public.agenda_events
+for select to authenticated using (auth.uid() = owner_id);
+
+create policy "authenticated write own agenda events" on public.agenda_events
+for all to authenticated using (auth.uid() = owner_id) with check (auth.uid() = owner_id);
 
 
 create index if not exists idx_machines_customer_id on public.machines(customer_id);
@@ -282,3 +327,7 @@ create index if not exists idx_rentals_machine_id on public.rentals(machine_id);
 create index if not exists idx_rentals_customer_id on public.rentals(customer_id);
 create index if not exists idx_rentals_start_date on public.rentals(start_date);
 create index if not exists idx_rentals_end_date on public.rentals(end_date);
+create index if not exists idx_todo_items_owner_id on public.todo_items(owner_id);
+create index if not exists idx_todo_items_due_date on public.todo_items(due_date);
+create index if not exists idx_agenda_events_owner_id on public.agenda_events(owner_id);
+create index if not exists idx_agenda_events_event_date on public.agenda_events(event_date);

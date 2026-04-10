@@ -116,6 +116,8 @@ export const demoData: AppDataSnapshot = {
     }
   ],
   rentals: [],
+  todoItems: [],
+  agendaEvents: [],
   attachments: [],
   mailEvents: []
 };

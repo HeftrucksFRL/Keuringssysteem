@@ -804,6 +804,51 @@ textarea {
   align-items: end;
 }
 
+.todo-add-form,
+.todo-item {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.todo-list {
+  margin-top: 1rem;
+}
+
+.todo-item {
+  padding: 1rem;
+  border: 1px solid #dfe8f2;
+  border-radius: 18px;
+  background: #fbfdff;
+}
+
+.todo-item-grid {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.todo-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.todo-checkbox input {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.todo-item-done {
+  background: #f3faf6;
+  border-color: #cfe7d7;
+}
+
+.todo-item-done input[type="text"],
+.todo-item-done input[type="date"] {
+  background: #ffffff;
+}
+
 .compact-card {
   padding: 0.9rem 1rem;
   border: 1px solid #d7e3ef;
@@ -1192,6 +1237,12 @@ textarea {
   .list-item {
     flex-direction: row;
     justify-content: space-between;
+  }
+
+  .todo-add-form,
+  .todo-item-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: end;
   }
 
   .inline-meta {

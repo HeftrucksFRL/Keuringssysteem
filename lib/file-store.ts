@@ -24,6 +24,8 @@ export async function readAppData(): Promise<AppDataSnapshot> {
     inspections: parsed.inspections ?? demoData.inspections,
     planningItems: parsed.planningItems ?? demoData.planningItems,
     rentals: parsed.rentals ?? demoData.rentals,
+    todoItems: parsed.todoItems ?? demoData.todoItems,
+    agendaEvents: parsed.agendaEvents ?? demoData.agendaEvents,
     attachments: parsed.attachments ?? [],
     mailEvents: parsed.mailEvents ?? demoData.mailEvents
   };

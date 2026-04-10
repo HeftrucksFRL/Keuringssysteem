@@ -2,7 +2,15 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { createManualPlanningItem, updatePlanningItem, updateRental } from "@/lib/inspection-service";
+import { requireUser } from "@/lib/auth";
+import {
+  addAgendaEvent,
+  createManualPlanningItem,
+  deleteAgendaEvent,
+  updateAgendaEvent,
+  updatePlanningItem,
+  updateRental
+} from "@/lib/inspection-service";
 
 export async function createManualPlanningAction(formData: FormData) {
   const customerId = String(formData.get("customerId") || "");
@@ -66,4 +74,67 @@ export async function updateRentalAction(formData: FormData) {
   revalidatePath("/machines");
   revalidatePath("/klanten");
   redirect(`/planning?month=${month || startDate.slice(0, 7)}&updated=1`);
+}
+
+export async function createAgendaEventAction(formData: FormData) {
+  const user = await requireUser();
+  const title = String(formData.get("title") || "");
+  const description = String(formData.get("description") || "");
+  const eventDate = String(formData.get("eventDate") || "");
+
+  if (!title || !eventDate) {
+    redirect(`/planning?month=${eventDate.slice(0, 7)}&error=Vul%20een%20titel%20en%20datum%20in`);
+  }
+
+  await addAgendaEvent({
+    ownerId: String(user?.id ?? "demo-user"),
+    title,
+    description,
+    eventDate
+  });
+
+  revalidatePath("/planning");
+  redirect(`/planning?month=${eventDate.slice(0, 7)}&appointment=1`);
+}
+
+export async function updateAgendaEventAction(formData: FormData) {
+  const user = await requireUser();
+  const id = String(formData.get("id") || "");
+  const title = String(formData.get("title") || "");
+  const description = String(formData.get("description") || "");
+  const eventDate = String(formData.get("eventDate") || "");
+  const month = String(formData.get("month") || "");
+
+  if (!id || !title || !eventDate) {
+    redirect(`/planning?month=${month}&error=Vul%20een%20titel%20en%20datum%20in`);
+  }
+
+  await updateAgendaEvent({
+    id,
+    ownerId: String(user?.id ?? "demo-user"),
+    title,
+    description,
+    eventDate
+  });
+
+  revalidatePath("/planning");
+  redirect(`/planning?month=${month || eventDate.slice(0, 7)}&updated=1`);
+}
+
+export async function deleteAgendaEventAction(formData: FormData) {
+  const user = await requireUser();
+  const id = String(formData.get("id") || "");
+  const month = String(formData.get("month") || "");
+
+  if (!id) {
+    redirect(`/planning?month=${month}&error=Afspraak%20niet%20gevonden`);
+  }
+
+  await deleteAgendaEvent({
+    id,
+    ownerId: String(user?.id ?? "demo-user")
+  });
+
+  revalidatePath("/planning");
+  redirect(`/planning?month=${month}&deleted=1`);
 }

@@ -12,6 +12,7 @@ import { addTwelveMonths } from "@/lib/utils";
 import { generateInspectionDocuments } from "@/lib/documents";
 import { getYearSequenceStart } from "@/lib/inspection-number";
 import type {
+  AgendaEventRecord,
   AppDataSnapshot,
   CreateInspectionInput,
   CustomerContactRecord,
@@ -20,7 +21,8 @@ import type {
   MailAlertRecord,
   MachineRecord,
   PlanningRecord,
-  RentalRecord
+  RentalRecord,
+  TodoItemRecord
 } from "@/lib/domain";
 
 function nowIso() {
@@ -865,6 +867,51 @@ function mapPlanningRow(row: Record<string, unknown>): PlanningRecord {
   };
 }
 
+function mapTodoItemRow(row: Record<string, unknown>): TodoItemRecord {
+  return {
+    id: String(row.id),
+    ownerId: String(row.owner_id),
+    title: String(row.title ?? ""),
+    description: String(row.description ?? ""),
+    dueDate: String(row.due_date ?? ""),
+    completed: Boolean(row.completed),
+    createdAt: String(row.created_at ?? ""),
+    updatedAt: String(row.updated_at ?? "")
+  };
+}
+
+function mapAgendaEventRow(row: Record<string, unknown>): AgendaEventRecord {
+  return {
+    id: String(row.id),
+    ownerId: String(row.owner_id),
+    title: String(row.title ?? ""),
+    description: String(row.description ?? ""),
+    eventDate: String(row.event_date ?? ""),
+    createdAt: String(row.created_at ?? ""),
+    updatedAt: String(row.updated_at ?? "")
+  };
+}
+
+function compareTodoItems(left: TodoItemRecord, right: TodoItemRecord) {
+  if (left.completed !== right.completed) {
+    return left.completed ? 1 : -1;
+  }
+
+  if (left.dueDate && right.dueDate && left.dueDate !== right.dueDate) {
+    return left.dueDate.localeCompare(right.dueDate);
+  }
+
+  if (left.dueDate && !right.dueDate) {
+    return -1;
+  }
+
+  if (!left.dueDate && right.dueDate) {
+    return 1;
+  }
+
+  return right.createdAt.localeCompare(left.createdAt);
+}
+
 export async function createInspection(input: CreateInspectionInput) {
   if (!hasSupabaseConfig()) {
     return createDemoInspection(input);
@@ -1585,6 +1632,257 @@ export async function getRentals() {
 
   const data = await listDemoData();
   return data.rentals;
+}
+
+export async function getTodoItems(ownerId: string) {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data } = await supabase
+      .from("todo_items")
+      .select("*")
+      .eq("owner_id", ownerId)
+      .order("completed", { ascending: true })
+      .order("due_date", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: false });
+
+    return (data ?? []).map((row) => mapTodoItemRow(row));
+  }
+
+  const data = await listDemoData();
+  return data.todoItems
+    .filter((item) => item.ownerId === ownerId)
+    .sort(compareTodoItems);
+}
+
+export async function addTodoItem(input: {
+  ownerId: string;
+  title: string;
+  description?: string;
+  dueDate?: string;
+}) {
+  const title = input.title.trim();
+  if (!title) {
+    throw new Error("Geef de taak een korte titel.");
+  }
+
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    await supabase.from("todo_items").insert({
+      owner_id: input.ownerId,
+      title,
+      description: input.description?.trim() || null,
+      due_date: input.dueDate?.trim() || null,
+      completed: false
+    });
+    return;
+  }
+
+  const data = await readAppData();
+  data.todoItems.unshift({
+    id: randomUUID(),
+    ownerId: input.ownerId,
+    title,
+    description: input.description?.trim() || "",
+    dueDate: input.dueDate?.trim() || "",
+    completed: false,
+    createdAt: nowIso(),
+    updatedAt: nowIso()
+  });
+  await writeAppData(data);
+}
+
+export async function updateTodoItem(input: {
+  id: string;
+  ownerId: string;
+  title: string;
+  description?: string;
+  dueDate?: string;
+  completed: boolean;
+}) {
+  const title = input.title.trim();
+  if (!title) {
+    throw new Error("Geef de taak een korte titel.");
+  }
+
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    await supabase
+      .from("todo_items")
+      .update({
+        title,
+        description: input.description?.trim() || null,
+        due_date: input.dueDate?.trim() || null,
+        completed: input.completed
+      })
+      .eq("id", input.id)
+      .eq("owner_id", input.ownerId);
+    return;
+  }
+
+  const data = await readAppData();
+  const item = data.todoItems.find(
+    (entry) => entry.id === input.id && entry.ownerId === input.ownerId
+  );
+  if (!item) {
+    return;
+  }
+
+  item.title = title;
+  item.description = input.description?.trim() || "";
+  item.dueDate = input.dueDate?.trim() || "";
+  item.completed = input.completed;
+  item.updatedAt = nowIso();
+  await writeAppData(data);
+}
+
+export async function deleteTodoItem(input: {
+  id: string;
+  ownerId: string;
+}) {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    await supabase
+      .from("todo_items")
+      .delete()
+      .eq("id", input.id)
+      .eq("owner_id", input.ownerId);
+    return;
+  }
+
+  const data = await readAppData();
+  data.todoItems = data.todoItems.filter(
+    (entry) => !(entry.id === input.id && entry.ownerId === input.ownerId)
+  );
+  await writeAppData(data);
+}
+
+export async function getAgendaEvents(ownerId: string) {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data } = await supabase
+      .from("agenda_events")
+      .select("*")
+      .eq("owner_id", ownerId)
+      .order("event_date", { ascending: true })
+      .order("created_at", { ascending: true });
+
+    return (data ?? []).map((row) => mapAgendaEventRow(row));
+  }
+
+  const data = await listDemoData();
+  return data.agendaEvents
+    .filter((item) => item.ownerId === ownerId)
+    .sort((left, right) => {
+      if (left.eventDate !== right.eventDate) {
+        return left.eventDate.localeCompare(right.eventDate);
+      }
+      return left.createdAt.localeCompare(right.createdAt);
+    });
+}
+
+export async function addAgendaEvent(input: {
+  ownerId: string;
+  title: string;
+  description?: string;
+  eventDate: string;
+}) {
+  const title = input.title.trim();
+  if (!title) {
+    throw new Error("Geef de afspraak een korte titel.");
+  }
+
+  if (!input.eventDate.trim()) {
+    throw new Error("Kies een datum voor de afspraak.");
+  }
+
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    await supabase.from("agenda_events").insert({
+      owner_id: input.ownerId,
+      title,
+      description: input.description?.trim() || null,
+      event_date: input.eventDate
+    });
+    return;
+  }
+
+  const data = await readAppData();
+  data.agendaEvents.unshift({
+    id: randomUUID(),
+    ownerId: input.ownerId,
+    title,
+    description: input.description?.trim() || "",
+    eventDate: input.eventDate,
+    createdAt: nowIso(),
+    updatedAt: nowIso()
+  });
+  await writeAppData(data);
+}
+
+export async function updateAgendaEvent(input: {
+  id: string;
+  ownerId: string;
+  title: string;
+  description?: string;
+  eventDate: string;
+}) {
+  const title = input.title.trim();
+  if (!title) {
+    throw new Error("Geef de afspraak een korte titel.");
+  }
+
+  if (!input.eventDate.trim()) {
+    throw new Error("Kies een datum voor de afspraak.");
+  }
+
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    await supabase
+      .from("agenda_events")
+      .update({
+        title,
+        description: input.description?.trim() || null,
+        event_date: input.eventDate
+      })
+      .eq("id", input.id)
+      .eq("owner_id", input.ownerId);
+    return;
+  }
+
+  const data = await readAppData();
+  const item = data.agendaEvents.find(
+    (entry) => entry.id === input.id && entry.ownerId === input.ownerId
+  );
+  if (!item) {
+    return;
+  }
+
+  item.title = title;
+  item.description = input.description?.trim() || "";
+  item.eventDate = input.eventDate;
+  item.updatedAt = nowIso();
+  await writeAppData(data);
+}
+
+export async function deleteAgendaEvent(input: {
+  id: string;
+  ownerId: string;
+}) {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    await supabase
+      .from("agenda_events")
+      .delete()
+      .eq("id", input.id)
+      .eq("owner_id", input.ownerId);
+    return;
+  }
+
+  const data = await readAppData();
+  data.agendaEvents = data.agendaEvents.filter(
+    (entry) => !(entry.id === input.id && entry.ownerId === input.ownerId)
+  );
+  await writeAppData(data);
 }
 
 export async function createManualPlanningItem(input: {

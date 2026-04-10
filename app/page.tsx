@@ -1,28 +1,43 @@
 import Link from "next/link";
 import type { UrlObject } from "node:url";
 import {
+  addTodoItemAction,
+  deleteTodoItemAction,
+  updateTodoItemAction
+} from "@/app/dashboard-actions";
+import { requireUser } from "@/lib/auth";
+import {
   getCustomerDisplayName,
   getDashboardData,
   getCustomers,
   getFailedMailAlerts,
   getMachines,
-  getPlanningItems
+  getPlanningItems,
+  getTodoItems
 } from "@/lib/inspection-service";
 
 export default async function HomePage({
   searchParams
 }: {
-  searchParams?: Promise<{ saved?: string }>;
+  searchParams?: Promise<{ saved?: string; todo?: string }>;
 }) {
+  const user = await requireUser();
   const dashboard = await getDashboardData();
   const params = await searchParams;
-  const [planningRows, machines, customers, failedMailAlerts] = await Promise.all([
+  const [planningRows, machines, customers, failedMailAlerts, todoItems] = await Promise.all([
     getPlanningItems(),
     getMachines(),
     getCustomers(),
-    getFailedMailAlerts()
+    getFailedMailAlerts(),
+    getTodoItems(String(user?.id ?? "demo-user"))
   ]);
   const planning = planningRows.slice(0, 3);
+  const todoMessage = {
+    added: "Taak toegevoegd.",
+    updated: "Taak bijgewerkt.",
+    deleted: "Taak verwijderd.",
+    error: "Taak kon niet worden opgeslagen. Controleer de invoer."
+  }[params?.todo ?? ""];
 
   const kpis: { label: string; value: string; helper: string; href: UrlObject }[] = [
     {
@@ -53,6 +68,9 @@ export default async function HomePage({
         <p>Kies hieronder wat je vandaag wilt doen.</p>
         {params?.saved ? (
           <p className="form-message success">Keuring {params.saved} is opgeslagen.</p>
+        ) : null}
+        {todoMessage ? (
+          <p className={`form-message ${params?.todo === "error" ? "error" : "success"}`}>{todoMessage}</p>
         ) : null}
         <div className="actions">
           <Link className="button" href="/keuringen/nieuw">
@@ -99,6 +117,67 @@ export default async function HomePage({
           </div>
         </section>
       ) : null}
+
+      <section className="panel" style={{ marginTop: "1rem" }}>
+        <div className="eyebrow">Takenlijst</div>
+        <h2>Wat wil je nog doen?</h2>
+        <form action={addTodoItemAction} className="todo-add-form">
+          <div className="field">
+            <label htmlFor="todo-title">Taak</label>
+            <input id="todo-title" name="title" placeholder="Bijv. klant nabellen of nieuwe machine invoeren" required />
+          </div>
+          <div className="field">
+            <label htmlFor="todo-description">Beschrijving</label>
+            <input id="todo-description" name="description" placeholder="Optioneel" />
+          </div>
+          <div className="field">
+            <label htmlFor="todo-due-date">Datum</label>
+            <input id="todo-due-date" name="dueDate" type="date" />
+          </div>
+          <div className="actions" style={{ marginTop: 0 }}>
+            <button className="button" type="submit">Taak toevoegen</button>
+          </div>
+        </form>
+
+        <div className="list todo-list">
+          {todoItems.length === 0 ? (
+            <div className="list-item static-list-item">
+              <span>Nog geen taken toegevoegd.</span>
+              <strong>Rustig begin</strong>
+            </div>
+          ) : (
+            todoItems.map((item) => (
+              <form action={updateTodoItemAction} className={`todo-item ${item.completed ? "todo-item-done" : ""}`} key={item.id}>
+                <input type="hidden" name="id" value={item.id} />
+                <div className="todo-item-grid">
+                  <div className="field">
+                    <label htmlFor={`todo-title-${item.id}`}>Taak</label>
+                    <input id={`todo-title-${item.id}`} name="title" defaultValue={item.title} />
+                  </div>
+                  <div className="field">
+                    <label htmlFor={`todo-description-${item.id}`}>Beschrijving</label>
+                    <input id={`todo-description-${item.id}`} name="description" defaultValue={item.description} />
+                  </div>
+                  <div className="field">
+                    <label htmlFor={`todo-date-${item.id}`}>Datum</label>
+                    <input id={`todo-date-${item.id}`} name="dueDate" type="date" defaultValue={item.dueDate || ""} />
+                  </div>
+                  <label className="todo-checkbox">
+                    <input name="completed" type="checkbox" defaultChecked={item.completed} />
+                    <span>{item.completed ? "Gedaan" : "Nog te doen"}</span>
+                  </label>
+                </div>
+                <div className="actions" style={{ marginTop: "0.75rem" }}>
+                  <button className="button" type="submit">Bijwerken</button>
+                  <button className="button-secondary" formAction={deleteTodoItemAction} type="submit">
+                    Verwijderen
+                  </button>
+                </div>
+              </form>
+            ))
+          )}
+        </div>
+      </section>
 
       <section className="grid-2" style={{ marginTop: "1rem" }}>
         <article className="panel">

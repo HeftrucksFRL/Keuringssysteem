@@ -89,6 +89,27 @@ export interface RentalRecord {
   updatedAt: string;
 }
 
+export interface TodoItemRecord {
+  id: string;
+  ownerId: string;
+  title: string;
+  description: string;
+  dueDate: string;
+  completed: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AgendaEventRecord {
+  id: string;
+  ownerId: string;
+  title: string;
+  description: string;
+  eventDate: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface InspectionAttachmentRecord {
   id: string;
   inspectionId: string;
@@ -126,6 +147,8 @@ export interface AppDataSnapshot {
   inspections: InspectionRecord[];
   planningItems: PlanningRecord[];
   rentals: RentalRecord[];
+  todoItems: TodoItemRecord[];
+  agendaEvents: AgendaEventRecord[];
   attachments: InspectionAttachmentRecord[];
   mailEvents: MailEventRecord[];
 }

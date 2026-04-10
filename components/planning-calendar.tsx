@@ -2,19 +2,31 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { updatePlanningItemAction, updateRentalAction } from "@/app/planning/actions";
+import {
+  deleteAgendaEventAction,
+  updateAgendaEventAction,
+  updatePlanningItemAction,
+  updateRentalAction
+} from "@/app/planning/actions";
 import { CustomerPicker } from "@/components/customer-picker";
-import type { CustomerRecord, MachineRecord, PlanningRecord, RentalRecord } from "@/lib/domain";
+import type {
+  AgendaEventRecord,
+  CustomerRecord,
+  MachineRecord,
+  PlanningRecord,
+  RentalRecord
+} from "@/lib/domain";
 
 interface PlanningCalendarProps {
   items: PlanningRecord[];
   rentals: RentalRecord[];
+  agendaEventItems: AgendaEventRecord[];
   customers: CustomerRecord[];
   machines: MachineRecord[];
   initialMonth?: string;
 }
 
-type ViewFilter = "all" | "inspections" | "rentals";
+type ViewFilter = "all" | "inspections" | "rentals" | "appointments";
 
 type AgendaEvent =
   | {
@@ -36,6 +48,14 @@ type AgendaEvent =
       place: string;
       rental: RentalRecord;
       rentalMoment: "start" | "end";
+    }
+  | {
+      key: string;
+      kind: "appointment";
+      dueDate: string;
+      place: string;
+      appointment: AgendaEventRecord;
+      machineList: [];
     };
 
 function monthLabel(date: Date) {
@@ -167,12 +187,19 @@ function eventMatchesFilter(event: AgendaEvent, filter: ViewFilter) {
   if (filter === "all") {
     return true;
   }
-  return filter === "inspections" ? event.kind === "inspection" : event.kind === "rental";
+  if (filter === "inspections") {
+    return event.kind === "inspection";
+  }
+  if (filter === "rentals") {
+    return event.kind === "rental";
+  }
+  return event.kind === "appointment";
 }
 
 export function PlanningCalendar({
   items,
   rentals,
+  agendaEventItems,
   customers,
   machines,
   initialMonth
@@ -202,7 +229,7 @@ export function PlanningCalendar({
   const monthStartIso = isoDate(monthStart);
   const monthEndIso = isoDate(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0));
 
-  const agendaEvents = useMemo(() => {
+  const calendarEvents = useMemo(() => {
     const groupedPlanning = new Map<string, AgendaEvent>();
 
     items
@@ -280,7 +307,18 @@ export function PlanningCalendar({
       return result;
     });
 
-    const allEvents = [...Array.from(groupedPlanning.values()), ...rentalEvents];
+    const manualEvents: AgendaEvent[] = agendaEventItems
+      .filter((item) => item.eventDate >= monthStartIso && item.eventDate <= monthEndIso)
+      .map((item) => ({
+        key: `appointment-${item.id}`,
+        kind: "appointment" as const,
+        dueDate: item.eventDate,
+        place: "Eigen afspraak",
+        appointment: item,
+        machineList: []
+      }));
+
+    const allEvents = [...Array.from(groupedPlanning.values()), ...rentalEvents, ...manualEvents];
     const needle = query.trim().toLowerCase();
 
     return allEvents
@@ -294,8 +332,9 @@ export function PlanningCalendar({
         }
 
         const haystack = [
-          customerDisplayName(event.customer),
+          event.kind === "appointment" ? event.appointment.title : customerDisplayName(event.customer),
           event.place,
+          event.kind === "appointment" ? event.appointment.description : "",
           event.kind === "rental" ? rentalMomentLabel(event.rentalMoment) : "",
           ...event.machineList.map((machine) =>
             [machine.internalNumber, machine.machineNumber, machine.brand, machine.model, machine.serialNumber]
@@ -314,26 +353,49 @@ export function PlanningCalendar({
         }
 
         if (left.kind !== right.kind) {
-          return left.kind === "rental" ? -1 : 1;
+          const kindWeight = { appointment: 0, rental: 1, inspection: 2 } as const;
+          return kindWeight[left.kind] - kindWeight[right.kind];
         }
 
         if (sortByPlace) {
+          if (left.kind === "appointment" && right.kind === "appointment") {
+            return left.appointment.title.localeCompare(right.appointment.title, "nl");
+          }
           return left.place.localeCompare(right.place, "nl");
         }
 
-        return customerDisplayName(left.customer).localeCompare(customerDisplayName(right.customer), "nl");
+        return (left.kind === "appointment"
+          ? left.appointment.title
+          : customerDisplayName(left.customer)
+        ).localeCompare(
+          right.kind === "appointment"
+            ? right.appointment.title
+            : customerDisplayName(right.customer),
+          "nl"
+        );
       });
-  }, [customers, items, machines, monthEndIso, monthStartIso, query, rentals, sortByPlace, viewFilter]);
+  }, [
+    agendaEventItems,
+    customers,
+    items,
+    machines,
+    monthEndIso,
+    monthStartIso,
+    query,
+    rentals,
+    sortByPlace,
+    viewFilter
+  ]);
 
   const eventsByDay = useMemo(() => {
     const map = new Map<string, AgendaEvent[]>();
-    agendaEvents.forEach((event) => {
+    calendarEvents.forEach((event) => {
       const current = map.get(event.dueDate) ?? [];
       current.push(event);
       map.set(event.dueDate, current);
     });
     return map;
-  }, [agendaEvents]);
+  }, [calendarEvents]);
 
   const mobileDays = useMemo(
     () =>
@@ -343,7 +405,7 @@ export function PlanningCalendar({
     [eventsByDay]
   );
 
-  const selectedEvent = agendaEvents.find((event) => event.key === selectedEventKey) ?? null;
+  const selectedEvent = calendarEvents.find((event) => event.key === selectedEventKey) ?? null;
   const selectedPrimaryMachine = selectedEvent?.machineList[0] ?? null;
   const selectedPlanningItemIds =
     selectedEvent?.kind === "inspection"
@@ -356,6 +418,19 @@ export function PlanningCalendar({
           )
           .map((item) => item.id)
       : [];
+  const selectedTitle =
+    selectedEvent?.kind === "appointment"
+      ? selectedEvent.appointment.title
+      : customerDisplayName(selectedEvent?.customer);
+  const selectedSubtitle =
+    selectedEvent?.kind === "appointment"
+      ? selectedEvent.appointment.description || "Losse agenda-afspraak"
+      : [
+          selectedEvent?.customer?.address,
+          selectedEvent?.customer?.city
+        ]
+          .filter(Boolean)
+          .join(", ") || "Adres onbekend";
 
   return (
     <div className="panel">
@@ -386,7 +461,7 @@ export function PlanningCalendar({
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Zoek op klant, plaats of machine"
+          placeholder="Zoek op klant, plaats, machine of afspraak"
         />
       </div>
 
@@ -411,6 +486,13 @@ export function PlanningCalendar({
           onClick={() => setViewFilter("rentals")}
         >
           Alleen verhuur
+        </button>
+        <button
+          className={`button-secondary ${viewFilter === "appointments" ? "active-toggle" : ""}`}
+          type="button"
+          onClick={() => setViewFilter("appointments")}
+        >
+          Alleen afspraken
         </button>
       </div>
 
@@ -446,30 +528,46 @@ export function PlanningCalendar({
               {groups.map((event) => (
                 <button
                   key={event.key}
-                  className={`agenda-row ${event.kind === "rental" ? "scheduled" : event.state}`}
+                  className={`agenda-row ${event.kind === "appointment" ? "scheduled" : event.kind === "rental" ? "scheduled" : event.state}`}
                   type="button"
                   style={
                     event.kind === "rental"
                       ? { borderLeftColor: "#0d8d59", background: "#ecfdf3" }
-                      : undefined
+                      : event.kind === "appointment"
+                        ? { borderLeftColor: "#7c3aed", background: "#f4efff" }
+                        : undefined
                   }
                   onClick={() => setSelectedEventKey(event.key)}
                 >
                   <div className="agenda-time">
                     {event.kind === "rental"
                       ? event.machineList[0]?.internalNumber || event.machineList[0]?.machineNumber || "Machine"
-                      : event.place}
+                      : event.kind === "appointment"
+                        ? "Afspraak"
+                        : event.place}
                   </div>
                   <div className="agenda-main">
-                    <strong>{customerDisplayName(event.customer)}</strong>
-                    <span>
-                      {event.machineList.length} machine{event.machineList.length === 1 ? "" : "s"}
-                    </span>
-                    <span>
+                    <strong>
+                      {event.kind === "appointment"
+                        ? event.appointment.title
+                        : customerDisplayName(event.customer)}
+                    </strong>
+                    {event.kind === "appointment" ? (
+                      <span>{event.appointment.description || "Losse agenda-afspraak"}</span>
+                    ) : (
+                      <span>
+                        {event.machineList.length} machine{event.machineList.length === 1 ? "" : "s"}
+                      </span>
+                    )}
+                    {event.kind === "appointment" ? (
+                      <span>Afspraak</span>
+                    ) : (
+                      <span>
                       {event.kind === "rental"
                         ? `${rentalMomentLabel(event.rentalMoment)} · ${rentalPhaseLabel(event.rental)}`
                         : `Keuring · ${stateLabel(event.state)}`}
                     </span>
+                    )}
                   </div>
                 </button>
               ))}
@@ -501,29 +599,37 @@ export function PlanningCalendar({
                   {dayEvents.map((event) => (
                     <button
                       key={event.key}
-                      className={`month-event ${event.kind === "rental" ? "scheduled" : event.state}`}
+                      className={`month-event ${event.kind === "appointment" ? "scheduled" : event.kind === "rental" ? "scheduled" : event.state}`}
                       type="button"
                       style={
                         event.kind === "rental"
                           ? { background: "#dff6ec", borderColor: "#abefc6", color: "#0d8d59" }
-                          : undefined
+                          : event.kind === "appointment"
+                            ? { background: "#f4efff", borderColor: "#d2b6ff", color: "#6d28d9" }
+                            : undefined
                       }
                       onClick={() => setSelectedEventKey(event.key)}
                     >
                       <strong>
                         {event.kind === "rental"
                           ? event.machineList[0]?.internalNumber || event.machineList[0]?.machineNumber || "Machine"
-                          : customerDisplayName(event.customer)}
+                          : event.kind === "appointment"
+                            ? event.appointment.title
+                            : customerDisplayName(event.customer)}
                       </strong>
                       <span>
                         {event.kind === "rental"
                           ? rentalMomentLabel(event.rentalMoment)
-                          : "Keuring"}
+                          : event.kind === "appointment"
+                            ? "Afspraak"
+                            : "Keuring"}
                       </span>
                       <span>
                         {event.kind === "rental"
                           ? customerDisplayName(event.customer)
-                          : `${event.machineList.length} machine${event.machineList.length === 1 ? "" : "s"}`}
+                          : event.kind === "appointment"
+                            ? event.appointment.description || "Eigen agenda"
+                            : `${event.machineList.length} machine${event.machineList.length === 1 ? "" : "s"}`}
                       </span>
                     </button>
                   ))}
@@ -537,20 +643,38 @@ export function PlanningCalendar({
       {selectedEvent ? (
         <div className="modal-backdrop" onClick={() => setSelectedEventKey("")}>
           <div className="modal-card" onClick={(event) => event.stopPropagation()}>
-            <div className="eyebrow">{selectedEvent.kind === "rental" ? "Verhuur" : "Geplande keuring"}</div>
-            <h2>{customerDisplayName(selectedEvent.customer)}</h2>
+            <div className="eyebrow">
+              {selectedEvent.kind === "rental"
+                ? "Verhuur"
+                : selectedEvent.kind === "appointment"
+                  ? "Afspraak"
+                  : "Geplande keuring"}
+            </div>
+            <h2>{selectedTitle}</h2>
             <p className="muted" style={{ marginTop: "-0.35rem", marginBottom: "1rem" }}>
-              {[selectedEvent.customer?.address, selectedEvent.customer?.city].filter(Boolean).join(", ") ||
-                "Adres onbekend"}
-              {selectedEvent.customer?.phone ? ` | ${selectedEvent.customer.phone}` : ""}
+              {selectedSubtitle}
+              {selectedEvent.kind !== "appointment" && selectedEvent.customer?.phone
+                ? ` | ${selectedEvent.customer.phone}`
+                : ""}
             </p>
             <div className="list">
-              <div className="list-item static-list-item">
-                <span>Plaats</span>
-                <strong>{selectedEvent.place}</strong>
-              </div>
-              {selectedEvent.kind === "rental" ? (
+              {selectedEvent.kind === "appointment" ? (
                 <>
+                  <div className="list-item static-list-item">
+                    <span>Datum</span>
+                    <strong>{selectedEvent.dueDate}</strong>
+                  </div>
+                  <div className="list-item static-list-item">
+                    <span>Type</span>
+                    <strong>Vrije afspraak</strong>
+                  </div>
+                </>
+              ) : selectedEvent.kind === "rental" ? (
+                <>
+                  <div className="list-item static-list-item">
+                    <span>Plaats</span>
+                    <strong>{selectedEvent.place}</strong>
+                  </div>
                   <div className="list-item static-list-item">
                     <span>{selectedEvent.rentalMoment === "start" ? "Verhuur start" : "Verhuur eindigt"}</span>
                     <strong>{selectedEvent.dueDate}</strong>
@@ -561,38 +685,48 @@ export function PlanningCalendar({
                   </div>
                 </>
               ) : (
+                <>
+                  <div className="list-item static-list-item">
+                    <span>Plaats</span>
+                    <strong>{selectedEvent.place}</strong>
+                  </div>
+                  <div className="list-item static-list-item">
+                    <span>Datum</span>
+                    <strong>{selectedEvent.dueDate}</strong>
+                  </div>
+                </>
+              )}
+              {selectedEvent.kind === "appointment" ? null : (
                 <div className="list-item static-list-item">
-                  <span>Datum</span>
-                  <strong>{selectedEvent.dueDate}</strong>
+                  <span>Status</span>
+                  <strong>
+                    {selectedEvent.kind === "rental"
+                      ? rentalPhaseLabel(selectedEvent.rental)
+                      : stateLabel(selectedEvent.state)}
+                  </strong>
                 </div>
               )}
-              <div className="list-item static-list-item">
-                <span>Status</span>
-                <strong>
-                  {selectedEvent.kind === "rental"
-                    ? rentalPhaseLabel(selectedEvent.rental)
-                    : stateLabel(selectedEvent.state)}
-                </strong>
-              </div>
             </div>
 
-            <div className="form-block" style={{ marginTop: "1rem" }}>
-              <div className="eyebrow">Machines</div>
-              <div className="list compact-list">
-                {selectedEvent.machineList.map((machine) => (
-                  <Link className="list-item" href={`/machines/${machine.id}`} key={machine.id}>
-                    <span>
-                      <strong>
-                        {machine.brand} {machine.model}
-                      </strong>
-                      <br />
-                      Serienr: {machine.serialNumber || "-"}
-                    </span>
-                    <strong>{machine.internalNumber || machine.machineNumber || "-"}</strong>
-                  </Link>
-                ))}
+            {selectedEvent.kind === "appointment" ? null : (
+              <div className="form-block" style={{ marginTop: "1rem" }}>
+                <div className="eyebrow">Machines</div>
+                <div className="list compact-list">
+                  {selectedEvent.machineList.map((machine) => (
+                    <Link className="list-item" href={`/machines/${machine.id}`} key={machine.id}>
+                      <span>
+                        <strong>
+                          {machine.brand} {machine.model}
+                        </strong>
+                        <br />
+                        Serienr: {machine.serialNumber || "-"}
+                      </span>
+                      <strong>{machine.internalNumber || machine.machineNumber || "-"}</strong>
+                    </Link>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="actions">
               {selectedEvent.kind === "rental" ? (
@@ -640,6 +774,57 @@ export function PlanningCalendar({
                     </button>
                   </div>
                 </form>
+              ) : selectedEvent.kind === "appointment" ? (
+                <>
+                  <form
+                    action={updateAgendaEventAction}
+                    className="panel"
+                    style={{ width: "100%", marginBottom: "0.5rem" }}
+                  >
+                    <input type="hidden" name="id" value={selectedEvent.appointment.id} />
+                    <input type="hidden" name="month" value={monthKey(anchorDate)} />
+                    <div className="eyebrow">Afspraak aanpassen</div>
+                    <div className="form-grid-wide" style={{ marginTop: "0.75rem" }}>
+                      <div className="field">
+                        <label htmlFor="popup-agenda-title">Titel</label>
+                        <input
+                          id="popup-agenda-title"
+                          name="title"
+                          defaultValue={selectedEvent.appointment.title}
+                        />
+                      </div>
+                      <div className="field">
+                        <label htmlFor="popup-agenda-date">Datum</label>
+                        <input
+                          id="popup-agenda-date"
+                          name="eventDate"
+                          type="date"
+                          defaultValue={selectedEvent.appointment.eventDate}
+                        />
+                      </div>
+                      <div className="field">
+                        <label htmlFor="popup-agenda-description">Beschrijving</label>
+                        <input
+                          id="popup-agenda-description"
+                          name="description"
+                          defaultValue={selectedEvent.appointment.description || ""}
+                        />
+                      </div>
+                    </div>
+                    <div className="actions" style={{ marginTop: "0.75rem" }}>
+                      <button className="button" type="submit">
+                        Afspraak bijwerken
+                      </button>
+                    </div>
+                  </form>
+                  <form action={deleteAgendaEventAction} style={{ width: "100%" }}>
+                    <input type="hidden" name="id" value={selectedEvent.appointment.id} />
+                    <input type="hidden" name="month" value={monthKey(anchorDate)} />
+                    <button className="button-secondary" type="submit">
+                      Afspraak verwijderen
+                    </button>
+                  </form>
+                </>
               ) : (
                 <form action={updatePlanningItemAction} className="panel" style={{ width: "100%", marginBottom: "0.5rem" }}>
                   <input type="hidden" name="ids" value={JSON.stringify(selectedPlanningItemIds)} />
@@ -661,12 +846,12 @@ export function PlanningCalendar({
                   </div>
                 </form>
               )}
-              {selectedEvent.customer?.id ? (
+              {selectedEvent.kind !== "appointment" && selectedEvent.customer?.id ? (
                 <Link className="button-secondary" href={`/klanten/${selectedEvent.customer.id}`}>
                   Open klantkaart
                 </Link>
               ) : null}
-              {selectedPrimaryMachine ? (
+              {selectedEvent.kind !== "appointment" && selectedPrimaryMachine ? (
                 <Link className="button-secondary" href={`/machines/${selectedPrimaryMachine.id}`}>
                   Open machinekaart
                 </Link>
