@@ -96,9 +96,9 @@ export default async function RentalsPage({
                     return (
                       <option key={machine.id} value={machine.id}>
                         {(machine.internalNumber || machine.machineNumber) +
-                          " · " +
+                          " | " +
                           [machine.brand, machine.model].filter(Boolean).join(" ") +
-                          (activeRental ? " · al in verhuur" : "")}
+                          (activeRental ? " | al in verhuur" : "")}
                       </option>
                     );
                   })}
@@ -142,9 +142,12 @@ export default async function RentalsPage({
           <div className="eyebrow">{group.title}</div>
           <div className="dataset-list" style={{ marginTop: "0.75rem" }}>
             {group.rows.length === 0 ? (
-              <div className="dataset-row">
-                <strong>Geen verhuur in deze lijst</strong>
-                <span>Hier verschijnen straks de relevante verhuurregels.</span>
+              <div className="dataset-row compact-overview-row">
+                <strong>Geen verhuur</strong>
+                <span className="compact-overview-detail">
+                  Hier verschijnen straks de relevante verhuurregels.
+                </span>
+                <span />
               </div>
             ) : (
               group.rows.map((rental) => {
@@ -156,34 +159,39 @@ export default async function RentalsPage({
                   machine?.machineNumber ||
                   "Machine";
                 const machineNumber = machine?.internalNumber || machine?.machineNumber || "-";
+                const detailLine = [
+                  getCustomerDisplayName(customer),
+                  machineNumber,
+                  `${rental.startDate} t/m ${rental.endDate}`,
+                  rental.price || ""
+                ]
+                  .filter(Boolean)
+                  .join(" | ");
 
                 return (
                   <div
-                    className="dataset-row"
+                    className="dataset-row compact-overview-row"
                     key={rental.id}
                     style={phase === "active" ? { background: "#ecfdf3", borderColor: "#abefc6" } : undefined}
                   >
                     <strong>{machineLabel}</strong>
-                    <span>
-                      {getCustomerDisplayName(customer)} · {machineNumber} · {rental.startDate} t/m {rental.endDate}
-                      {rental.price ? ` · ${rental.price}` : ""}
-                    </span>
-                    <span className="inline-meta">
+                    <span className="compact-overview-detail">{detailLine}</span>
+                    <span className="compact-overview-actions">
                       <span className="badge" style={statusBadgeStyle(phase)}>
                         {phaseLabel(phase)}
                       </span>
                       <Link className="button-secondary" href={`/machines/${rental.machineId}`}>
-                        Open machine
+                        Machine
                       </Link>
                       <Link className="button-secondary" href={`/klanten/${rental.customerId}`}>
-                        Open klant
+                        Klant
                       </Link>
                       {phase !== "completed" ? (
                         <form action={completeRentalAction}>
                           <input type="hidden" name="rentalId" value={rental.id} />
                           <input type="hidden" name="machineId" value={rental.machineId} />
                           <button className="button-secondary" type="submit">
-                            Verhuur afronden
+                            Afronden
                           </button>
                         </form>
                       ) : null}

@@ -688,6 +688,51 @@ textarea {
   min-height: 46px;
 }
 
+.compact-overview-row {
+  padding: 0.6rem 0.75rem;
+}
+
+.compact-overview-row strong {
+  font-size: 0.94rem;
+}
+
+.compact-overview-detail {
+  min-width: 0;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.compact-overview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.compact-overview-actions form {
+  display: inline-flex;
+  margin: 0;
+}
+
+.compact-overview-actions > a,
+.compact-overview-actions > button,
+.compact-overview-actions form > button,
+.compact-overview-actions .badge {
+  width: auto;
+  min-height: 32px;
+  padding: 0.35rem 0.6rem;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  line-height: 1.1;
+}
+
+.compact-overview-actions .badge {
+  display: inline-flex;
+  align-items: center;
+}
+
 .inspection-card-full {
   grid-column: 1 / -1;
 }
@@ -1483,6 +1528,16 @@ textarea {
   .inline-meta > a,
   .inline-meta > button {
     width: auto;
+  }
+
+  .compact-overview-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.4rem 0.75rem;
+  }
+
+  .compact-overview-actions {
+    justify-content: flex-end;
   }
 
 }

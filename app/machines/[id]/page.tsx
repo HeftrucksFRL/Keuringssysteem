@@ -170,7 +170,13 @@ export default async function MachineDetailPage({
   );
   const statusBadge =
     isArchived
-      ? { label: "Machine gearchiveerd", style: { background: "#fee4e2", color: "#b42318" } }
+      ? {
+          label:
+            machine.machineType === "batterij_lader"
+              ? "Batterij en/of lader gearchiveerd"
+              : "Machine gearchiveerd",
+          style: { background: "#fee4e2", color: "#b42318" }
+        }
       : machine.availabilityStatus === "rented"
       ? { label: "In verhuur", style: { background: "#dff6ec", color: "#0d8d59" } }
       : machine.availabilityStatus === "maintenance"

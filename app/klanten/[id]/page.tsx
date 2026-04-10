@@ -227,7 +227,13 @@ export default async function CustomerDetailPage({
                   <br />
                   {machine.brand} {machine.model}
                 </span>
-                <strong>{getMachineArchivedAt(machine) ? "Machine gearchiveerd" : "Open"}</strong>
+                <strong>
+                  {getMachineArchivedAt(machine)
+                    ? machine.machineType === "batterij_lader"
+                      ? "Batterij en/of lader gearchiveerd"
+                      : "Machine gearchiveerd"
+                    : "Open"}
+                </strong>
               </Link>
             ))}
             {rentals

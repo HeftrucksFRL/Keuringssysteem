@@ -96,6 +96,7 @@ export function InspectionsTable({
           inspection.inspectionDate,
           customer?.companyName,
           machine?.internalNumber,
+          machine?.machineNumber,
           machine?.brand,
           machine?.model
         ]
@@ -220,10 +221,19 @@ export function InspectionsTable({
               </div>
             ) : null}
             <div className="actions">
-              <button className="button" type="button" disabled={isPending} onClick={() => resendMail(resendInspectionId)}>
+              <button
+                className="button"
+                type="button"
+                disabled={isPending}
+                onClick={() => resendMail(resendInspectionId)}
+              >
                 {isPending ? "Bezig..." : "Verzenden"}
               </button>
-              <button className="button-secondary" type="button" onClick={() => setResendInspectionId("")}>
+              <button
+                className="button-secondary"
+                type="button"
+                onClick={() => setResendInspectionId("")}
+              >
                 Annuleren
               </button>
             </div>
@@ -234,6 +244,13 @@ export function InspectionsTable({
         {filteredInspections.map((inspection) => {
           const customer = customers.find((item) => item.id === inspection.customerId);
           const machine = machines.find((item) => item.id === inspection.machineId);
+          const machineLabel = [
+            machine?.internalNumber || machine?.machineNumber,
+            machine?.brand,
+            machine?.model
+          ]
+            .filter(Boolean)
+            .join(" ");
           const pdfAttachment = attachments.find(
             (attachment) => attachment.inspectionId === inspection.id && attachment.kind === "pdf"
           );
@@ -245,16 +262,15 @@ export function InspectionsTable({
                 : "green";
 
           return (
-            <div className="dataset-row" key={inspection.id}>
+            <div className="dataset-row compact-overview-row" key={inspection.id}>
               <strong>
                 <span className={`status-dot ${statusClass}`} aria-hidden="true" />
                 {inspection.inspectionNumber}
               </strong>
-              <span>
-                {customer?.companyName ?? "-"} · {machine?.brand ?? "Machine"} {machine?.model ?? ""}
+              <span className="compact-overview-detail">
+                {inspection.inspectionDate} | {customer?.companyName ?? "-"} | {machineLabel || "-"}
               </span>
-              <span>{inspection.inspectionDate}</span>
-              <span className="inline-meta">
+              <span className="compact-overview-actions">
                 {pdfAttachment ? (
                   <a
                     className="button-secondary"
@@ -262,7 +278,7 @@ export function InspectionsTable({
                     target="_blank"
                     rel="noreferrer"
                   >
-                    Rapport openen
+                    Rapport
                   </a>
                 ) : null}
                 <Link
@@ -273,7 +289,7 @@ export function InspectionsTable({
                       : `/keuringen/${inspection.id}`
                   }
                 >
-                  Keuring openen
+                  Openen
                 </Link>
                 <button
                   className="button-secondary"
@@ -284,7 +300,7 @@ export function InspectionsTable({
                     setResendInspectionId(inspection.id);
                   }}
                 >
-                  Opnieuw mailen
+                  Mail
                 </button>
               </span>
             </div>
