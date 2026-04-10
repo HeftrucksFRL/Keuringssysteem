@@ -45,8 +45,49 @@ function sanitizeMachineConfiguration(configuration: Record<string, string>) {
   );
 }
 
-function isMachineArchived(machine: { configuration: Record<string, string> }) {
-  return Boolean(machine.configuration.__archivedAt);
+const MACHINE_ARCHIVE_LOCK_DAYS = 7;
+
+export function getMachineArchivedAt(machine: { configuration: Record<string, string> }) {
+  const archivedAt = machine.configuration.__archivedAt;
+  return archivedAt ? new Date(archivedAt) : null;
+}
+
+export function isMachineArchived(machine: { configuration: Record<string, string> }) {
+  return Boolean(getMachineArchivedAt(machine));
+}
+
+export function getMachineArchiveLockDate(machine: { configuration: Record<string, string> }) {
+  const archivedAt = getMachineArchivedAt(machine);
+  if (!archivedAt || Number.isNaN(archivedAt.getTime())) {
+    return null;
+  }
+
+  const lockDate = new Date(archivedAt);
+  lockDate.setDate(lockDate.getDate() + MACHINE_ARCHIVE_LOCK_DAYS);
+  return lockDate;
+}
+
+export function isMachineArchiveLocked(machine: { configuration: Record<string, string> }) {
+  const lockDate = getMachineArchiveLockDate(machine);
+  if (!lockDate) {
+    return false;
+  }
+
+  return lockDate.getTime() <= Date.now();
+}
+
+function assertMachineNotArchiveLocked(
+  machine: { configuration: Record<string, string>; internalNumber: string; machineNumber: string },
+  actionLabel: string
+) {
+  if (!isMachineArchiveLocked(machine)) {
+    return;
+  }
+
+  const machineLabel = machine.internalNumber || machine.machineNumber || "deze machine";
+  throw new Error(
+    `${actionLabel} is niet meer mogelijk. ${machineLabel} is langer dan ${MACHINE_ARCHIVE_LOCK_DAYS} dagen geleden gearchiveerd.`
+  );
 }
 
 function todayIso() {
@@ -520,6 +561,9 @@ async function createDemoInspection(input: CreateInspectionInput) {
     (input.machineId
       ? data.machines.find((item) => item.id === input.machineId)
       : null) ?? findOrCreateMachine(data, customer.id, input.machine, input.machineType);
+  if (input.machineId) {
+    assertMachineNotArchiveLocked(machine, "Deze machine kan niet meer worden gebruikt voor een nieuwe keuring");
+  }
   machine.customerId = customer.id;
   machine.machineNumber = input.machine.machineNumber;
   machine.machineType = input.machineType;
@@ -1046,6 +1090,19 @@ export async function createInspection(input: CreateInspectionInput) {
 
   let machineRow: Record<string, unknown> | null = null;
   if (input.machineId) {
+    const { data: currentMachineRow } = await supabase
+      .from("machines")
+      .select("*")
+      .eq("id", input.machineId)
+      .maybeSingle();
+
+    if (currentMachineRow) {
+      assertMachineNotArchiveLocked(
+        mapMachineRow(currentMachineRow),
+        "Deze machine kan niet meer worden gebruikt voor een nieuwe keuring"
+      );
+    }
+
     const { data } = await supabase
       .from("machines")
       .update({
@@ -1274,6 +1331,9 @@ export async function updateInspectionFromForm(
       (input.machineId
         ? data.machines.find((item) => item.id === input.machineId)
         : null) ?? findOrCreateMachine(data, customer.id, input.machine, input.machineType);
+    if (input.machineId) {
+      assertMachineNotArchiveLocked(machine, "Deze machine kan niet meer worden bijgewerkt");
+    }
     machine.customerId = customer.id;
     machine.machineNumber = input.machine.machineNumber;
     machine.machineType = input.machineType;
@@ -1373,6 +1433,19 @@ export async function updateInspectionFromForm(
 
   let machineRow: Record<string, unknown> | null = null;
   if (resolvedMachineId) {
+    const { data: currentMachineRow } = await supabase
+      .from("machines")
+      .select("*")
+      .eq("id", resolvedMachineId)
+      .maybeSingle();
+
+    if (currentMachineRow) {
+      assertMachineNotArchiveLocked(
+        mapMachineRow(currentMachineRow),
+        "Deze machine kan niet meer worden bijgewerkt"
+      );
+    }
+
     const { data } = await supabase
       .from("machines")
       .update({
@@ -1638,24 +1711,25 @@ export async function getVisibleCustomers() {
   return customers.filter((customer) => !isRentalStockCustomer(customer));
 }
 
-export async function getMachines() {
+export async function getMachines(options: { includeArchived?: boolean } = {}) {
+  const includeArchived = options.includeArchived ?? false;
+
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
     const { data } = await supabase
       .from("machines")
       .select("*")
       .order("machine_number", { ascending: true });
-    return (data ?? [])
-      .map((row) => mapMachineRow(row))
-      .filter((machine) => !isMachineArchived(machine));
+    const machines = (data ?? []).map((row) => mapMachineRow(row));
+    return includeArchived ? machines : machines.filter((machine) => !isMachineArchived(machine));
   }
   const data = await listDemoData();
-  return data.machines
+  const machines = data.machines
     .map((machine) => ({
       ...machine,
       availabilityStatus: machine.availabilityStatus ?? "available"
-    }))
-    .filter((machine) => !isMachineArchived(machine));
+    }));
+  return includeArchived ? machines : machines.filter((machine) => !isMachineArchived(machine));
 }
 
 export async function getInspections() {
@@ -2078,8 +2152,8 @@ export async function getInspectionAttachments() {
   return data.attachments;
 }
 
-export async function getMachineById(id: string) {
-  const machines = await getMachines();
+export async function getMachineById(id: string, options: { includeArchived?: boolean } = {}) {
+  const machines = await getMachines(options);
   return machines.find((machine) => machine.id === id) ?? null;
 }
 
@@ -2103,8 +2177,11 @@ export async function getCustomerById(id: string) {
   return customers.find((customer) => customer.id === id) ?? null;
 }
 
-export async function getMachinesForCustomer(customerId: string) {
-  const machines = await getMachines();
+export async function getMachinesForCustomer(
+  customerId: string,
+  options: { includeArchived?: boolean } = {}
+) {
+  const machines = await getMachines(options);
   return machines.filter((machine) => machine.customerId === customerId);
 }
 
@@ -2616,6 +2693,7 @@ export async function createRental(input: {
     }
 
     const machine = mapMachineRow(machineRow);
+    assertMachineNotArchiveLocked(machine, "Verhuur starten");
     const { data: ownerRow } = await supabase
       .from("customers")
       .select("*")
@@ -2671,6 +2749,8 @@ export async function createRental(input: {
   if (!machine) {
     throw new Error("Machine niet gevonden.");
   }
+
+  assertMachineNotArchiveLocked(machine, "Verhuur starten");
 
   const ownerCustomer = data.customers.find((item) => item.id === machine.customerId) ?? null;
   if (!isRentalStockCustomer(ownerCustomer)) {
@@ -3033,6 +3113,9 @@ export async function updateMachine(input: {
       .eq("id", input.id)
       .limit(1);
     const currentMachine = currentMachineRows?.[0] ? mapMachineRow(currentMachineRows[0]) : null;
+    if (currentMachine) {
+      assertMachineNotArchiveLocked(currentMachine, "Machine bijwerken");
+    }
     const duplicateMachines = currentMachine
       ? findDuplicateMachines(
           ((await supabase
@@ -3124,6 +3207,8 @@ export async function updateMachine(input: {
     return [];
   }
 
+  assertMachineNotArchiveLocked(machine, "Machine bijwerken");
+
   const duplicateMachines = findDuplicateMachines(data.machines, machine);
 
   machine.brand = input.brand;
@@ -3178,6 +3263,19 @@ export async function assignMachineToCustomer(input: {
 }) {
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
+    const { data: currentMachineRow } = await supabase
+      .from("machines")
+      .select("*")
+      .eq("id", input.machineId)
+      .maybeSingle();
+
+    if (currentMachineRow) {
+      assertMachineNotArchiveLocked(
+        mapMachineRow(currentMachineRow),
+        "Deze machine aan een andere klant koppelen"
+      );
+    }
+
     const { data: customerRow } = await supabase
       .from("customers")
       .select("*")
@@ -3233,6 +3331,8 @@ export async function assignMachineToCustomer(input: {
   if (!customer || !machine) {
     return [];
   }
+
+  assertMachineNotArchiveLocked(machine, "Deze machine aan een andere klant koppelen");
 
   machine.customerId = input.customerId;
   machine.updatedAt = nowIso();

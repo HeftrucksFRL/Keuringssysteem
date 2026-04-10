@@ -99,6 +99,14 @@ textarea {
   min-width: 0;
 }
 
+.brand-logo {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: min(180px, 42vw);
+  flex-shrink: 0;
+}
+
 .brand span {
   font-size: 0.95rem;
   font-weight: 700;
@@ -580,6 +588,11 @@ textarea {
 .badge.orange {
   background: #fff4cc;
   color: #c97a00;
+}
+
+.badge.red {
+  background: #fee4e2;
+  color: #b42318;
 }
 
 .status-dot {

@@ -6,7 +6,6 @@ import {
   archiveMachine,
   assignMachineToCustomer,
   createMachine,
-  deleteMachine,
   updateMachine
 } from "@/lib/inspection-service";
 import { getFormDefinition } from "@/lib/form-definitions";
@@ -48,16 +47,26 @@ export async function updateMachineAction(formData: FormData) {
       .filter(([, value]) => value.trim())
   );
 
-  const affectedInspectionIds = await updateMachine({
-    id,
-    machineType,
-    brand: String(formData.get("brand") || ""),
-    model: String(formData.get("model") || ""),
-    serialNumber: String(formData.get("serialNumber") || ""),
-    buildYear: String(formData.get("buildYear") || ""),
-    internalNumber: String(formData.get("internalNumber") || ""),
-    details: extraDetails
-  });
+  let affectedInspectionIds: string[] = [];
+
+  try {
+    affectedInspectionIds = await updateMachine({
+      id,
+      machineType,
+      brand: String(formData.get("brand") || ""),
+      model: String(formData.get("model") || ""),
+      serialNumber: String(formData.get("serialNumber") || ""),
+      buildYear: String(formData.get("buildYear") || ""),
+      internalNumber: String(formData.get("internalNumber") || ""),
+      details: extraDetails
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? encodeURIComponent(error.message)
+        : encodeURIComponent("Machine opslaan is niet gelukt.");
+    redirect(`/machines/${id}?error=${message}`);
+  }
 
   revalidatePath("/machines");
   revalidatePath(`/machines/${id}`);
@@ -74,10 +83,20 @@ export async function assignMachineToCustomerAction(formData: FormData) {
   const machineId = String(formData.get("machineId") || "");
   const customerId = String(formData.get("customerId") || "");
 
-  const affectedInspectionIds = await assignMachineToCustomer({
-    machineId,
-    customerId
-  });
+  let affectedInspectionIds: string[] = [];
+
+  try {
+    affectedInspectionIds = await assignMachineToCustomer({
+      machineId,
+      customerId
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? encodeURIComponent(error.message)
+        : encodeURIComponent("Machine koppelen is niet gelukt.");
+    redirect(`/machines/${machineId}?error=${message}`);
+  }
 
   revalidatePath("/machines");
   revalidatePath(`/machines/${machineId}`);
@@ -103,26 +122,4 @@ export async function archiveMachineAction(formData: FormData) {
   revalidatePath("/keuringen/nieuw");
   revalidatePath("/verhuur");
   redirect("/machines?archived=1");
-}
-
-export async function deleteMachineAction(formData: FormData) {
-  const machineId = String(formData.get("machineId") || "");
-  if (!machineId) {
-    return;
-  }
-
-  try {
-    await deleteMachine(machineId);
-  } catch (error) {
-    const message =
-      error instanceof Error
-        ? encodeURIComponent(error.message)
-        : encodeURIComponent("Verwijderen is niet gelukt.");
-    redirect(`/machines/${machineId}?error=${message}`);
-  }
-
-  revalidatePath("/machines");
-  revalidatePath("/keuringen/nieuw");
-  revalidatePath("/verhuur");
-  redirect("/machines?deleted=1");
 }

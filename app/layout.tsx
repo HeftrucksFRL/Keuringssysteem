@@ -24,10 +24,12 @@ export default function RootLayout({
           <header className="topbar">
             <div className="brand">
               <Image
-                src="/logo-heftrucks-frl.png"
+                className="brand-logo"
+                src="/heftrucks-friesland-logo.svg"
                 alt="Heftrucks Friesland"
-                width={180}
-                height={52}
+                width={196}
+                height={54}
+                unoptimized
                 priority
               />
               <span>Keuringssysteem</span>

@@ -11,7 +11,18 @@ interface MachinesTableProps {
   rentals: RentalRecord[];
 }
 
-function statusBadgeStyle(status: MachineRecord["availabilityStatus"]) {
+function archivedAt(machine: MachineRecord) {
+  return machine.configuration.__archivedAt ? new Date(machine.configuration.__archivedAt) : null;
+}
+
+function isArchived(machine: MachineRecord) {
+  return Boolean(archivedAt(machine));
+}
+
+function statusBadgeStyle(
+  status: MachineRecord["availabilityStatus"],
+  isStockMachine: boolean
+) {
   if (status === "rented") {
     return { background: "#dff6ec", color: "#0d8d59" };
   }
@@ -20,10 +31,17 @@ function statusBadgeStyle(status: MachineRecord["availabilityStatus"]) {
     return { background: "#fff0d8", color: "#d97706" };
   }
 
-  return { background: "#e6f0ff", color: "#175cd3" };
+  if (isStockMachine) {
+    return { background: "#e6f0ff", color: "#175cd3" };
+  }
+
+  return { background: "#eff3f8", color: "#526273" };
 }
 
-function statusLabel(status: MachineRecord["availabilityStatus"]) {
+function statusLabel(
+  status: MachineRecord["availabilityStatus"],
+  isStockMachine: boolean
+) {
   if (status === "rented") {
     return "In verhuur";
   }
@@ -32,7 +50,7 @@ function statusLabel(status: MachineRecord["availabilityStatus"]) {
     return "Onderhoud";
   }
 
-  return "Beschikbaar";
+  return isStockMachine ? "Beschikbaar" : "Bij klant";
 }
 
 function normalizeRentalOwnerText(value?: string | null) {
@@ -50,7 +68,7 @@ function isStockCustomer(customer?: CustomerRecord | null) {
 }
 
 function stockOwnerLabel() {
-  return "Eigen voorraad · Heftrucks.frl";
+  return "Eigen voorraad - Heftrucks.frl";
 }
 
 export function MachinesTable({
@@ -86,7 +104,8 @@ export function MachinesTable({
       const rentalCustomer = activeRental
         ? customers.find((customer) => customer.id === activeRental.customerId) ?? null
         : null;
-      const stockSearchTerms = isStockCustomer(owner)
+      const stockMachine = isStockCustomer(owner);
+      const stockSearchTerms = stockMachine
         ? ["voorraad", "eigen voorraad", "heftrucks.frl", "heftrucks friesland"]
         : [];
 
@@ -98,7 +117,8 @@ export function MachinesTable({
         machine.serialNumber,
         owner?.companyName,
         rentalCustomer?.companyName,
-        statusLabel(machine.availabilityStatus),
+        statusLabel(machine.availabilityStatus, stockMachine),
+        isArchived(machine) ? "gearchiveerd archief" : "",
         ...stockSearchTerms
       ]
         .filter(Boolean)
@@ -124,11 +144,19 @@ export function MachinesTable({
           const rentalCustomer = activeRental
             ? customers.find((customer) => customer.id === activeRental.customerId) ?? null
             : null;
+          const stockMachine = isStockCustomer(owner);
+          const archived = isArchived(machine);
           const ownerLabel = owner
-            ? isStockCustomer(owner)
+            ? stockMachine
               ? stockOwnerLabel()
               : owner.companyName
             : "-";
+          const badgeStyle = archived
+            ? { background: "#fee4e2", color: "#b42318" }
+            : statusBadgeStyle(machine.availabilityStatus, stockMachine);
+          const badgeLabel = archived
+            ? "Gearchiveerd"
+            : statusLabel(machine.availabilityStatus, stockMachine);
 
           return (
             <Link
@@ -136,16 +164,21 @@ export function MachinesTable({
               href={`/machines/${machine.id}`}
               key={machine.id}
               style={
-                activeRental
+                archived
                   ? {
-                      background: "#ecfdf3",
-                      borderColor: "#abefc6"
+                      background: "#fef3f2",
+                      borderColor: "#fecdca"
                     }
-                  : undefined
+                  : activeRental
+                    ? {
+                        background: "#ecfdf3",
+                        borderColor: "#abefc6"
+                      }
+                    : undefined
               }
             >
               <strong>
-                {[machine.brand, machine.model].filter(Boolean).join(" ") || "Machine"} ·{" "}
+                {[machine.brand, machine.model].filter(Boolean).join(" ") || "Machine"} -{" "}
                 {machine.internalNumber || machine.machineNumber}
               </strong>
               <span>Serienr: {machine.serialNumber || "-"}</span>
@@ -153,11 +186,11 @@ export function MachinesTable({
                 {activeRental
                   ? `Verhuurd aan ${rentalCustomer?.companyName ?? "-"}`
                   : ownerLabel}{" "}
-                · {titleCase(machine.machineType)}
+                - {titleCase(machine.machineType)}
               </span>
               <span>
-                <span className="badge" style={statusBadgeStyle(machine.availabilityStatus)}>
-                  {statusLabel(machine.availabilityStatus)}
+                <span className="badge" style={badgeStyle}>
+                  {badgeLabel}
                 </span>
               </span>
             </Link>

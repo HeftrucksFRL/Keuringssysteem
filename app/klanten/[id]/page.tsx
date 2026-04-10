@@ -13,6 +13,7 @@ import {
   getCustomerById,
   getCustomerContacts,
   getInspections,
+  getMachineArchivedAt,
   getMachines,
   getMachinesForCustomer,
   getRentalsForCustomer
@@ -44,9 +45,9 @@ export default async function CustomerDetailPage({
     notFound();
   }
 
-  const machines = await getMachinesForCustomer(customer.id);
+  const machines = await getMachinesForCustomer(customer.id, { includeArchived: true });
   const contacts = await getCustomerContacts(customer.id);
-  const allMachines = await getMachines();
+  const allMachines = await getMachines({ includeArchived: true });
   const rentals = await getRentalsForCustomer(customer.id);
   const inspections = (await getInspections()).filter(
     (inspection) => inspection.customerId === customer.id
@@ -211,13 +212,22 @@ export default async function CustomerDetailPage({
           <h2>Bij deze klant</h2>
           <div className="list">
             {machines.map((machine) => (
-              <Link className="list-item" key={machine.id} href={`/machines/${machine.id}`}>
+              <Link
+                className="list-item"
+                key={machine.id}
+                href={`/machines/${machine.id}`}
+                style={
+                  getMachineArchivedAt(machine)
+                    ? { background: "#fef3f2", borderColor: "#fecdca" }
+                    : undefined
+                }
+              >
                 <span>
                   <strong>{machine.internalNumber || machine.machineNumber}</strong>
                   <br />
                   {machine.brand} {machine.model}
                 </span>
-                <strong>Open</strong>
+                <strong>{getMachineArchivedAt(machine) ? "Gearchiveerd" : "Open"}</strong>
               </Link>
             ))}
             {rentals
@@ -234,7 +244,7 @@ export default async function CustomerDetailPage({
                     <span>
                       <strong>
                         {machine
-                          ? `${machine.internalNumber || machine.machineNumber} · ${machine.brand} ${machine.model}`.trim()
+                          ? `${machine.internalNumber || machine.machineNumber} - ${machine.brand} ${machine.model}`.trim()
                           : "Verhuurde machine"}
                       </strong>
                       <br />
@@ -258,7 +268,7 @@ export default async function CustomerDetailPage({
                     <span>
                       <strong>
                         {machine
-                          ? `${machine.internalNumber || machine.machineNumber} · ${machine.brand} ${machine.model}`.trim()
+                          ? `${machine.internalNumber || machine.machineNumber} - ${machine.brand} ${machine.model}`.trim()
                           : "Aanstaande huur"}
                       </strong>
                       <br />
