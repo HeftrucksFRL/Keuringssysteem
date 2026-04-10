@@ -11,6 +11,7 @@ import {
   updateMachineAction
 } from "@/app/machines/actions";
 import { CustomerPicker } from "@/components/customer-picker";
+import { MachinePicker } from "@/components/machine-picker";
 import { LinkedBatteryDialog } from "@/components/linked-battery-dialog";
 import {
   getAttachmentsForInspection,
@@ -135,6 +136,12 @@ export default async function MachineDetailPage({
           "vehicle_serial_number"
         ]
       : [];
+  const linkableMachines = machines.filter(
+    (item) =>
+      item.id !== machine.id &&
+      item.machineType !== "batterij_lader" &&
+      !item.configuration.__archivedAt
+  );
   const attachmentsByInspection = await Promise.all(
     history.map(async (inspection) => ({
       inspectionId: inspection.id,
@@ -456,16 +463,19 @@ export default async function MachineDetailPage({
               </div>
             </form>
           ) : null}
-          {!isArchived &&
-          machine.machineType === "batterij_lader" &&
-          isRentalStockMachine &&
-          !linkedMachine ? (
-            <form action={assignMachineToCustomerAction} style={{ marginTop: "1rem" }}>
-              <input type="hidden" name="machineId" value={machine.id} />
-              <CustomerPicker customers={assignableCustomers} defaultCustomerId="" label="Koppelen aan klant" required />
+          {!isArchived && machine.machineType === "batterij_lader" && !linkedMachine ? (
+            <form action={saveBatteryChargerLinkAction} style={{ marginTop: "1rem" }}>
+              <input type="hidden" name="batteryMachineId" value={machine.id} />
+              <input type="hidden" name="redirectTo" value={`/machines/${machine.id}`} />
+              <MachinePicker
+                machines={linkableMachines}
+                defaultMachineId=""
+                label="Koppelen aan machine"
+                placeholder="Zoek op intern nummer of serienummer"
+              />
               <div className="actions">
                 <button className="button-secondary" type="submit">
-                  Koppelen aan klant
+                  Koppelen aan machine
                 </button>
               </div>
             </form>
