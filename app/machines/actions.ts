@@ -182,6 +182,42 @@ export async function assignMachineToCustomerAction(formData: FormData) {
   redirect(`/machines/${machineId}?assigned=1`);
 }
 
+export async function assignMachineToStockAction(formData: FormData) {
+  const machineId = String(formData.get("machineId") || "");
+  if (!machineId) {
+    return;
+  }
+
+  const stockCustomerId = await ensureRentalStockCustomerId();
+
+  let affectedInspectionIds: string[] = [];
+
+  try {
+    affectedInspectionIds = await assignMachineToCustomer({
+      machineId,
+      customerId: stockCustomerId
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? encodeURIComponent(error.message)
+        : encodeURIComponent("Machine terugzetten naar voorraad is niet gelukt.");
+    redirect(`/machines/${machineId}?error=${message}`);
+  }
+
+  revalidatePath("/machines");
+  revalidatePath(`/machines/${machineId}`);
+  revalidatePath("/klanten");
+  revalidatePath("/keuringen");
+  revalidatePath("/keuringen/nieuw");
+  revalidatePath("/verhuur");
+  for (const inspectionId of affectedInspectionIds) {
+    revalidatePath(`/keuringen/${inspectionId}`);
+  }
+
+  redirect(`/machines/${machineId}?detached=1`);
+}
+
 export async function saveBatteryChargerLinkAction(formData: FormData) {
   const batteryMachineId = String(formData.get("batteryMachineId") || "");
   const removeLink = String(formData.get("remove_link") || "").trim() === "1";

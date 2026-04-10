@@ -5,6 +5,7 @@ import type { MachineRecord } from "@/lib/domain";
 import { completeRentalAction, createRentalAction } from "@/app/verhuur/actions";
 import {
   archiveMachineAction,
+  assignMachineToStockAction,
   assignMachineToCustomerAction,
   saveBatteryChargerLinkAction,
   unarchiveMachineAction,
@@ -96,6 +97,7 @@ export default async function MachineDetailPage({
     saved?: string;
     created?: string;
     assigned?: string;
+    detached?: string;
     rented?: string;
     returned?: string;
     unarchived?: string;
@@ -211,6 +213,9 @@ export default async function MachineDetailPage({
               ? "Batterij / lader gekoppeld aan klant."
               : "Machine gekoppeld aan klant."}
           </p>
+        ) : null}
+        {query?.detached ? (
+          <p className="form-message success">Machine teruggezet naar voorraad.</p>
         ) : null}
         {query?.rented ? <p className="form-message success">Verhuur gestart.</p> : null}
         {query?.returned ? <p className="form-message success">Verhuur afgerond.</p> : null}
@@ -447,7 +452,7 @@ export default async function MachineDetailPage({
               )}
             </div>
           ) : null}
-          {!isArchived && machine.machineType !== "batterij_lader" ? (
+          {!isArchived && machine.machineType !== "batterij_lader" && isRentalStockMachine ? (
             <form action={assignMachineToCustomerAction} style={{ marginTop: "1rem" }}>
               <input type="hidden" name="machineId" value={machine.id} />
               <CustomerPicker
@@ -459,6 +464,16 @@ export default async function MachineDetailPage({
               <div className="actions">
                 <button className="button-secondary" type="submit">
                   {isRentalStockMachine ? "Machine verplaatsen" : "Machine koppelen"}
+                </button>
+              </div>
+            </form>
+          ) : null}
+          {!isArchived && machine.machineType !== "batterij_lader" && !isRentalStockMachine ? (
+            <form action={assignMachineToStockAction} style={{ marginTop: "1rem" }}>
+              <input type="hidden" name="machineId" value={machine.id} />
+              <div className="actions">
+                <button className="button-secondary" type="submit">
+                  Machine ontkoppelen
                 </button>
               </div>
             </form>
