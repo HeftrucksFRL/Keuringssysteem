@@ -187,6 +187,7 @@ export async function assignMachineToStockAction(formData: FormData) {
   if (!machineId) {
     return;
   }
+  const archiveAfter = String(formData.get("archive_after") || "").trim() === "1";
 
   const stockCustomerId = await ensureRentalStockCustomerId();
 
@@ -215,12 +216,20 @@ export async function assignMachineToStockAction(formData: FormData) {
     revalidatePath(`/keuringen/${inspectionId}`);
   }
 
+  if (archiveAfter) {
+    await archiveMachine(machineId);
+    revalidatePath("/machines");
+    revalidatePath(`/machines/${machineId}`);
+    redirect(`/machines/${machineId}?detachedArchived=1`);
+  }
+
   redirect(`/machines/${machineId}?detached=1`);
 }
 
 export async function saveBatteryChargerLinkAction(formData: FormData) {
   const batteryMachineId = String(formData.get("batteryMachineId") || "");
   const removeLink = String(formData.get("remove_link") || "").trim() === "1";
+  const archiveAfter = String(formData.get("archive_after") || "").trim() === "1";
   const linkedMachineId = removeLink ? "" : String(formData.get("linked_machine_id") || "").trim();
   const redirectTo =
     String(formData.get("redirectTo") || "").trim() || `/machines/${batteryMachineId}`;
@@ -234,6 +243,17 @@ export async function saveBatteryChargerLinkAction(formData: FormData) {
       batteryMachineId,
       linkedMachineId: linkedMachineId || undefined
     });
+
+    if (removeLink) {
+      const stockCustomerId = await ensureRentalStockCustomerId();
+      await assignMachineToCustomer({
+        machineId: batteryMachineId,
+        customerId: stockCustomerId
+      });
+      if (archiveAfter) {
+        await archiveMachine(batteryMachineId);
+      }
+    }
   } catch (error) {
     const message =
       error instanceof Error
@@ -251,9 +271,16 @@ export async function saveBatteryChargerLinkAction(formData: FormData) {
   }
   revalidatePath("/klanten");
   revalidatePath("/keuringen/nieuw");
+  revalidatePath("/verhuur");
 
   redirect(
-    `${redirectTo}${redirectTo.includes("?") ? "&" : "?"}${linkedMachineId ? "batteryLinked=1" : "batteryUnlinked=1"}` as Route
+    `${redirectTo}${redirectTo.includes("?") ? "&" : "?"}${
+      linkedMachineId
+        ? "batteryLinked=1"
+        : archiveAfter
+          ? "detachedArchived=1"
+          : "batteryUnlinked=1"
+    }` as Route
   );
 }
 

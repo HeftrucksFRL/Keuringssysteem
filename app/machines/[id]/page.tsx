@@ -98,6 +98,7 @@ export default async function MachineDetailPage({
     created?: string;
     assigned?: string;
     detached?: string;
+    detachedArchived?: string;
     rented?: string;
     returned?: string;
     unarchived?: string;
@@ -215,7 +216,18 @@ export default async function MachineDetailPage({
           </p>
         ) : null}
         {query?.detached ? (
-          <p className="form-message success">Machine teruggezet naar voorraad.</p>
+          <p className="form-message success">
+            {machine.machineType === "batterij_lader"
+              ? "Batterij / lader teruggezet naar voorraad."
+              : "Machine teruggezet naar voorraad."}
+          </p>
+        ) : null}
+        {query?.detachedArchived ? (
+          <p className="form-message success">
+            {machine.machineType === "batterij_lader"
+              ? "Batterij / lader losgekoppeld en gearchiveerd."
+              : "Machine losgekoppeld en gearchiveerd."}
+          </p>
         ) : null}
         {query?.rented ? <p className="form-message success">Verhuur gestart.</p> : null}
         {query?.returned ? <p className="form-message success">Verhuur afgerond.</p> : null}
@@ -404,9 +416,20 @@ export default async function MachineDetailPage({
             <form action={saveBatteryChargerLinkAction} style={{ marginTop: "1rem" }}>
               <input type="hidden" name="batteryMachineId" value={machine.id} />
               <input type="hidden" name="redirectTo" value={`/machines/${machine.id}`} />
-              <button className="button-secondary" type="submit" name="remove_link" value="1">
-                Koppeling machine verwijderen
-              </button>
+              <input type="hidden" name="remove_link" value="1" />
+              <div className="actions">
+                <button className="button-secondary" type="submit">
+                  Terug naar voorraad
+                </button>
+                <button
+                  className="button-secondary"
+                  type="submit"
+                  name="archive_after"
+                  value="1"
+                >
+                  Ontkoppelen en archiveren
+                </button>
+              </div>
             </form>
           ) : null}
           {machine.machineType === "batterij_lader" && !isArchived && !linkedMachine ? (
@@ -473,7 +496,15 @@ export default async function MachineDetailPage({
               <input type="hidden" name="machineId" value={machine.id} />
               <div className="actions">
                 <button className="button-secondary" type="submit">
-                  Machine ontkoppelen
+                  Terug naar voorraad
+                </button>
+                <button
+                  className="button-secondary"
+                  type="submit"
+                  name="archive_after"
+                  value="1"
+                >
+                  Ontkoppelen en archiveren
                 </button>
               </div>
             </form>
