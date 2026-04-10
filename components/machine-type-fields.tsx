@@ -66,8 +66,7 @@ function groupedFieldKeys(machineType: MachineType) {
         "battery_brand",
         "battery_serial_number",
         "battery_internal_number",
-        "drawing_number",
-        "battery_sticker_number"
+        "drawing_number"
       ])
     },
     {
@@ -79,7 +78,6 @@ function groupedFieldKeys(machineType: MachineType) {
         "charger_serial_number",
         "charger_internal_number",
         "charger_voltage",
-        "charger_sticker_number",
         "double_insulated"
       ])
     }
@@ -97,27 +95,32 @@ export function MachineTypeFields({
 
   return (
     <>
-      {groups.map((group) => (
-        <div key={group.key} style={{ marginTop: group.title ? "1rem" : 0 }}>
-          {group.title ? <div className="eyebrow">{group.title}</div> : null}
-          <div className="form-grid-wide">
-            {group.fields
-              .filter((field) => !hiddenKeySet.has(field.key))
-              .map((field) => (
-              <div className="field" key={field.key}>
-                <label htmlFor={field.key}>{field.label}</label>
-                <input
-                  id={field.key}
-                  name={field.key}
-                  type={field.type ?? "text"}
-                  defaultValue={values[field.key] ?? ""}
-                  disabled={disabled}
-                />
-              </div>
-            ))}
+      {groups.map((group) => {
+        const visibleFields = group.fields.filter((field) => !hiddenKeySet.has(field.key));
+        if (visibleFields.length === 0) {
+          return null;
+        }
+
+        return (
+          <div key={group.key} style={{ marginTop: group.title ? "1rem" : 0 }}>
+            {group.title ? <div className="eyebrow">{group.title}</div> : null}
+            <div className="form-grid-wide">
+              {visibleFields.map((field) => (
+                <div className="field" key={field.key}>
+                  <label htmlFor={field.key}>{field.label}</label>
+                  <input
+                    id={field.key}
+                    name={field.key}
+                    type={field.type ?? "text"}
+                    defaultValue={values[field.key] ?? ""}
+                    disabled={disabled}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </>
   );
 }

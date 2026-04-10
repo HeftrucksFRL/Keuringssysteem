@@ -27,7 +27,7 @@ export function MachineCreateFields({
   );
 
   const hiddenVehicleFields =
-    machineType === "batterij_lader" && !skipLink && selectedLinkedMachine
+    machineType === "batterij_lader"
       ? [
           "vehicle_brand",
           "vehicle_type",

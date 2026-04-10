@@ -32,14 +32,20 @@ function getMachinePayload(formData: FormData, machineType: MachineType) {
 
   const brand =
     fieldValues.brand ||
+    fieldValues.battery_brand ||
+    fieldValues.charger_brand ||
     fieldValues.vehicle_brand ||
     String(formData.get("brand") || "");
   const model =
     fieldValues.model ||
+    fieldValues.battery_type ||
+    fieldValues.charger_type ||
     fieldValues.vehicle_type ||
     String(formData.get("model") || "");
   const serialNumber =
     fieldValues.serial_number ||
+    fieldValues.battery_serial_number ||
+    fieldValues.charger_serial_number ||
     fieldValues.vehicle_serial_number ||
     String(formData.get("serialNumber") || "");
   const buildYear =
@@ -48,6 +54,8 @@ function getMachinePayload(formData: FormData, machineType: MachineType) {
     String(formData.get("buildYear") || "");
   const internalNumber =
     fieldValues.internal_number ||
+    fieldValues.battery_internal_number ||
+    fieldValues.charger_internal_number ||
     fieldValues.vehicle_internal_number ||
     String(formData.get("internalNumber") || "");
 

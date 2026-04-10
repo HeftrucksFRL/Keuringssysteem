@@ -71,6 +71,48 @@ function stockOwnerLabel() {
   return "Eigen voorraad - Heftrucks.frl";
 }
 
+function machineDisplayTitle(machine: MachineRecord) {
+  if (machine.machineType === "batterij_lader") {
+    const batteryBrand = machine.configuration.battery_brand || machine.brand;
+    const batteryType = machine.configuration.battery_type || machine.model;
+    const chargerBrand = machine.configuration.charger_brand || "";
+    const chargerType = machine.configuration.charger_type || "";
+
+    return (
+      [batteryBrand, batteryType].filter(Boolean).join(" ") ||
+      [chargerBrand, chargerType].filter(Boolean).join(" ") ||
+      "Batterij / lader"
+    );
+  }
+
+  return [machine.brand, machine.model].filter(Boolean).join(" ") || "Machine";
+}
+
+function machineDisplayInternal(machine: MachineRecord) {
+  if (machine.machineType === "batterij_lader") {
+    return (
+      machine.configuration.battery_internal_number ||
+      machine.configuration.charger_internal_number ||
+      machine.internalNumber ||
+      machine.machineNumber
+    );
+  }
+
+  return machine.internalNumber || machine.machineNumber;
+}
+
+function machineDisplaySerial(machine: MachineRecord) {
+  if (machine.machineType === "batterij_lader") {
+    return (
+      machine.configuration.battery_serial_number ||
+      machine.configuration.charger_serial_number ||
+      machine.serialNumber
+    );
+  }
+
+  return machine.serialNumber;
+}
+
 export function MachinesTable({
   machines,
   customers,
@@ -112,9 +154,17 @@ export function MachinesTable({
       return [
         machine.machineNumber,
         machine.internalNumber,
+        machine.configuration.battery_internal_number,
+        machine.configuration.charger_internal_number,
         machine.brand,
         machine.model,
         machine.serialNumber,
+        machine.configuration.battery_brand,
+        machine.configuration.battery_type,
+        machine.configuration.battery_serial_number,
+        machine.configuration.charger_brand,
+        machine.configuration.charger_type,
+        machine.configuration.charger_serial_number,
         owner?.companyName,
         rentalCustomer?.companyName,
         statusLabel(machine.availabilityStatus, stockMachine),
@@ -178,10 +228,9 @@ export function MachinesTable({
               }
             >
               <strong>
-                {[machine.brand, machine.model].filter(Boolean).join(" ") || "Machine"} -{" "}
-                {machine.internalNumber || machine.machineNumber}
+                {machineDisplayTitle(machine)} - {machineDisplayInternal(machine) || "-"}
               </strong>
-              <span>Serienr: {machine.serialNumber || "-"}</span>
+              <span>Serienr: {machineDisplaySerial(machine) || "-"}</span>
               <span>
                 {activeRental
                   ? `Verhuurd aan ${rentalCustomer?.companyName ?? "-"}`

@@ -56,10 +56,15 @@ function machineTitle(machine: MachineRecord | null) {
   }
 
   if (machine.machineType === "batterij_lader") {
-    const vehicleBrand = machine.configuration.vehicle_brand || machine.brand;
-    const vehicleType = machine.configuration.vehicle_type || machine.model;
-    const internal = machine.configuration.vehicle_internal_number || machine.internalNumber || machine.machineNumber;
-    return [vehicleBrand, vehicleType, internal].filter(Boolean).join(" - ") || "Batterij / lader";
+    const batteryBrand = machine.configuration.battery_brand || machine.brand;
+    const batteryType = machine.configuration.battery_type || machine.model;
+    const chargerBrand = machine.configuration.charger_brand || "";
+    const chargerType = machine.configuration.charger_type || "";
+    return (
+      [batteryBrand, batteryType].filter(Boolean).join(" ") ||
+      [chargerBrand, chargerType].filter(Boolean).join(" ") ||
+      "Batterij / lader"
+    );
   }
 
   return [machine.brand, machine.model].filter(Boolean).join(" ") || "Machine";
@@ -122,7 +127,7 @@ export default async function MachineDetailPage({
       ? machines.find((item) => item.id === linkedMachineId) ?? null
       : null;
   const hiddenBatteryVehicleFields =
-    machine.machineType === "batterij_lader" && linkedMachine
+    machine.machineType === "batterij_lader"
       ? [
           "vehicle_brand",
           "vehicle_type",
@@ -263,11 +268,11 @@ export default async function MachineDetailPage({
             </div>
           </div>
           <MachineTypeFields
-            machineType={machine.machineType}
-            values={machineFormValues(machine)}
-            disabled={isArchived}
-            hiddenKeys={hiddenBatteryVehicleFields}
-          />
+          machineType={machine.machineType}
+          values={machineFormValues(machine)}
+          disabled={isArchived}
+          hiddenKeys={hiddenBatteryVehicleFields}
+        />
           {machine.machineType === "batterij_lader" && linkedMachine ? (
             <div className="selected-summary" style={{ marginTop: "1rem" }}>
               <strong>Voertuig volgt uit gekoppelde machine</strong>
@@ -413,7 +418,7 @@ export default async function MachineDetailPage({
                     id: item.id,
                     customerId: item.customerId,
                     title:
-                      [item.configuration.vehicle_brand || item.brand, item.configuration.vehicle_type || item.model]
+                      [item.configuration.battery_brand || item.brand, item.configuration.battery_type || item.model]
                         .filter(Boolean)
                         .join(" ") || "Batterij / lader",
                     internalNumber:
