@@ -198,7 +198,13 @@ export default async function MachineDetailPage({
         ) : null}
         {query?.saved ? <p className="form-message success">Machine opgeslagen.</p> : null}
         {query?.created ? <p className="form-message success">Machine toegevoegd.</p> : null}
-        {query?.assigned ? <p className="form-message success">Machine gekoppeld aan klant.</p> : null}
+        {query?.assigned ? (
+          <p className="form-message success">
+            {machine.machineType === "batterij_lader"
+              ? "Batterij / lader gekoppeld aan klant."
+              : "Machine gekoppeld aan klant."}
+          </p>
+        ) : null}
         {query?.rented ? <p className="form-message success">Verhuur gestart.</p> : null}
         {query?.returned ? <p className="form-message success">Verhuur afgerond.</p> : null}
         {query?.unarchived ? <p className="form-message success">Archiveren is ongedaan gemaakt.</p> : null}
@@ -296,7 +302,11 @@ export default async function MachineDetailPage({
             {isRentalStockMachine ? (
               <div className="list-item">
                 <span>Status</span>
-                <strong>Machine in voorraad</strong>
+                <strong>
+                  {machine.machineType === "batterij_lader"
+                    ? "Batterij / lader in voorraad"
+                    : "Machine in voorraad"}
+                </strong>
               </div>
             ) : (
               <>
@@ -446,7 +456,21 @@ export default async function MachineDetailPage({
               </div>
             </form>
           ) : null}
-          {isRentalStockMachine && !isArchived ? (
+          {!isArchived &&
+          machine.machineType === "batterij_lader" &&
+          isRentalStockMachine &&
+          !linkedMachine ? (
+            <form action={assignMachineToCustomerAction} style={{ marginTop: "1rem" }}>
+              <input type="hidden" name="machineId" value={machine.id} />
+              <CustomerPicker customers={assignableCustomers} defaultCustomerId="" label="Koppelen aan klant" required />
+              <div className="actions">
+                <button className="button-secondary" type="submit">
+                  Koppelen aan klant
+                </button>
+              </div>
+            </form>
+          ) : null}
+          {isRentalStockMachine && !isArchived && machine.machineType !== "batterij_lader" ? (
             <div className="actions" style={{ marginTop: "0.75rem" }}>
               <a className="button-secondary" href="#verhuur">
                 Start verhuur
@@ -456,6 +480,7 @@ export default async function MachineDetailPage({
         </article>
       </section>
 
+      {machine.machineType !== "batterij_lader" ? (
       <section className="grid-2" id="verhuur" style={{ marginTop: "1rem" }}>
         <article className="panel">
           <div className="eyebrow">Verhuur</div>
@@ -558,6 +583,7 @@ export default async function MachineDetailPage({
           ) : null}
         </article>
       </section>
+      ) : null}
 
       <section className="panel" style={{ marginTop: "1rem" }}>
         <div className="eyebrow">Historie</div>
