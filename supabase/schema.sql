@@ -259,6 +259,14 @@ alter table public.inspection_attachments enable row level security;
 alter table public.mail_events enable row level security;
 alter table public.planning_items enable row level security;
 alter table public.rentals enable row level security;
+alter table public.profiles enable row level security;
+alter table public.inspection_sequences enable row level security;
+
+create policy "authenticated read own profile" on public.profiles
+for select to authenticated using (auth.uid() = id);
+
+create policy "authenticated update own profile" on public.profiles
+for update to authenticated using (auth.uid() = id) with check (auth.uid() = id);
 
 create policy "authenticated read customers" on public.customers
 for select to authenticated using (true);
