@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "prepare:battery-import": "node scripts/prepare-battery-lader-import.mjs"
+    "prepare:battery-import": "node scripts/prepare-battery-lader-import.mjs",
+    "import:battery-laders": "node scripts/import-battery-laders.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
