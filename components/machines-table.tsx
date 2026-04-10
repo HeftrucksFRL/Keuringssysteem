@@ -80,19 +80,33 @@ export function MachinesTable({
       return machines;
     }
 
-    return machines.filter((machine) =>
-      [
+    return machines.filter((machine) => {
+      const owner = customers.find((customer) => customer.id === machine.customerId) ?? null;
+      const activeRental = activeRentalsByMachine.get(machine.id);
+      const rentalCustomer = activeRental
+        ? customers.find((customer) => customer.id === activeRental.customerId) ?? null
+        : null;
+      const stockSearchTerms = isStockCustomer(owner)
+        ? ["voorraad", "eigen voorraad", "heftrucks.frl", "heftrucks friesland"]
+        : [];
+
+      return [
         machine.machineNumber,
         machine.internalNumber,
         machine.brand,
         machine.model,
-        machine.serialNumber
+        machine.serialNumber,
+        owner?.companyName,
+        rentalCustomer?.companyName,
+        statusLabel(machine.availabilityStatus),
+        ...stockSearchTerms
       ]
+        .filter(Boolean)
         .join(" ")
         .toLowerCase()
-        .includes(needle)
-    );
-  }, [machines, query]);
+        .includes(needle);
+    });
+  }, [activeRentalsByMachine, customers, machines, query]);
 
   return (
     <>
@@ -100,7 +114,7 @@ export function MachinesTable({
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Zoek op intern nummer, merk, type of serienummer"
+          placeholder="Zoek op intern nummer, merk, type, serienummer of voorraad"
         />
       </div>
       <div className="dataset-list">

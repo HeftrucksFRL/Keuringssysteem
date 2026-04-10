@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { completeRentalAction, createRentalAction } from "@/app/verhuur/actions";
 import { CustomerPicker } from "@/components/customer-picker";
+import { RentalStockList } from "@/components/rental-stock-list";
 import {
   getCustomerDisplayName,
   getRentalStockMachines,
@@ -128,40 +129,12 @@ export default async function RentalsPage({
 
       <section style={{ marginTop: "1rem" }}>
         <div className="eyebrow">Voorraad</div>
-        <div className="list compact-list" style={{ marginTop: "0.75rem" }}>
-          {stockMachines.map((machine) => {
-            const activeRental = groups.active.find((rental) => rental.machineId === machine.id);
-            const rentalCustomer = activeRental
-              ? customers.find((customer) => customer.id === activeRental.customerId) ?? null
-              : null;
-
-            return (
-              <Link
-                className="list-item"
-                key={machine.id}
-                href={`/machines/${machine.id}`}
-                style={
-                  machine.availabilityStatus === "rented"
-                    ? { background: "#ecfdf3", borderColor: "#abefc6" }
-                    : { background: "#f5f3ff", borderColor: "#d9d6fe" }
-                }
-              >
-                <span>
-                  <strong>
-                    {machine.internalNumber || machine.machineNumber} · {machine.brand} {machine.model}
-                  </strong>
-                  <br />
-                  {stockOwnerLabel()}
-                  <br />
-                  {activeRental
-                    ? `Verhuurd aan ${getCustomerDisplayName(rentalCustomer)}`
-                    : "Op voorraad"}
-                </span>
-                <strong>{activeRental ? "In verhuur" : "Open"}</strong>
-              </Link>
-            );
-          })}
-        </div>
+        <RentalStockList
+          customers={customers}
+          rentals={rentals}
+          stockMachines={stockMachines}
+          stockOwnerLabel={stockOwnerLabel()}
+        />
       </section>
 
       {visibleGroups.map((group) => (
