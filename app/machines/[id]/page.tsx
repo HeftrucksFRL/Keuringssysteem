@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Route } from "next";
+import type { MachineRecord } from "@/lib/domain";
 import { completeRentalAction, createRentalAction } from "@/app/verhuur/actions";
 import {
   archiveMachineAction,
@@ -20,9 +21,9 @@ import {
   isMachineArchiveLocked,
   isRentalStockCustomer
 } from "@/lib/inspection-service";
-import { getFormDefinition } from "@/lib/form-definitions";
 import { fileUrl } from "@/lib/file-urls";
 import { titleCase } from "@/lib/utils";
+import { MachineTypeFields } from "@/components/machine-type-fields";
 
 function rentalPhase(rental: { startDate: string; endDate: string; status: "active" | "completed" }) {
   const today = new Date().toISOString().slice(0, 10);
@@ -41,6 +42,38 @@ function formatDate(value?: Date | null) {
   }
 
   return new Intl.DateTimeFormat("nl-NL").format(value);
+}
+
+function machineTitle(machine: MachineRecord | null) {
+  if (!machine) {
+    return "Machine";
+  }
+
+  if (machine.machineType === "batterij_lader") {
+    const vehicleBrand = machine.configuration.vehicle_brand || machine.brand;
+    const vehicleType = machine.configuration.vehicle_type || machine.model;
+    const internal = machine.configuration.vehicle_internal_number || machine.internalNumber || machine.machineNumber;
+    return [vehicleBrand, vehicleType, internal].filter(Boolean).join(" - ") || "Batterij / lader";
+  }
+
+  return [machine.brand, machine.model].filter(Boolean).join(" ") || "Machine";
+}
+
+function machineFormValues(machine: MachineRecord) {
+  return {
+    brand: machine.brand,
+    model: machine.model,
+    serial_number: machine.serialNumber,
+    build_year: machine.buildYear,
+    internal_number: machine.internalNumber || machine.machineNumber || "",
+    vehicle_brand: machine.configuration.vehicle_brand ?? machine.brand,
+    vehicle_type: machine.configuration.vehicle_type ?? machine.model,
+    vehicle_build_year: machine.configuration.vehicle_build_year ?? machine.buildYear,
+    vehicle_internal_number:
+      machine.configuration.vehicle_internal_number ?? machine.internalNumber ?? machine.machineNumber,
+    vehicle_serial_number: machine.configuration.vehicle_serial_number ?? machine.serialNumber,
+    ...machine.configuration
+  };
 }
 
 export default async function MachineDetailPage({
@@ -70,21 +103,6 @@ export default async function MachineDetailPage({
   const customer = customers.find((item) => item.id === machine.customerId) ?? null;
   const history = await getMachineHistory(machine.id);
   const rentals = await getRentalsForMachine(machine.id);
-  const form = getFormDefinition(machine.machineType);
-  const extraFields = form.machineFields.filter(
-    (field) =>
-      !field.key.startsWith("customer_") &&
-      ![
-        "brand",
-        "model",
-        "build_year",
-        "internal_number",
-        "serial_number",
-        "inspection_date",
-        "sticker_number",
-        "machine_number"
-      ].includes(field.key)
-  );
   const attachmentsByInspection = await Promise.all(
     history.map(async (inspection) => ({
       inspectionId: inspection.id,
@@ -122,8 +140,10 @@ export default async function MachineDetailPage({
   return (
     <>
       <section className="hero">
-        <div className="eyebrow">Machinedossier</div>
-        <h1>{[machine.brand, machine.model].filter(Boolean).join(" ") || "Machine"}</h1>
+        <div className="eyebrow">
+          {machine.machineType === "batterij_lader" ? "Batterij / lader kaart" : "Machinedossier"}
+        </div>
+        <h1>{machineTitle(machine)}</h1>
         <p>
           {isArchived
             ? `Deze machine is gearchiveerd. Controleer hieronder de archiefstatus en open alleen nog het dossier als naslag.`
@@ -187,7 +207,9 @@ export default async function MachineDetailPage({
 
       <section className="grid-2" style={{ marginTop: "1rem" }}>
         <form action={updateMachineAction} className="panel">
-          <div className="eyebrow">Machinekaart</div>
+          <div className="eyebrow">
+            {machine.machineType === "batterij_lader" ? "Batterij / lader kaart" : "Machinekaart"}
+          </div>
           <input type="hidden" name="id" value={machine.id} />
           <input type="hidden" name="machineType" value={machine.machineType} />
           <div className="list" style={{ marginBottom: "1rem" }}>
@@ -196,50 +218,11 @@ export default async function MachineDetailPage({
               <strong>{titleCase(machine.machineType)}</strong>
             </div>
           </div>
-          <div className="form-grid-wide">
-            <div className="field">
-              <label htmlFor="brand">Merk</label>
-              <input id="brand" name="brand" defaultValue={machine.brand} disabled={isArchived} />
-            </div>
-            <div className="field">
-              <label htmlFor="model">Type</label>
-              <input id="model" name="model" defaultValue={machine.model} disabled={isArchived} />
-            </div>
-            <div className="field">
-              <label htmlFor="serialNumber">Serienummer</label>
-              <input
-                id="serialNumber"
-                name="serialNumber"
-                defaultValue={machine.serialNumber}
-                disabled={isArchived}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="buildYear">Bouwjaar</label>
-              <input id="buildYear" name="buildYear" defaultValue={machine.buildYear} disabled={isArchived} />
-            </div>
-            <div className="field">
-              <label htmlFor="internalNumber">Intern nummer</label>
-              <input
-                id="internalNumber"
-                name="internalNumber"
-                defaultValue={machine.internalNumber}
-                disabled={isArchived}
-              />
-            </div>
-            {extraFields.map((field) => (
-              <div className="field" key={field.key}>
-                <label htmlFor={field.key}>{field.label}</label>
-                <input
-                  id={field.key}
-                  name={field.key}
-                  type={field.type ?? "text"}
-                  defaultValue={machine.configuration[field.key] ?? ""}
-                  disabled={isArchived}
-                />
-              </div>
-            ))}
-          </div>
+          <MachineTypeFields
+            machineType={machine.machineType}
+            values={machineFormValues(machine)}
+            disabled={isArchived}
+          />
           <div className="actions">
             {isArchived ? (
               <span className="muted">

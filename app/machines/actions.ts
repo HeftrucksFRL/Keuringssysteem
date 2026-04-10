@@ -13,23 +13,77 @@ import {
   updateMachine
 } from "@/lib/inspection-service";
 import { getFormDefinition } from "@/lib/form-definitions";
+import type { MachineType } from "@/lib/types";
+
+function getMachinePayload(formData: FormData, machineType: MachineType) {
+  const definition = getFormDefinition(machineType);
+  const fieldValues = Object.fromEntries(
+    definition.machineFields
+      .filter(
+        (field) =>
+          !field.key.startsWith("customer_") &&
+          field.key !== "inspection_date" &&
+          field.key !== "machine_number"
+      )
+      .map((field) => [field.key, String(formData.get(field.key) || "")])
+  );
+
+  const brand =
+    fieldValues.brand ||
+    fieldValues.vehicle_brand ||
+    String(formData.get("brand") || "");
+  const model =
+    fieldValues.model ||
+    fieldValues.vehicle_type ||
+    String(formData.get("model") || "");
+  const serialNumber =
+    fieldValues.serial_number ||
+    fieldValues.vehicle_serial_number ||
+    String(formData.get("serialNumber") || "");
+  const buildYear =
+    fieldValues.build_year ||
+    fieldValues.vehicle_build_year ||
+    String(formData.get("buildYear") || "");
+  const internalNumber =
+    fieldValues.internal_number ||
+    fieldValues.vehicle_internal_number ||
+    String(formData.get("internalNumber") || "");
+
+  const details = Object.fromEntries(
+    Object.entries(fieldValues).filter(
+      ([key, value]) =>
+        !["brand", "model", "serial_number", "build_year", "internal_number"].includes(key) &&
+        value.trim()
+    )
+  );
+
+  return {
+    brand,
+    model,
+    serialNumber,
+    buildYear,
+    internalNumber,
+    details
+  };
+}
 
 export async function createMachineAction(formData: FormData) {
   const toStock = String(formData.get("toStock") || "") === "1";
   const customerId = toStock
     ? await ensureRentalStockCustomerId()
     : String(formData.get("customerId") || "");
+  const machineType = String(formData.get("machineType") || "heftruck_reachtruck") as MachineType;
+  const payload = getMachinePayload(formData, machineType);
 
   const id = await createMachine({
     customerId,
-    machineType: String(formData.get("machineType") || "heftruck_reachtruck") as Parameters<
-      typeof createMachine
-    >[0]["machineType"],
-    brand: String(formData.get("brand") || ""),
-    model: String(formData.get("model") || ""),
-    serialNumber: String(formData.get("serialNumber") || ""),
-    buildYear: String(formData.get("buildYear") || ""),
-    internalNumber: String(formData.get("internalNumber") || "")
+    machineType,
+    brand: payload.brand,
+    model: payload.model,
+    serialNumber: payload.serialNumber,
+    buildYear: payload.buildYear,
+    internalNumber: payload.internalNumber,
+    details: payload.details
   });
 
   revalidatePath("/machines");
@@ -41,20 +95,8 @@ export async function createMachineAction(formData: FormData) {
 
 export async function updateMachineAction(formData: FormData) {
   const id = String(formData.get("id") || "");
-  const machineType = String(formData.get("machineType") || "heftruck_reachtruck") as Parameters<
-    typeof updateMachine
-  >[0]["machineType"];
-  const definition = getFormDefinition(machineType);
-  const extraDetails = Object.fromEntries(
-    definition.machineFields
-      .filter(
-        (field) =>
-          !field.key.startsWith("customer_") &&
-          !["brand", "model", "build_year", "internal_number", "serial_number", "inspection_date", "sticker_number", "machine_number"].includes(field.key)
-      )
-      .map((field) => [field.key, String(formData.get(field.key) || "")])
-      .filter(([, value]) => value.trim())
-  );
+  const machineType = String(formData.get("machineType") || "heftruck_reachtruck") as MachineType;
+  const payload = getMachinePayload(formData, machineType);
 
   let affectedInspectionIds: string[] = [];
 
@@ -62,12 +104,12 @@ export async function updateMachineAction(formData: FormData) {
     affectedInspectionIds = await updateMachine({
       id,
       machineType,
-      brand: String(formData.get("brand") || ""),
-      model: String(formData.get("model") || ""),
-      serialNumber: String(formData.get("serialNumber") || ""),
-      buildYear: String(formData.get("buildYear") || ""),
-      internalNumber: String(formData.get("internalNumber") || ""),
-      details: extraDetails
+      brand: payload.brand,
+      model: payload.model,
+      serialNumber: payload.serialNumber,
+      buildYear: payload.buildYear,
+      internalNumber: payload.internalNumber,
+      details: payload.details
     });
   } catch (error) {
     const message =

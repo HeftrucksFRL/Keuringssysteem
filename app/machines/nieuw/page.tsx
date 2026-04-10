@@ -3,17 +3,7 @@ import type { MachineType } from "@/lib/types";
 import { getCustomerById, getVisibleCustomers } from "@/lib/inspection-service";
 import { createMachineAction } from "@/app/machines/actions";
 import { CustomerPicker } from "@/components/customer-picker";
-
-const machineTypeOptions: { value: MachineType; label: string }[] = [
-  { value: "heftruck_reachtruck", label: "Heftruck / reachtruck" },
-  { value: "batterij_lader", label: "Batterij en laders" },
-  { value: "graafmachine", label: "Graafmachine" },
-  { value: "hoogwerker", label: "Hoogwerker" },
-  { value: "palletwagen_stapelaar", label: "Palletwagen / stapelaar" },
-  { value: "shovel", label: "Shovel" },
-  { value: "verreiker", label: "Verreiker" },
-  { value: "stellingmateriaal", label: "Stellingmateriaal" }
-];
+import { MachineCreateFields } from "@/components/machine-create-fields";
 
 export default async function NewMachinePage({
   searchParams
@@ -57,37 +47,8 @@ export default async function NewMachinePage({
               required
             />
           )}
-          <div className="field">
-            <label htmlFor="machineType">Soort</label>
-            <select id="machineType" name="machineType" defaultValue="heftruck_reachtruck">
-              {machineTypeOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="field">
-            <label htmlFor="brand">Merk</label>
-            <input id="brand" name="brand" />
-          </div>
-          <div className="field">
-            <label htmlFor="model">Type</label>
-            <input id="model" name="model" />
-          </div>
-          <div className="field">
-            <label htmlFor="serialNumber">Serienummer</label>
-            <input id="serialNumber" name="serialNumber" />
-          </div>
-          <div className="field">
-            <label htmlFor="buildYear">Bouwjaar</label>
-            <input id="buildYear" name="buildYear" inputMode="numeric" />
-          </div>
-          <div className="field">
-            <label htmlFor="internalNumber">Intern nummer</label>
-            <input id="internalNumber" name="internalNumber" />
-          </div>
         </div>
+        <MachineCreateFields defaultType={"heftruck_reachtruck" as MachineType} />
         <div className="actions">
           <button className="button" type="submit">
             Machine toevoegen

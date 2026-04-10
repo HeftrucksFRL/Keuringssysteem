@@ -2664,6 +2664,7 @@ export async function createMachine(input: {
   serialNumber: string;
   buildYear: string;
   internalNumber: string;
+  details?: Record<string, string>;
 }) {
   const machineNumber =
     input.internalNumber.trim() ||
@@ -2686,7 +2687,7 @@ export async function createMachine(input: {
           serial_number: input.serialNumber,
           build_year: Number(input.buildYear || 0) || null,
           internal_number: input.internalNumber,
-          configuration: {}
+          configuration: sanitizeMachineConfiguration(input.details ?? {})
         },
         { onConflict: "machine_number" }
       )
@@ -2710,6 +2711,7 @@ export async function createMachine(input: {
     existing.serialNumber = input.serialNumber;
     existing.buildYear = input.buildYear;
     existing.internalNumber = input.internalNumber;
+    existing.configuration = sanitizeMachineConfiguration(input.details ?? {});
     existing.updatedAt = nowIso();
     await writeAppData(data);
     return existing.id;
@@ -2726,7 +2728,7 @@ export async function createMachine(input: {
     serialNumber: input.serialNumber,
     buildYear: input.buildYear,
     internalNumber: input.internalNumber,
-    configuration: {},
+    configuration: sanitizeMachineConfiguration(input.details ?? {}),
     createdAt: nowIso(),
     updatedAt: nowIso()
   };
