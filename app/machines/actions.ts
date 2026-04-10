@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import type { Route } from "next";
 import { revalidatePath } from "next/cache";
 import {
   archiveMachine,
@@ -10,6 +11,7 @@ import {
   getMachineArchiveLockDate,
   getMachineById,
   isMachineArchived,
+  setBatteryChargerLink,
   updateMachine
 } from "@/lib/inspection-service";
 import { getFormDefinition } from "@/lib/form-definitions";
@@ -160,6 +162,45 @@ export async function assignMachineToCustomerAction(formData: FormData) {
   }
 
   redirect(`/machines/${machineId}?assigned=1`);
+}
+
+export async function saveBatteryChargerLinkAction(formData: FormData) {
+  const batteryMachineId = String(formData.get("batteryMachineId") || "");
+  const removeLink = String(formData.get("remove_link") || "").trim() === "1";
+  const linkedMachineId = removeLink ? "" : String(formData.get("linked_machine_id") || "").trim();
+  const redirectTo =
+    String(formData.get("redirectTo") || "").trim() || `/machines/${batteryMachineId}`;
+
+  if (!batteryMachineId) {
+    redirect(redirectTo as Route);
+  }
+
+  try {
+    await setBatteryChargerLink({
+      batteryMachineId,
+      linkedMachineId: linkedMachineId || undefined
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? encodeURIComponent(error.message)
+        : encodeURIComponent("Batterij / lader koppelen is niet gelukt.");
+    redirect(
+      `${redirectTo}${redirectTo.includes("?") ? "&" : "?"}error=${message}` as Route
+    );
+  }
+
+  revalidatePath("/machines");
+  revalidatePath(`/machines/${batteryMachineId}`);
+  if (linkedMachineId) {
+    revalidatePath(`/machines/${linkedMachineId}`);
+  }
+  revalidatePath("/klanten");
+  revalidatePath("/keuringen/nieuw");
+
+  redirect(
+    `${redirectTo}${redirectTo.includes("?") ? "&" : "?"}${linkedMachineId ? "batteryLinked=1" : "batteryUnlinked=1"}` as Route
+  );
 }
 
 export async function archiveMachineAction(formData: FormData) {

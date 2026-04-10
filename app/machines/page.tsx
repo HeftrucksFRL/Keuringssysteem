@@ -21,6 +21,9 @@ export default async function MachinesPage({
         <Link className="button" href="/machines/nieuw">
           Machine toevoegen
         </Link>
+        <Link className="button-secondary" href="/machines/nieuw?type=batterij_lader">
+          Batterij / lader toevoegen
+        </Link>
         <Link className="button-secondary" href="/machines/nieuw?stock=1">
           Machine aan voorraad toevoegen
         </Link>

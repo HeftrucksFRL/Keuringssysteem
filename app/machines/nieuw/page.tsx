@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { MachineType } from "@/lib/types";
-import { getCustomerById, getVisibleCustomers } from "@/lib/inspection-service";
+import { getCustomerById, getMachineById, getMachines, getVisibleCustomers } from "@/lib/inspection-service";
 import { createMachineAction } from "@/app/machines/actions";
 import { CustomerPicker } from "@/components/customer-picker";
 import { MachineCreateFields } from "@/components/machine-create-fields";
@@ -8,13 +8,23 @@ import { MachineCreateFields } from "@/components/machine-create-fields";
 export default async function NewMachinePage({
   searchParams
 }: {
-  searchParams?: Promise<{ customerId?: string; stock?: string }>;
+  searchParams?: Promise<{ customerId?: string; stock?: string; type?: string; linkedMachineId?: string }>;
 }) {
   const query = await searchParams;
   const customers = await getVisibleCustomers();
+  const linkableMachines = (await getMachines()).filter((machine) => machine.machineType !== "batterij_lader");
+  const linkedMachine = query?.linkedMachineId
+    ? await getMachineById(query.linkedMachineId)
+    : null;
+  const defaultType = (query?.type as MachineType | undefined) ?? "heftruck_reachtruck";
+  const resolvedCustomerId = query?.customerId || linkedMachine?.customerId;
   const preselectedCustomer = query?.customerId
     ? await getCustomerById(query.customerId)
     : null;
+  const linkedMachineCustomer =
+    !preselectedCustomer && linkedMachine?.customerId
+      ? await getCustomerById(linkedMachine.customerId)
+      : null;
   const toStock = query?.stock === "1";
 
   return (
@@ -43,19 +53,39 @@ export default async function NewMachinePage({
           ) : (
             <CustomerPicker
               customers={customers}
-              defaultCustomerId={preselectedCustomer?.id}
+              defaultCustomerId={preselectedCustomer?.id ?? linkedMachineCustomer?.id}
               required
             />
           )}
         </div>
-        <MachineCreateFields defaultType={"heftruck_reachtruck" as MachineType} />
+        {linkedMachine ? (
+          <div className="compact-card" style={{ marginTop: "1rem" }}>
+            <div className="eyebrow">Gekoppelde machine</div>
+            <div className="info-card">
+              <strong>
+                {[linkedMachine.brand, linkedMachine.model].filter(Boolean).join(" ") || "Machine"}
+              </strong>
+              <span>
+                {linkedMachine.internalNumber || linkedMachine.machineNumber || "-"} ·{" "}
+                {linkedMachine.serialNumber || "-"}
+              </span>
+            </div>
+          </div>
+        ) : null}
+        <MachineCreateFields
+          defaultType={defaultType}
+          machines={linkableMachines}
+          defaultLinkedMachineId={query?.linkedMachineId ?? ""}
+        />
         <div className="actions">
           <button className="button" type="submit">
             Machine toevoegen
           </button>
           <Link
             className="button-secondary"
-            href={preselectedCustomer && !toStock ? `/klanten/${preselectedCustomer.id}` : "/machines"}
+            href={
+              resolvedCustomerId && !toStock ? `/klanten/${resolvedCustomerId}` : "/machines"
+            }
           >
             Terug
           </Link>

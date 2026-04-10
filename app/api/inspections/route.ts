@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
     );
     const inspectionDate = String(formData.get("inspection_date") || "");
     const inspectionId = String(formData.get("inspection_id") || "").trim();
+    const linkedBatteryMachineId = String(formData.get("linked_battery_machine_id") || "").trim();
 
     if (!machineType || !checklist) {
       return NextResponse.json(
@@ -100,6 +101,7 @@ export async function POST(request: NextRequest) {
     const payload = {
       customerId: existingCustomerId || undefined,
       machineId: existingMachineId || undefined,
+      linkedBatteryMachineId: linkedBatteryMachineId || undefined,
       machineType,
       customer: {
         companyName: String(formData.get("customer_name") || ""),

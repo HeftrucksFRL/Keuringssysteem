@@ -649,6 +649,21 @@ async function createDemoInspection(input: CreateInspectionInput) {
   };
   data.planningItems.unshift(planning);
 
+  if (input.linkedBatteryMachineId && input.machineType !== "batterij_lader") {
+    const linkedBatteryMachine = data.machines.find(
+      (entry) => entry.id === input.linkedBatteryMachineId && entry.machineType === "batterij_lader"
+    );
+
+    if (linkedBatteryMachine) {
+      linkedBatteryMachine.customerId = customer.id;
+      linkedBatteryMachine.configuration = sanitizeMachineConfiguration({
+        ...linkedBatteryMachine.configuration,
+        linked_machine_id: machine.id
+      });
+      linkedBatteryMachine.updatedAt = nowIso();
+    }
+  }
+
   const internalMail = buildInternalMail(customer.companyName, inspection.inspectionNumber);
   const internalEvent = {
     id: randomUUID(),
@@ -1268,6 +1283,13 @@ export async function createInspection(input: CreateInspectionInput) {
     state: new Date(inspection.nextInspectionDate) < new Date() ? "overdue" : "scheduled"
   });
 
+  if (input.linkedBatteryMachineId && input.machineType !== "batterij_lader") {
+    await setBatteryChargerLink({
+      batteryMachineId: input.linkedBatteryMachineId,
+      linkedMachineId: inspection.machineId
+    });
+  }
+
   const internalMail = buildInternalMail(input.customer.companyName, inspection.inspectionNumber);
   const sendResult = await sendInspectionEmails(
     mailInspection,
@@ -1372,6 +1394,21 @@ export async function updateInspectionFromForm(
       planningItem.state =
         new Date(inspection.nextInspectionDate) < new Date() ? "overdue" : "scheduled";
       planningItem.updatedAt = nowIso();
+    }
+
+    if (input.linkedBatteryMachineId && input.machineType !== "batterij_lader") {
+      const linkedBatteryMachine = data.machines.find(
+        (entry) => entry.id === input.linkedBatteryMachineId && entry.machineType === "batterij_lader"
+      );
+
+      if (linkedBatteryMachine) {
+        linkedBatteryMachine.customerId = customer.id;
+        linkedBatteryMachine.configuration = sanitizeMachineConfiguration({
+          ...linkedBatteryMachine.configuration,
+          linked_machine_id: machine.id
+        });
+        linkedBatteryMachine.updatedAt = nowIso();
+      }
     }
 
     await syncDemoInspectionDocuments(data, inspection);
@@ -1533,6 +1570,13 @@ export async function updateInspectionFromForm(
       state: new Date(inspection.nextInspectionDate) < new Date() ? "overdue" : "scheduled"
     })
     .eq("inspection_id", inspection.id);
+
+  if (input.linkedBatteryMachineId && input.machineType !== "batterij_lader") {
+    await setBatteryChargerLink({
+      batteryMachineId: input.linkedBatteryMachineId,
+      linkedMachineId: inspection.machineId
+    });
+  }
 
   const { data: attachmentRows } = await supabase
     .from("inspection_attachments")
@@ -1730,6 +1774,29 @@ export async function getMachines(options: { includeArchived?: boolean } = {}) {
       availabilityStatus: machine.availabilityStatus ?? "available"
     }));
   return includeArchived ? machines : machines.filter((machine) => !isMachineArchived(machine));
+}
+
+export function getLinkedMachineId(
+  machine?: Pick<MachineRecord, "machineType" | "configuration"> | null
+) {
+  if (!machine || machine.machineType !== "batterij_lader") {
+    return "";
+  }
+
+  return String(machine.configuration.linked_machine_id ?? "").trim();
+}
+
+export async function getBatteryChargerMachines(options: { includeArchived?: boolean } = {}) {
+  const machines = await getMachines(options);
+  return machines.filter((machine) => machine.machineType === "batterij_lader");
+}
+
+export async function getLinkedBatteryChargerMachines(
+  machineId: string,
+  options: { includeArchived?: boolean } = {}
+) {
+  const machines = await getBatteryChargerMachines(options);
+  return machines.filter((machine) => getLinkedMachineId(machine) === machineId);
 }
 
 export async function getInspections() {
@@ -2237,6 +2304,102 @@ export async function getRentalStockMachines() {
   );
 
   return machines.filter((machine) => stockCustomerIds.has(machine.customerId));
+}
+
+export async function setBatteryChargerLink(input: {
+  batteryMachineId: string;
+  linkedMachineId?: string;
+}) {
+  const linkedMachineId = String(input.linkedMachineId ?? "").trim();
+
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data: batteryRow } = await supabase
+      .from("machines")
+      .select("*")
+      .eq("id", input.batteryMachineId)
+      .maybeSingle();
+
+    if (!batteryRow) {
+      throw new Error("Batterij / lader niet gevonden.");
+    }
+
+    const batteryMachine = mapMachineRow(batteryRow);
+    if (batteryMachine.machineType !== "batterij_lader") {
+      throw new Error("Alleen batterij / lader kaarten kunnen gekoppeld worden.");
+    }
+
+    assertMachineNotArchiveLocked(batteryMachine, "Deze batterij / lader koppelen");
+
+    let nextCustomerId = batteryMachine.customerId;
+    if (linkedMachineId) {
+      const { data: linkedRow } = await supabase
+        .from("machines")
+        .select("*")
+        .eq("id", linkedMachineId)
+        .maybeSingle();
+
+      if (!linkedRow) {
+        throw new Error("De gekozen machine is niet gevonden.");
+      }
+
+      nextCustomerId = String(linkedRow.customer_id);
+    }
+
+    const nextConfiguration = sanitizeMachineConfiguration({
+      ...batteryMachine.configuration,
+      ...(linkedMachineId ? { linked_machine_id: linkedMachineId } : {})
+    });
+
+    if (!linkedMachineId) {
+      delete nextConfiguration.linked_machine_id;
+    }
+
+    await supabase
+      .from("machines")
+      .update({
+        customer_id: nextCustomerId,
+        configuration: nextConfiguration
+      })
+      .eq("id", input.batteryMachineId);
+
+    return;
+  }
+
+  const data = await readAppData();
+  const batteryMachine = data.machines.find((machine) => machine.id === input.batteryMachineId);
+
+  if (!batteryMachine) {
+    throw new Error("Batterij / lader niet gevonden.");
+  }
+
+  if (batteryMachine.machineType !== "batterij_lader") {
+    throw new Error("Alleen batterij / lader kaarten kunnen gekoppeld worden.");
+  }
+
+  assertMachineNotArchiveLocked(batteryMachine, "Deze batterij / lader koppelen");
+
+  if (linkedMachineId) {
+    const linkedMachine = data.machines.find((machine) => machine.id === linkedMachineId);
+    if (!linkedMachine) {
+      throw new Error("De gekozen machine is niet gevonden.");
+    }
+
+    batteryMachine.customerId = linkedMachine.customerId;
+    batteryMachine.configuration = sanitizeMachineConfiguration({
+      ...batteryMachine.configuration,
+      linked_machine_id: linkedMachineId
+    });
+  } else {
+    const nextConfiguration = sanitizeMachineConfiguration({
+      ...batteryMachine.configuration
+    });
+    delete nextConfiguration.linked_machine_id;
+    batteryMachine.configuration = nextConfiguration;
+  }
+
+  batteryMachine.updatedAt = nowIso();
+  await writeAppData(data);
 }
 
 export async function ensureRentalStockCustomerId() {

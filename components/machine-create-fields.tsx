@@ -1,15 +1,21 @@
 "use client";
 
 import { useState } from "react";
+import { MachinePicker } from "@/components/machine-picker";
 import { MachineTypeFields, machineTypeOptions } from "@/components/machine-type-fields";
+import type { MachineRecord } from "@/lib/domain";
 import type { MachineType } from "@/lib/types";
 
 type MachineCreateFieldsProps = {
   defaultType: MachineType;
+  machines: MachineRecord[];
+  defaultLinkedMachineId?: string;
 };
 
 export function MachineCreateFields({
-  defaultType
+  defaultType,
+  machines,
+  defaultLinkedMachineId = ""
 }: MachineCreateFieldsProps) {
   const [machineType, setMachineType] = useState<MachineType>(defaultType);
 
@@ -30,6 +36,14 @@ export function MachineCreateFields({
           ))}
         </select>
       </div>
+      {machineType === "batterij_lader" ? (
+        <MachinePicker
+          machines={machines}
+          defaultMachineId={defaultLinkedMachineId}
+          label="Gekoppelde machine (optioneel)"
+          placeholder="Zoek op intern nummer of serienummer van de machine"
+        />
+      ) : null}
       <MachineTypeFields machineType={machineType} />
     </>
   );

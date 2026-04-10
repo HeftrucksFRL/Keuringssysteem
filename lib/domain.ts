@@ -156,6 +156,7 @@ export interface AppDataSnapshot {
 export interface CreateInspectionInput {
   customerId?: string;
   machineId?: string;
+  linkedBatteryMachineId?: string;
   machineType: MachineType;
   customer: {
     companyName: string;

@@ -6,17 +6,23 @@ import { completeRentalAction, createRentalAction } from "@/app/verhuur/actions"
 import {
   archiveMachineAction,
   assignMachineToCustomerAction,
+  saveBatteryChargerLinkAction,
   unarchiveMachineAction,
   updateMachineAction
 } from "@/app/machines/actions";
 import { CustomerPicker } from "@/components/customer-picker";
+import { MachinePicker } from "@/components/machine-picker";
+import { LinkedBatteryDialog } from "@/components/linked-battery-dialog";
 import {
   getAttachmentsForInspection,
   getMachineArchivedAt,
   getMachineArchiveLockDate,
+  getLinkedBatteryChargerMachines,
+  getLinkedMachineId,
   getCustomers,
   getMachineById,
   getMachineHistory,
+  getMachines,
   getRentalsForMachine,
   isMachineArchiveLocked,
   isRentalStockCustomer
@@ -88,6 +94,8 @@ export default async function MachineDetailPage({
     rented?: string;
     returned?: string;
     unarchived?: string;
+    batteryLinked?: string;
+    batteryUnlinked?: string;
     error?: string;
   }>;
 }) {
@@ -100,9 +108,25 @@ export default async function MachineDetailPage({
   }
 
   const customers = await getCustomers();
+  const machines = await getMachines({ includeArchived: true });
   const customer = customers.find((item) => item.id === machine.customerId) ?? null;
   const history = await getMachineHistory(machine.id);
   const rentals = await getRentalsForMachine(machine.id);
+  const linkedBatteryMachines =
+    machine.machineType === "batterij_lader"
+      ? []
+      : await getLinkedBatteryChargerMachines(machine.id, { includeArchived: true });
+  const linkedMachineId = getLinkedMachineId(machine);
+  const linkedMachine =
+    machine.machineType === "batterij_lader" && linkedMachineId
+      ? machines.find((item) => item.id === linkedMachineId) ?? null
+      : null;
+  const linkableMachines = machines.filter(
+    (item) =>
+      item.id !== machine.id &&
+      item.machineType !== "batterij_lader" &&
+      !item.configuration.__archivedAt
+  );
   const attachmentsByInspection = await Promise.all(
     history.map(async (inspection) => ({
       inspectionId: inspection.id,
@@ -170,6 +194,8 @@ export default async function MachineDetailPage({
         {query?.rented ? <p className="form-message success">Verhuur gestart.</p> : null}
         {query?.returned ? <p className="form-message success">Verhuur afgerond.</p> : null}
         {query?.unarchived ? <p className="form-message success">Archiveren is ongedaan gemaakt.</p> : null}
+        {query?.batteryLinked ? <p className="form-message success">Batterij / lader gekoppeld.</p> : null}
+        {query?.batteryUnlinked ? <p className="form-message success">Koppeling met batterij / lader verwijderd.</p> : null}
         {query?.error ? <p className="form-message error">{decodeURIComponent(query.error)}</p> : null}
         <div className="actions">
           {!isArchived ? (
@@ -186,6 +212,14 @@ export default async function MachineDetailPage({
                   Archiveren
                 </button>
               </form>
+              {machine.machineType !== "batterij_lader" ? (
+                <Link
+                  className="button-secondary"
+                  href={`/machines/nieuw?type=batterij_lader&customerId=${machine.customerId}&linkedMachineId=${machine.id}` as Route}
+                >
+                  Batterij / lader toevoegen
+                </Link>
+              ) : null}
             </>
           ) : (
             <>
@@ -266,6 +300,26 @@ export default async function MachineDetailPage({
                 </div>
               </>
             )}
+            {machine.machineType === "batterij_lader" ? (
+              <div
+                className="list-item"
+                style={{
+                  background: "#eff8ff",
+                  borderRadius: "0.9rem",
+                  padding: "0.9rem 1rem",
+                  border: "1px solid #b2ddff"
+                }}
+              >
+                <span>Gekoppelde machine</span>
+                <strong>
+                  {linkedMachine
+                    ? `${[linkedMachine.brand, linkedMachine.model].filter(Boolean).join(" ")} - ${
+                        linkedMachine.internalNumber || linkedMachine.machineNumber || "-"
+                      }`
+                    : "Nog niet gekoppeld"}
+                </strong>
+              </div>
+            ) : null}
             {activeRental ? (
               <div
                 className="list-item"
@@ -303,6 +357,71 @@ export default async function MachineDetailPage({
               );
             })}
           </div>
+          {machine.machineType === "batterij_lader" && !isArchived ? (
+            <form action={saveBatteryChargerLinkAction} style={{ marginTop: "1rem" }}>
+              <input type="hidden" name="batteryMachineId" value={machine.id} />
+              <input type="hidden" name="redirectTo" value={`/machines/${machine.id}`} />
+              <MachinePicker
+                machines={linkableMachines}
+                defaultMachineId={linkedMachine?.id ?? ""}
+                label="Koppelen aan machine"
+                placeholder="Zoek op intern nummer of serienummer"
+              />
+              <div className="actions">
+                <button className="button-secondary" type="submit">
+                  Koppeling opslaan
+                </button>
+                {linkedMachine ? (
+                  <button
+                    className="button-secondary"
+                    type="submit"
+                    name="remove_link"
+                    value="1"
+                  >
+                    Koppeling verwijderen
+                  </button>
+                ) : null}
+              </div>
+            </form>
+          ) : null}
+          {machine.machineType !== "batterij_lader" ? (
+            <div className="actions" style={{ marginTop: "1rem", flexWrap: "wrap" }}>
+              {linkedBatteryMachines.length > 0 ? (
+                <LinkedBatteryDialog
+                  machineId={machine.internalNumber || machine.machineNumber || machine.id}
+                  items={linkedBatteryMachines.map((item) => ({
+                    id: item.id,
+                    customerId: item.customerId,
+                    title:
+                      [item.configuration.vehicle_brand || item.brand, item.configuration.vehicle_type || item.model]
+                        .filter(Boolean)
+                        .join(" ") || "Batterij / lader",
+                    internalNumber:
+                      item.configuration.vehicle_internal_number ||
+                      item.internalNumber ||
+                      item.machineNumber ||
+                      "-",
+                    serialNumber:
+                      item.configuration.vehicle_serial_number ||
+                      item.configuration.battery_serial_number ||
+                      item.configuration.charger_serial_number ||
+                      item.serialNumber ||
+                      "-",
+                    batteryLabel:
+                      [item.configuration.battery_brand, item.configuration.battery_type]
+                        .filter(Boolean)
+                        .join(" ") || "Batterij: -",
+                    chargerLabel:
+                      [item.configuration.charger_brand, item.configuration.charger_type]
+                        .filter(Boolean)
+                        .join(" ") || "Lader: -"
+                  }))}
+                />
+              ) : (
+                <span className="muted">Nog geen batterij / lader gekoppeld.</span>
+              )}
+            </div>
+          ) : null}
           {!isArchived ? (
             <form action={assignMachineToCustomerAction} style={{ marginTop: "1rem" }}>
               <input type="hidden" name="machineId" value={machine.id} />

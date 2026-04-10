@@ -37,8 +37,10 @@ type SavedDraft = {
   machineMode: Mode;
   customerQuery: string;
   machineQuery: string;
+  linkedBatteryQuery: string;
   selectedCustomerId: string;
   selectedMachineId: string;
+  linkedBatteryMachineId: string;
   selectedContactId: string;
   contactMode: "existing" | "new";
   values: Record<string, string>;
@@ -148,6 +150,45 @@ function machineSnapshotOverrides(snapshot: Record<string, string>) {
   );
 }
 
+function batteryChargerSearchText(machine: MachineRecord) {
+  return [
+    machine.internalNumber,
+    machine.machineNumber,
+    machine.serialNumber,
+    machine.brand,
+    machine.model,
+    machine.configuration.vehicle_internal_number,
+    machine.configuration.vehicle_serial_number,
+    machine.configuration.battery_internal_number,
+    machine.configuration.battery_serial_number,
+    machine.configuration.charger_internal_number,
+    machine.configuration.charger_serial_number
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function batteryChargerLabel(machine?: MachineRecord | null) {
+  if (!machine) {
+    return "Nog geen batterij / lader gekoppeld";
+  }
+
+  const vehicle = [
+    machine.configuration.vehicle_brand || machine.brand,
+    machine.configuration.vehicle_type || machine.model
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const internal =
+    machine.configuration.vehicle_internal_number ||
+    machine.internalNumber ||
+    machine.machineNumber ||
+    "-";
+
+  return `${vehicle || "Batterij / lader"} - ${internal}`;
+}
+
 function resultLabelsFromStatus(status?: InspectionRecord["status"]) {
   if (status === "rejected") {
     return ["Afgekeurd"];
@@ -211,6 +252,9 @@ export function InspectionForm({
   const [machineMenuOpen, setMachineMenuOpen] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState(existingInspection?.customerId ?? defaultCustomerId);
   const [selectedMachineId, setSelectedMachineId] = useState(existingInspection?.machineId ?? defaultMachineId);
+  const [linkedBatteryMachineId, setLinkedBatteryMachineId] = useState("");
+  const [linkedBatteryQuery, setLinkedBatteryQuery] = useState("");
+  const [linkedBatteryMenuOpen, setLinkedBatteryMenuOpen] = useState(false);
   const [selectedContactId, setSelectedContactId] = useState("");
   const [contactMode, setContactMode] = useState<"existing" | "new">("existing");
   const [values, setValues] = useState<Record<string, string>>(() =>
@@ -326,6 +370,27 @@ export function InspectionForm({
     );
   }, [customerMachines, machineQuery]);
 
+  const batteryChargerMachines = useMemo(
+    () => machines.filter((machine) => machine.machineType === "batterij_lader"),
+    [machines]
+  );
+
+  const selectedLinkedBatteryMachine = useMemo(
+    () => batteryChargerMachines.find((machine) => machine.id === linkedBatteryMachineId) ?? null,
+    [batteryChargerMachines, linkedBatteryMachineId]
+  );
+
+  const filteredBatteryChargerMachines = useMemo(() => {
+    const query = linkedBatteryQuery.trim().toLowerCase();
+    if (!query) {
+      return batteryChargerMachines.slice(0, 8);
+    }
+
+    return batteryChargerMachines.filter((machine) =>
+      batteryChargerSearchText(machine).includes(query)
+    );
+  }, [batteryChargerMachines, linkedBatteryQuery]);
+
   useEffect(() => {
     if (isEditingExisting) {
       return;
@@ -363,8 +428,10 @@ export function InspectionForm({
       setMachineMode(draft.machineMode);
       setCustomerQuery(draft.customerQuery);
       setMachineQuery(draft.machineQuery);
+      setLinkedBatteryQuery(draft.linkedBatteryQuery ?? "");
       setSelectedCustomerId(draft.selectedCustomerId);
       setSelectedMachineId(draft.selectedMachineId);
+      setLinkedBatteryMachineId(draft.linkedBatteryMachineId ?? "");
       setSelectedContactId(draft.selectedContactId);
       setContactMode(draft.contactMode);
       setValues(draft.values);
@@ -473,6 +540,34 @@ export function InspectionForm({
     setChecklist({ ...buildDefaultChecklist(selectedMachine.machineType), ...previousInspection.checklist });
   }, [selectedMachine, inspections, isEditingExisting]);
 
+  useEffect(() => {
+    if (type === "batterij_lader") {
+      setLinkedBatteryMachineId("");
+      setLinkedBatteryQuery("");
+      return;
+    }
+
+    if (!selectedMachineId) {
+      setLinkedBatteryMachineId("");
+      setLinkedBatteryQuery("");
+      return;
+    }
+
+    const linkedBattery =
+      batteryChargerMachines.find(
+        (machine) => machine.configuration.linked_machine_id === selectedMachineId
+      ) ?? null;
+
+    if (!linkedBattery) {
+      setLinkedBatteryMachineId("");
+      setLinkedBatteryQuery("");
+      return;
+    }
+
+    setLinkedBatteryMachineId(linkedBattery.id);
+    setLinkedBatteryQuery(batteryChargerLabel(linkedBattery));
+  }, [batteryChargerMachines, selectedMachineId, type]);
+
   function setFieldValue(key: string, value: string) {
     setDraftNotice("");
     setValues((current) => ({ ...current, [key]: value }));
@@ -486,6 +581,8 @@ export function InspectionForm({
     setCustomerQuery(customer.companyName);
     setSelectedMachineId("");
     setMachineQuery("");
+    setLinkedBatteryMachineId("");
+    setLinkedBatteryQuery("");
     setCustomerMenuOpen(false);
     setMachineMenuOpen(false);
     setMachineMode("existing");
@@ -503,6 +600,8 @@ export function InspectionForm({
     setCustomerQuery("");
     setSelectedMachineId("");
     setMachineQuery("");
+    setLinkedBatteryMachineId("");
+    setLinkedBatteryQuery("");
     setCustomerMenuOpen(false);
     setMachineMenuOpen(false);
     setMachineMode("new");
@@ -515,6 +614,7 @@ export function InspectionForm({
     setMachineMode("existing");
     setSelectedMachineId(machine.id);
     setMachineMenuOpen(false);
+    setLinkedBatteryMenuOpen(false);
     setDraftNotice("");
   }
 
@@ -522,6 +622,9 @@ export function InspectionForm({
     setMachineMode(mode);
     setSelectedMachineId("");
     setMachineQuery("");
+    setLinkedBatteryMachineId("");
+    setLinkedBatteryQuery("");
+    setLinkedBatteryMenuOpen(false);
     setMachineMenuOpen(false);
     setDraftNotice("");
     setValues((current) => ({ ...current, ...machineValues(null) }));
@@ -655,8 +758,10 @@ export function InspectionForm({
       machineMode,
       customerQuery,
       machineQuery,
+      linkedBatteryQuery,
       selectedCustomerId,
       selectedMachineId,
+      linkedBatteryMachineId,
       selectedContactId,
       contactMode,
       values,
@@ -678,6 +783,7 @@ export function InspectionForm({
       ))}
       <input type="hidden" name="existing_customer_id" value={selectedCustomerId} />
       <input type="hidden" name="existing_machine_id" value={selectedMachineId} />
+      <input type="hidden" name="linked_battery_machine_id" value={linkedBatteryMachineId} />
       <input type="hidden" name="selected_contact_id" value={contactMode === "existing" ? resolvedSelectedContactId : ""} />
       <input type="hidden" name="save_as_new_contact" value={contactMode === "new" ? "1" : ""} />
       <input
@@ -1047,6 +1153,71 @@ export function InspectionForm({
                         onChange={(event) => setFieldValue("customer_contact_department", event.target.value)}
                       />
                     </div>
+                  </>
+                ) : null}
+                {type !== "batterij_lader" ? (
+                  <>
+                    <div className="field autocomplete">
+                      <label htmlFor="linked-battery-search">Batterij / lader koppelen (optioneel)</label>
+                      <input
+                        id="linked-battery-search"
+                        value={linkedBatteryQuery}
+                        onChange={(event) => {
+                          setLinkedBatteryQuery(event.target.value);
+                          setLinkedBatteryMachineId("");
+                          setLinkedBatteryMenuOpen(true);
+                        }}
+                        onFocus={() => setLinkedBatteryMenuOpen(true)}
+                        placeholder="Zoek op intern nummer of serienummer"
+                        autoComplete="off"
+                      />
+                      {filteredBatteryChargerMachines.length > 0 &&
+                      linkedBatteryQuery &&
+                      linkedBatteryMenuOpen ? (
+                        <div className="autocomplete-menu">
+                          {filteredBatteryChargerMachines.map((machine) => (
+                            <button
+                              className="autocomplete-item"
+                              key={machine.id}
+                              type="button"
+                              onClick={() => {
+                                setLinkedBatteryMachineId(machine.id);
+                                setLinkedBatteryQuery(batteryChargerLabel(machine));
+                                setLinkedBatteryMenuOpen(false);
+                              }}
+                            >
+                              <strong>{batteryChargerLabel(machine)}</strong>
+                              <span>
+                                {machine.configuration.battery_serial_number ||
+                                  machine.configuration.charger_serial_number ||
+                                  machine.serialNumber ||
+                                  "-"}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="info-card">
+                      <strong>{batteryChargerLabel(selectedLinkedBatteryMachine)}</strong>
+                      <span>
+                        {selectedLinkedBatteryMachine
+                          ? "Wordt aan deze machine gekoppeld en is later direct vanaf de machinekaart te openen."
+                          : "Niet verplicht. Gebruik dit alleen als deze machine een eigen batterij / lader dossier heeft."}
+                      </span>
+                    </div>
+                    {selectedMachineId ? (
+                      <div className="actions" style={{ alignItems: "center" }}>
+                        <Link
+                          className="button-secondary"
+                          href={`/machines/nieuw?type=batterij_lader&customerId=${selectedCustomerId}&linkedMachineId=${selectedMachineId}`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Nieuwe batterij / lader
+                        </Link>
+                      </div>
+                    ) : null}
                   </>
                 ) : null}
                 {form.machineFields
