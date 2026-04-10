@@ -11,7 +11,6 @@ import {
   updateMachineAction
 } from "@/app/machines/actions";
 import { CustomerPicker } from "@/components/customer-picker";
-import { MachinePicker } from "@/components/machine-picker";
 import { LinkedBatteryDialog } from "@/components/linked-battery-dialog";
 import {
   getAttachmentsForInspection,
@@ -136,12 +135,6 @@ export default async function MachineDetailPage({
           "vehicle_serial_number"
         ]
       : [];
-  const linkableMachines = machines.filter(
-    (item) =>
-      item.id !== machine.id &&
-      item.machineType !== "batterij_lader" &&
-      !item.configuration.__archivedAt
-  );
   const attachmentsByInspection = await Promise.all(
     history.map(async (inspection) => ({
       inspectionId: inspection.id,
@@ -337,11 +330,14 @@ export default async function MachineDetailPage({
               >
                 <span>Gekoppelde machine</span>
                 <strong>
-                  {linkedMachine
-                    ? `${[linkedMachine.brand, linkedMachine.model].filter(Boolean).join(" ")} - ${
-                        linkedMachine.internalNumber || linkedMachine.machineNumber || "-"
-                      }`
-                    : "Nog niet gekoppeld"}
+                  {linkedMachine ? (
+                    <Link href={`/machines/${linkedMachine.id}` as Route}>
+                      {[linkedMachine.brand, linkedMachine.model].filter(Boolean).join(" ") || "Machine"} -{" "}
+                      {linkedMachine.internalNumber || linkedMachine.machineNumber || "-"}
+                    </Link>
+                  ) : (
+                    "Nog niet gekoppeld"
+                  )}
                 </strong>
               </div>
             ) : null}
@@ -382,32 +378,19 @@ export default async function MachineDetailPage({
               );
             })}
           </div>
-          {machine.machineType === "batterij_lader" && !isArchived ? (
+          {machine.machineType === "batterij_lader" && !isArchived && linkedMachine ? (
             <form action={saveBatteryChargerLinkAction} style={{ marginTop: "1rem" }}>
               <input type="hidden" name="batteryMachineId" value={machine.id} />
               <input type="hidden" name="redirectTo" value={`/machines/${machine.id}`} />
-              <MachinePicker
-                machines={linkableMachines}
-                defaultMachineId={linkedMachine?.id ?? ""}
-                label="Koppelen aan machine"
-                placeholder="Zoek op intern nummer of serienummer"
-              />
-              <div className="actions">
-                <button className="button-secondary" type="submit">
-                  Koppeling opslaan
-                </button>
-                {linkedMachine ? (
-                  <button
-                    className="button-secondary"
-                    type="submit"
-                    name="remove_link"
-                    value="1"
-                  >
-                    Koppeling verwijderen
-                  </button>
-                ) : null}
-              </div>
+              <button className="button-secondary" type="submit" name="remove_link" value="1">
+                Koppeling machine verwijderen
+              </button>
             </form>
+          ) : null}
+          {machine.machineType === "batterij_lader" && !isArchived && !linkedMachine ? (
+            <p className="muted" style={{ marginTop: "1rem" }}>
+              Deze batterij / lader is nog niet aan een machine gekoppeld.
+            </p>
           ) : null}
           {machine.machineType !== "batterij_lader" ? (
             <div className="actions" style={{ marginTop: "1rem", flexWrap: "wrap" }}>
@@ -447,7 +430,7 @@ export default async function MachineDetailPage({
               )}
             </div>
           ) : null}
-          {!isArchived ? (
+          {!isArchived && machine.machineType !== "batterij_lader" ? (
             <form action={assignMachineToCustomerAction} style={{ marginTop: "1rem" }}>
               <input type="hidden" name="machineId" value={machine.id} />
               <CustomerPicker
