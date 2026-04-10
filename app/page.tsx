@@ -3,6 +3,7 @@ import type { UrlObject } from "node:url";
 import {
   addTodoItemAction,
   deleteTodoItemAction,
+  toggleTodoItemCompletedAction,
   updateTodoItemAction
 } from "@/app/dashboard-actions";
 import { requireUser } from "@/lib/auth";
@@ -15,6 +16,17 @@ import {
   getPlanningItems,
   getTodoItems
 } from "@/lib/inspection-service";
+
+function buildTodoNote(title: string, description?: string | null) {
+  const trimmedTitle = title.trim();
+  const trimmedDescription = description?.trim() ?? "";
+
+  if (!trimmedDescription) {
+    return trimmedTitle;
+  }
+
+  return `${trimmedTitle} - ${trimmedDescription}`;
+}
 
 export default async function HomePage({
   searchParams
@@ -33,10 +45,10 @@ export default async function HomePage({
   ]);
   const planning = planningRows.slice(0, 3);
   const todoMessage = {
-    added: "Taak toegevoegd.",
-    updated: "Taak bijgewerkt.",
-    deleted: "Taak verwijderd.",
-    error: "Taak kon niet worden opgeslagen. Controleer de invoer."
+    added: "Notitie toegevoegd.",
+    updated: "Notitie bijgewerkt.",
+    deleted: "Notitie verwijderd.",
+    error: "Notitie kon niet worden opgeslagen. Controleer de invoer."
   }[params?.todo ?? ""];
 
   const kpis: { label: string; value: string; helper: string; href: UrlObject }[] = [
@@ -82,21 +94,85 @@ export default async function HomePage({
         </div>
       </section>
 
-      <section className="panel" style={{ marginTop: "1rem" }}>
-        <div className="eyebrow">Overzicht</div>
-        <h2>Stand van zaken</h2>
-        <div className="list">
-          {kpis.map((kpi) => (
-            <Link className="list-item" href={kpi.href} key={kpi.label}>
-              <span>
-                <strong>{kpi.label}</strong>
-                <br />
-                {kpi.helper}
-              </span>
-              <strong>{kpi.value}</strong>
-            </Link>
-          ))}
-        </div>
+      <section className="grid-2 dashboard-summary-grid" style={{ marginTop: "1rem" }}>
+        <article className="panel">
+          <div className="eyebrow">Overzicht</div>
+          <h2>Stand van zaken</h2>
+          <div className="list">
+            {kpis.map((kpi) => (
+              <Link className="list-item" href={kpi.href} key={kpi.label}>
+                <span>
+                  <strong>{kpi.label}</strong>
+                  <br />
+                  {kpi.helper}
+                </span>
+                <strong>{kpi.value}</strong>
+              </Link>
+            ))}
+          </div>
+        </article>
+
+        <article className="panel todo-panel">
+          <div className="eyebrow">Things-To-Do</div>
+          <form action={addTodoItemAction} className="todo-inline-form">
+            <input
+              aria-label="Nieuwe notitie"
+              id="todo-title"
+              name="title"
+              placeholder="Nieuwe notitie toevoegen"
+              required
+            />
+            <button className="button todo-inline-button" type="submit">
+              Toevoegen
+            </button>
+          </form>
+
+          <div className="list todo-list compact-list">
+            {todoItems.length === 0 ? (
+              <div className="list-item static-list-item">
+                <span>Nog niets toegevoegd.</span>
+                <strong>Leeg</strong>
+              </div>
+            ) : (
+              todoItems.map((item) => (
+                <form
+                  action={updateTodoItemAction}
+                  className={`todo-item-inline ${item.completed ? "todo-item-inline-done" : ""}`}
+                  key={item.id}
+                >
+                  <input type="hidden" name="id" value={item.id} />
+                  <input type="hidden" name="completed" value={String(item.completed)} />
+                  <input
+                    aria-label={`Notitie ${item.id}`}
+                    className="todo-inline-input"
+                    name="title"
+                    defaultValue={buildTodoNote(item.title, item.description)}
+                    required
+                  />
+                  <button className="button-secondary todo-inline-button" type="submit">
+                    Opslaan
+                  </button>
+                  <button
+                    className={`button-secondary todo-inline-button ${item.completed ? "todo-reopen-button" : "todo-complete-button"}`}
+                    formAction={toggleTodoItemCompletedAction}
+                    name="nextCompleted"
+                    type="submit"
+                    value={String(!item.completed)}
+                  >
+                    {item.completed ? "Open zetten" : "Gereed"}
+                  </button>
+                  <button
+                    className="button-secondary todo-inline-button"
+                    formAction={deleteTodoItemAction}
+                    type="submit"
+                  >
+                    Verwijderen
+                  </button>
+                </form>
+              ))
+            )}
+          </div>
+        </article>
       </section>
 
       {failedMailAlerts.length > 0 ? (
@@ -117,67 +193,6 @@ export default async function HomePage({
           </div>
         </section>
       ) : null}
-
-      <section className="panel" style={{ marginTop: "1rem" }}>
-        <div className="eyebrow">Takenlijst</div>
-        <h2>Wat wil je nog doen?</h2>
-        <form action={addTodoItemAction} className="todo-add-form">
-          <div className="field">
-            <label htmlFor="todo-title">Taak</label>
-            <input id="todo-title" name="title" placeholder="Bijv. klant nabellen of nieuwe machine invoeren" required />
-          </div>
-          <div className="field">
-            <label htmlFor="todo-description">Beschrijving</label>
-            <input id="todo-description" name="description" placeholder="Optioneel" />
-          </div>
-          <div className="field">
-            <label htmlFor="todo-due-date">Datum</label>
-            <input id="todo-due-date" name="dueDate" type="date" />
-          </div>
-          <div className="actions" style={{ marginTop: 0 }}>
-            <button className="button" type="submit">Taak toevoegen</button>
-          </div>
-        </form>
-
-        <div className="list todo-list">
-          {todoItems.length === 0 ? (
-            <div className="list-item static-list-item">
-              <span>Nog geen taken toegevoegd.</span>
-              <strong>Rustig begin</strong>
-            </div>
-          ) : (
-            todoItems.map((item) => (
-              <form action={updateTodoItemAction} className={`todo-item ${item.completed ? "todo-item-done" : ""}`} key={item.id}>
-                <input type="hidden" name="id" value={item.id} />
-                <div className="todo-item-grid">
-                  <div className="field">
-                    <label htmlFor={`todo-title-${item.id}`}>Taak</label>
-                    <input id={`todo-title-${item.id}`} name="title" defaultValue={item.title} />
-                  </div>
-                  <div className="field">
-                    <label htmlFor={`todo-description-${item.id}`}>Beschrijving</label>
-                    <input id={`todo-description-${item.id}`} name="description" defaultValue={item.description} />
-                  </div>
-                  <div className="field">
-                    <label htmlFor={`todo-date-${item.id}`}>Datum</label>
-                    <input id={`todo-date-${item.id}`} name="dueDate" type="date" defaultValue={item.dueDate || ""} />
-                  </div>
-                  <label className="todo-checkbox">
-                    <input name="completed" type="checkbox" defaultChecked={item.completed} />
-                    <span>{item.completed ? "Gedaan" : "Nog te doen"}</span>
-                  </label>
-                </div>
-                <div className="actions" style={{ marginTop: "0.75rem" }}>
-                  <button className="button" type="submit">Bijwerken</button>
-                  <button className="button-secondary" formAction={deleteTodoItemAction} type="submit">
-                    Verwijderen
-                  </button>
-                </div>
-              </form>
-            ))
-          )}
-        </div>
-      </section>
 
       <section className="grid-2" style={{ marginTop: "1rem" }}>
         <article className="panel">

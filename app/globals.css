@@ -804,6 +804,10 @@ textarea {
   align-items: end;
 }
 
+.dashboard-summary-grid {
+  align-items: start;
+}
+
 .todo-add-form,
 .todo-item {
   display: grid;
@@ -811,7 +815,7 @@ textarea {
 }
 
 .todo-list {
-  margin-top: 1rem;
+  margin-top: 0.75rem;
 }
 
 .todo-item {
@@ -847,6 +851,64 @@ textarea {
 .todo-item-done input[type="text"],
 .todo-item-done input[type="date"] {
   background: #ffffff;
+}
+
+.todo-panel {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.todo-inline-form,
+.todo-item-inline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.todo-inline-input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #f9fbfd;
+}
+
+.todo-inline-button {
+  width: auto;
+  min-height: 42px;
+  padding: 0.65rem 0.85rem;
+  border-radius: 14px;
+}
+
+.todo-complete-button {
+  background: #dff6ec;
+  color: var(--success);
+  border-color: #b9e9d2;
+}
+
+.todo-reopen-button {
+  background: #fff4cc;
+  color: #c97a00;
+  border-color: #f1d58b;
+}
+
+.todo-item-inline {
+  padding: 0.7rem 0.8rem;
+  border: 1px solid #dfe8f2;
+  border-radius: 16px;
+  background: #fbfdff;
+}
+
+.todo-item-inline-done {
+  background: #f3faf6;
+  border-color: #cfe7d7;
+}
+
+.todo-item-inline-done .todo-inline-input {
+  color: #5f6f7f;
+  text-decoration: line-through;
 }
 
 .compact-card {
@@ -1042,14 +1104,27 @@ textarea {
 
 .agenda-row.scheduled {
   border-left: 5px solid var(--accent);
+  background: #eef5fd;
 }
 
 .agenda-row.overdue {
   border-left: 5px solid var(--warning);
+  background: #fff4e5;
 }
 
 .agenda-row.upcoming {
   border-left: 5px solid var(--success);
+  background: #edf9f2;
+}
+
+.agenda-row.rental {
+  border-left: 5px solid var(--success);
+  background: #ecfdf3;
+}
+
+.agenda-row.appointment {
+  border-left: 5px solid #eb4899;
+  background: #fff1f8;
 }
 
 .agenda-time {
@@ -1070,6 +1145,28 @@ textarea {
   color: var(--muted);
   line-height: 1.4;
   word-break: break-word;
+}
+
+.agenda-row.scheduled .agenda-main strong,
+.agenda-row.scheduled .agenda-time {
+  color: var(--accent-deep);
+}
+
+.agenda-row.overdue .agenda-main strong,
+.agenda-row.overdue .agenda-time {
+  color: #c97a00;
+}
+
+.agenda-row.upcoming .agenda-main strong,
+.agenda-row.upcoming .agenda-time,
+.agenda-row.rental .agenda-main strong,
+.agenda-row.rental .agenda-time {
+  color: var(--success);
+}
+
+.agenda-row.appointment .agenda-main strong,
+.agenda-row.appointment .agenda-time {
+  color: #b4236a;
 }
 
 .month-grid-wrap {
@@ -1167,10 +1264,52 @@ textarea {
   border-color: #bfe7d0;
 }
 
+.month-event.rental {
+  background: #dff6ec;
+  border-color: #abefc6;
+}
+
+.month-event.appointment {
+  background: #fff1f8;
+  border-color: #f7b6d8;
+}
+
+.month-event.scheduled strong {
+  color: var(--accent-deep);
+}
+
+.month-event.overdue strong {
+  color: #c97a00;
+}
+
+.month-event.upcoming strong,
+.month-event.rental strong {
+  color: var(--success);
+}
+
+.month-event.appointment strong {
+  color: #b4236a;
+}
+
 .active-toggle {
   border-color: #75aede;
   background: #eaf4fe;
   color: var(--accent-deep);
+}
+
+.calendar-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 0.8rem;
+}
+
+.calendar-filter-button {
+  width: auto;
+  min-height: 36px;
+  padding: 0.45rem 0.7rem;
+  border-radius: 12px;
+  font-size: 0.82rem;
 }
 
 .modal-backdrop {
@@ -1243,6 +1382,14 @@ textarea {
   .todo-item-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     align-items: end;
+  }
+
+  .todo-inline-form {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .todo-item-inline {
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
   }
 
   .inline-meta {

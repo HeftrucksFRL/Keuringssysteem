@@ -3,7 +3,12 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
-import { addTodoItem, deleteTodoItem, updateTodoItem } from "@/lib/inspection-service";
+import {
+  addTodoItem,
+  deleteTodoItem,
+  setTodoItemCompleted,
+  updateTodoItem
+} from "@/lib/inspection-service";
 
 export async function addTodoItemAction(formData: FormData) {
   const user = await requireUser();
@@ -32,7 +37,8 @@ export async function updateTodoItemAction(formData: FormData) {
   const title = String(formData.get("title") || "");
   const description = String(formData.get("description") || "");
   const dueDate = String(formData.get("dueDate") || "");
-  const completed = String(formData.get("completed") || "") === "on";
+  const completedValue = String(formData.get("completed") || "");
+  const completed = completedValue === "on" || completedValue === "true";
 
   if (!id || !title.trim()) {
     redirect("/?todo=error");
@@ -66,4 +72,23 @@ export async function deleteTodoItemAction(formData: FormData) {
 
   revalidatePath("/");
   redirect("/?todo=deleted");
+}
+
+export async function toggleTodoItemCompletedAction(formData: FormData) {
+  const user = await requireUser();
+  const id = String(formData.get("id") || "");
+  const nextCompleted = String(formData.get("nextCompleted") || "") === "true";
+
+  if (!id) {
+    redirect("/?todo=error");
+  }
+
+  await setTodoItemCompleted({
+    id,
+    ownerId: String(user?.id ?? "demo-user"),
+    completed: nextCompleted
+  });
+
+  revalidatePath("/");
+  redirect("/?todo=updated");
 }

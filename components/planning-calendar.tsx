@@ -465,30 +465,30 @@ export function PlanningCalendar({
         />
       </div>
 
-      <div className="inline-meta" style={{ marginBottom: "1rem" }}>
+      <div className="calendar-filter-row">
         <button
-          className={`button-secondary ${viewFilter === "all" ? "active-toggle" : ""}`}
+          className={`button-secondary calendar-filter-button ${viewFilter === "all" ? "active-toggle" : ""}`}
           type="button"
           onClick={() => setViewFilter("all")}
         >
           Toon alles
         </button>
         <button
-          className={`button-secondary ${viewFilter === "inspections" ? "active-toggle" : ""}`}
+          className={`button-secondary calendar-filter-button ${viewFilter === "inspections" ? "active-toggle" : ""}`}
           type="button"
           onClick={() => setViewFilter("inspections")}
         >
           Alleen keuringen
         </button>
         <button
-          className={`button-secondary ${viewFilter === "rentals" ? "active-toggle" : ""}`}
+          className={`button-secondary calendar-filter-button ${viewFilter === "rentals" ? "active-toggle" : ""}`}
           type="button"
           onClick={() => setViewFilter("rentals")}
         >
           Alleen verhuur
         </button>
         <button
-          className={`button-secondary ${viewFilter === "appointments" ? "active-toggle" : ""}`}
+          className={`button-secondary calendar-filter-button ${viewFilter === "appointments" ? "active-toggle" : ""}`}
           type="button"
           onClick={() => setViewFilter("appointments")}
         >
@@ -496,16 +496,16 @@ export function PlanningCalendar({
         </button>
       </div>
 
-      <div className="inline-meta" style={{ marginBottom: "1rem" }}>
+      <div className="calendar-filter-row">
         <button
-          className={`button-secondary ${sortByPlace ? "active-toggle" : ""}`}
+          className={`button-secondary calendar-filter-button ${sortByPlace ? "active-toggle" : ""}`}
           type="button"
           onClick={() => setSortByPlace(true)}
         >
           Sorteer op plaats
         </button>
         <button
-          className={`button-secondary ${!sortByPlace ? "active-toggle" : ""}`}
+          className={`button-secondary calendar-filter-button ${!sortByPlace ? "active-toggle" : ""}`}
           type="button"
           onClick={() => setSortByPlace(false)}
         >
@@ -528,15 +528,8 @@ export function PlanningCalendar({
               {groups.map((event) => (
                 <button
                   key={event.key}
-                  className={`agenda-row ${event.kind === "appointment" ? "scheduled" : event.kind === "rental" ? "scheduled" : event.state}`}
+                  className={`agenda-row ${event.kind === "appointment" ? "appointment" : event.kind === "rental" ? "rental" : event.state}`}
                   type="button"
-                  style={
-                    event.kind === "rental"
-                      ? { borderLeftColor: "#0d8d59", background: "#ecfdf3" }
-                      : event.kind === "appointment"
-                        ? { borderLeftColor: "#7c3aed", background: "#f4efff" }
-                        : undefined
-                  }
                   onClick={() => setSelectedEventKey(event.key)}
                 >
                   <div className="agenda-time">
@@ -599,15 +592,8 @@ export function PlanningCalendar({
                   {dayEvents.map((event) => (
                     <button
                       key={event.key}
-                      className={`month-event ${event.kind === "appointment" ? "scheduled" : event.kind === "rental" ? "scheduled" : event.state}`}
+                      className={`month-event ${event.kind === "appointment" ? "appointment" : event.kind === "rental" ? "rental" : event.state}`}
                       type="button"
-                      style={
-                        event.kind === "rental"
-                          ? { background: "#dff6ec", borderColor: "#abefc6", color: "#0d8d59" }
-                          : event.kind === "appointment"
-                            ? { background: "#f4efff", borderColor: "#d2b6ff", color: "#6d28d9" }
-                            : undefined
-                      }
                       onClick={() => setSelectedEventKey(event.key)}
                     >
                       <strong>

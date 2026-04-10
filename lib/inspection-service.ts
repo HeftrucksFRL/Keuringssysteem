@@ -1756,6 +1756,34 @@ export async function deleteTodoItem(input: {
   await writeAppData(data);
 }
 
+export async function setTodoItemCompleted(input: {
+  id: string;
+  ownerId: string;
+  completed: boolean;
+}) {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    await supabase
+      .from("todo_items")
+      .update({ completed: input.completed })
+      .eq("id", input.id)
+      .eq("owner_id", input.ownerId);
+    return;
+  }
+
+  const data = await readAppData();
+  const item = data.todoItems.find(
+    (entry) => entry.id === input.id && entry.ownerId === input.ownerId
+  );
+  if (!item) {
+    return;
+  }
+
+  item.completed = input.completed;
+  item.updatedAt = nowIso();
+  await writeAppData(data);
+}
+
 export async function getAgendaEvents(ownerId: string) {
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
