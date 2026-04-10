@@ -1,13 +1,22 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { signInAction, type LoginState } from "@/app/login/actions";
 
 export function LoginForm() {
+  const [mounted, setMounted] = useState(false);
   const [state, action, pending] = useActionState<LoginState, FormData>(
     signInAction,
     { status: "idle" }
   );
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return <div className="panel">Inlogformulier laden...</div>;
+  }
 
   return (
     <form action={action} className="panel">
