@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import brandLogo from "../Logo Heftrucks.frl.png";
 import { AuthStatus } from "@/components/auth-status";
 import { AppNavigation } from "@/components/app-navigation";
 import { RouteLoadingIndicator } from "@/components/route-loading-indicator";
@@ -27,11 +28,12 @@ export default function RootLayout({
               <Link className="brand-link" href="/">
                 <Image
                   className="brand-logo"
-                  src="/logo-heftrucks-frl.png"
+                  src={brandLogo}
                   alt="Heftrucks Friesland"
                   width={196}
                   height={54}
                   priority
+                  unoptimized
                 />
               </Link>
               <span>Keuringssysteem</span>
