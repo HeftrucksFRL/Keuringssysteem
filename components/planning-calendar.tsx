@@ -72,6 +72,11 @@ function dayLabel(date: Date) {
   });
 }
 
+function parseIsoDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
 function dateNumber(date: Date) {
   return date.toLocaleDateString("nl-NL", { day: "numeric" });
 }
@@ -196,6 +201,40 @@ function eventMatchesFilter(event: AgendaEvent, filter: ViewFilter) {
   return event.kind === "appointment";
 }
 
+function mobileDaySummary(events: AgendaEvent[]) {
+  const counts = {
+    inspection: events.filter((event) => event.kind === "inspection").length,
+    rental: events.filter((event) => event.kind === "rental").length,
+    appointment: events.filter((event) => event.kind === "appointment").length
+  };
+
+  return ([
+    counts.inspection ? { kind: "inspection" as const, label: `${counts.inspection} keur` } : null,
+    counts.rental ? { kind: "rental" as const, label: `${counts.rental} huur` } : null,
+    counts.appointment ? { kind: "appointment" as const, label: `${counts.appointment} vrij` } : null
+  ].filter(Boolean) as Array<{ kind: "inspection" | "rental" | "appointment"; label: string }>).slice(0, 3);
+}
+
+function dayPopupTitle(event: AgendaEvent) {
+  if (event.kind === "appointment") {
+    return event.appointment.title;
+  }
+
+  return customerDisplayName(event.customer);
+}
+
+function dayPopupSubtitle(event: AgendaEvent) {
+  if (event.kind === "appointment") {
+    return event.appointment.description || "Losse agenda-afspraak";
+  }
+
+  if (event.kind === "rental") {
+    return `${rentalMomentLabel(event.rentalMoment)} | ${event.machineList[0]?.internalNumber || event.machineList[0]?.machineNumber || "Machine"}`;
+  }
+
+  return `${event.place} | ${event.machineList.length} machine${event.machineList.length === 1 ? "" : "s"}`;
+}
+
 export function PlanningCalendar({
   items,
   rentals,
@@ -208,6 +247,7 @@ export function PlanningCalendar({
   const [query, setQuery] = useState("");
   const [sortByPlace, setSortByPlace] = useState(true);
   const [viewFilter, setViewFilter] = useState<ViewFilter>("all");
+  const [selectedDayKey, setSelectedDayKey] = useState("");
   const [selectedEventKey, setSelectedEventKey] = useState("");
 
   useEffect(() => {
@@ -405,6 +445,8 @@ export function PlanningCalendar({
     [eventsByDay]
   );
 
+  const selectedDayEvents = selectedDayKey ? eventsByDay.get(selectedDayKey) ?? [] : [];
+  const selectedDayDate = selectedDayKey ? parseIsoDate(selectedDayKey) : null;
   const selectedEvent = calendarEvents.find((event) => event.key === selectedEventKey) ?? null;
   const selectedPrimaryMachine = selectedEvent?.machineList[0] ?? null;
   const selectedPlanningItemIds =
@@ -511,6 +553,46 @@ export function PlanningCalendar({
         >
           Sorteer op klant
         </button>
+      </div>
+
+      <div className="mobile-month-grid-wrap">
+        <div className="mobile-month-grid-head">
+          {["Ma", "Di", "Wo", "Do", "Vr", "Za", "Zo"].map((label) => (
+            <span key={label}>{label}</span>
+          ))}
+        </div>
+        <div className="mobile-month-grid">
+          {calendarDays.map((day) => {
+            const dayKey = isoDate(day);
+            const dayEvents = eventsByDay.get(dayKey) ?? [];
+            const isCurrentMonth = day.getMonth() === anchorDate.getMonth();
+            const isToday = dayKey === isoDate(new Date());
+            const daySummary = mobileDaySummary(dayEvents);
+
+            return (
+              <button
+                className={`mobile-month-cell ${isCurrentMonth ? "" : "is-outside"} ${isToday ? "is-today" : ""} ${dayEvents.length ? "has-events" : ""}`}
+                disabled={dayEvents.length === 0}
+                key={dayKey}
+                type="button"
+                onClick={() => setSelectedDayKey(dayKey)}
+              >
+                <span className="mobile-month-cell-date">{dateNumber(day)}</span>
+                <div className="mobile-month-cell-events">
+                  {daySummary.length === 0 ? (
+                    <span className="mobile-month-cell-empty" />
+                  ) : (
+                    daySummary.map((item) => (
+                      <span className={`mobile-month-pill ${item.kind}`} key={`${dayKey}-${item.kind}`}>
+                        {item.label}
+                      </span>
+                    ))
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div className="mobile-agenda-list">
@@ -625,6 +707,50 @@ export function PlanningCalendar({
           })}
         </div>
       </div>
+
+      {selectedDayDate ? (
+        <div className="modal-backdrop" onClick={() => setSelectedDayKey("")}>
+          <div className="modal-card" onClick={(event) => event.stopPropagation()}>
+            <div className="eyebrow">Dagoverzicht</div>
+            <h2>{dayLabel(selectedDayDate)}</h2>
+            <p className="muted" style={{ marginTop: "-0.35rem", marginBottom: "1rem" }}>
+              {selectedDayKey} | {selectedDayEvents.length}{" "}
+              {selectedDayEvents.length === 1 ? "afspraak" : "afspraken"}
+            </p>
+            <div className="list compact-list">
+              {selectedDayEvents.map((event) => (
+                <button
+                  className="list-item calendar-day-option"
+                  key={event.key}
+                  type="button"
+                  onClick={() => {
+                    setSelectedDayKey("");
+                    setSelectedEventKey(event.key);
+                  }}
+                >
+                  <span>
+                    <strong>{dayPopupTitle(event)}</strong>
+                    <br />
+                    {dayPopupSubtitle(event)}
+                  </span>
+                  <strong>
+                    {event.kind === "appointment"
+                      ? "Vrij"
+                      : event.kind === "rental"
+                        ? "Huur"
+                        : "Keur"}
+                  </strong>
+                </button>
+              ))}
+            </div>
+            <div className="actions">
+              <button className="button" type="button" onClick={() => setSelectedDayKey("")}>
+                Sluiten
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {selectedEvent ? (
         <div className="modal-backdrop" onClick={() => setSelectedEventKey("")}>

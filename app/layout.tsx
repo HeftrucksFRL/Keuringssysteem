@@ -61,6 +61,9 @@ export default function RootLayout({
               <AuthStatus />
             </div>
           </header>
+          <div className="mobile-auth-slot">
+            <AuthStatus />
+          </div>
           <AppNavigation variant="mobile" />
           <main className="page">{children}</main>
         </div>
