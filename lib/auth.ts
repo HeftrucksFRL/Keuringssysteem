@@ -7,6 +7,8 @@ export interface ActivityActor {
   name: string;
 }
 
+const activityLogViewerEmails = new Set(["info@heftruckopleiding.frl"]);
+
 export async function getCurrentUser() {
   if (!hasSupabaseConfig()) {
     return {
@@ -29,6 +31,16 @@ export async function getCurrentUser() {
 export async function requireUser() {
   const user = await getCurrentUser();
   return user;
+}
+
+export function canViewActivityLog(
+  user: { email?: string | null } | null | undefined
+) {
+  const email = String(user?.email ?? "")
+    .trim()
+    .toLowerCase();
+
+  return activityLogViewerEmails.has(email);
 }
 
 export async function requireActivityActor(): Promise<ActivityActor> {

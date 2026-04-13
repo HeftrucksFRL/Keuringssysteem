@@ -44,16 +44,16 @@ textarea {
 
 .shell {
   min-height: 100vh;
-  padding-bottom: 5.5rem;
+  padding-bottom: 5rem;
 }
 
 .topbar {
   position: sticky;
   top: 0;
   z-index: 20;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: 0.75rem;
   padding: 0.9rem 1rem;
   background: rgba(246, 250, 252, 0.88);
@@ -108,13 +108,14 @@ textarea {
   display: block;
   width: auto;
   height: auto;
-  max-width: min(180px, 42vw);
+  max-width: min(152px, 44vw);
   flex-shrink: 0;
 }
 
 .brand span {
-  font-size: 0.95rem;
+  font-size: 0.82rem;
   font-weight: 700;
+  line-height: 1.15;
 }
 
 .compact-contact-list {
@@ -225,16 +226,13 @@ textarea {
 }
 
 .auth-slot {
-  display: block;
-  width: 100%;
-}
-
-.auth-slot .inline-meta {
-  justify-content: flex-end;
+  display: none;
 }
 
 .mobile-menu {
   display: inline-grid;
+  position: relative;
+  justify-self: end;
 }
 
 .mobile-menu-button {
@@ -258,10 +256,10 @@ textarea {
 .mobile-menu-panel {
   position: absolute;
   top: calc(100% + 0.5rem);
-  right: 1rem;
+  right: 0;
   display: grid;
   gap: 0.55rem;
-  width: min(320px, calc(100vw - 2rem));
+  width: min(320px, calc(100vw - 1rem));
   padding: 0.8rem;
   border-radius: 20px;
   background: white;
@@ -318,8 +316,8 @@ textarea {
   z-index: 30;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 0.4rem;
-  padding: 0.55rem 0.7rem calc(0.55rem + env(safe-area-inset-bottom));
+  gap: 0.25rem;
+  padding: 0.45rem 0.55rem calc(0.45rem + env(safe-area-inset-bottom));
   background: rgba(246, 250, 252, 0.94);
   backdrop-filter: blur(14px);
   border-top: 1px solid rgba(198, 211, 224, 0.9);
@@ -329,17 +327,23 @@ textarea {
   display: grid;
   justify-items: center;
   gap: 0.2rem;
-  min-height: 56px;
-  padding: 0.55rem 0.3rem;
+  min-height: 52px;
+  padding: 0.45rem 0.2rem;
   border-radius: 16px;
-  font-size: 0.72rem;
+  font-size: 0.66rem;
   font-weight: 700;
+  line-height: 1.1;
   color: var(--muted);
 }
 
 .bottom-nav-link.active {
   background: #eaf4fe;
   color: var(--accent-deep);
+}
+
+.bottom-nav-link svg {
+  width: 18px;
+  height: 18px;
 }
 
 .page {
@@ -796,9 +800,9 @@ textarea {
 .compact-overview-detail {
   min-width: 0;
   font-size: 0.9rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
 }
 
 .compact-overview-actions {
@@ -828,6 +832,82 @@ textarea {
 .compact-overview-actions .badge {
   display: inline-flex;
   align-items: center;
+}
+
+.archive-stack {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.archive-folder {
+  border: 1px solid rgba(198, 211, 224, 0.9);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.88);
+  overflow: hidden;
+}
+
+.archive-folder[open] {
+  box-shadow: var(--shadow);
+}
+
+.archive-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.9rem;
+  padding: 0.85rem 1rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.archive-summary::-webkit-details-marker {
+  display: none;
+}
+
+.archive-summary-main {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.archive-summary-main strong {
+  font-size: 0.98rem;
+}
+
+.archive-summary-meta {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.archive-folder-content {
+  padding: 0 0.75rem 0.75rem;
+  border-top: 1px solid rgba(198, 211, 224, 0.7);
+}
+
+.archive-folder-content .dataset-list {
+  margin-top: 0.75rem;
+}
+
+.archive-year-folder {
+  background: rgba(248, 251, 253, 0.96);
+}
+
+.archive-year-folder .archive-summary {
+  background: rgba(234, 244, 254, 0.45);
+}
+
+.archive-month-folder {
+  margin-top: 0.75rem;
+}
+
+.archive-month-folder .archive-summary {
+  padding: 0.75rem 0.9rem;
+  background: white;
+}
+
+.archive-empty {
+  padding: 0.95rem 1rem;
+  color: var(--muted);
 }
 
 .inspection-card-full {
@@ -1558,6 +1638,12 @@ textarea {
   }
 }
 
+@media (max-width: 480px) {
+  .brand span {
+    display: none;
+  }
+}
+
 @media (min-width: 768px) {
   .page {
     padding: 1.25rem 1.25rem 2.5rem;
@@ -1633,6 +1719,12 @@ textarea {
     gap: 0.4rem 0.75rem;
   }
 
+  .compact-overview-detail {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   .compact-overview-actions {
     justify-content: flex-end;
   }
@@ -1645,6 +1737,7 @@ textarea {
   }
 
   .topbar {
+    display: flex;
     gap: 1rem;
     padding: 1rem 1.5rem;
   }
@@ -1659,7 +1752,12 @@ textarea {
   }
 
   .auth-slot {
+    display: block;
     width: auto;
+  }
+
+  .auth-slot .inline-meta {
+    justify-content: flex-end;
   }
 
   .page {

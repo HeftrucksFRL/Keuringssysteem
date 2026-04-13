@@ -19,6 +19,65 @@ interface InspectionsTableProps {
   attachments: InspectionAttachmentRecord[];
 }
 
+interface InspectionMonthGroup {
+  monthKey: string;
+  monthLabel: string;
+  inspections: InspectionRecord[];
+}
+
+interface InspectionYearGroup {
+  year: string;
+  months: InspectionMonthGroup[];
+}
+
+function formatMonthLabel(monthKey: string) {
+  const [year, month] = monthKey.split("-");
+  const parsedYear = Number(year);
+  const parsedMonth = Number(month);
+
+  if (!parsedYear || !parsedMonth) {
+    return monthKey;
+  }
+
+  return new Intl.DateTimeFormat("nl-NL", {
+    month: "long",
+    year: "numeric"
+  }).format(new Date(parsedYear, parsedMonth - 1, 1));
+}
+
+function groupInspectionsByYearAndMonth(
+  inspections: InspectionRecord[]
+): InspectionYearGroup[] {
+  const yearMap = new Map<string, Map<string, InspectionRecord[]>>();
+
+  inspections.forEach((inspection) => {
+    const monthKey = inspection.inspectionDate?.slice(0, 7) || "Onbekend";
+    const yearKey = monthKey.slice(0, 4) || "Onbekend";
+
+    if (!yearMap.has(yearKey)) {
+      yearMap.set(yearKey, new Map<string, InspectionRecord[]>());
+    }
+
+    const monthMap = yearMap.get(yearKey)!;
+    const rows = monthMap.get(monthKey) ?? [];
+    rows.push(inspection);
+    monthMap.set(monthKey, rows);
+  });
+
+  return Array.from(yearMap.entries())
+    .sort(([left], [right]) => right.localeCompare(left, "nl"))
+    .map(([year, monthMap]) => ({
+      year,
+      months: Array.from(monthMap.entries())
+        .sort(([left], [right]) => right.localeCompare(left, "nl"))
+        .map(([monthKey, rows]) => ({
+          monthKey,
+          monthLabel: formatMonthLabel(monthKey),
+          inspections: rows
+        }))
+    }));
+}
+
 export function InspectionsTable({
   inspections,
   customers,
@@ -35,6 +94,28 @@ export function InspectionsTable({
   const [customRecipient, setCustomRecipient] = useState("");
   const [sendToCustomer, setSendToCustomer] = useState(true);
   const [isPending, startTransition] = useTransition();
+
+  const customerById = useMemo(
+    () => new Map(customers.map((customer) => [customer.id, customer])),
+    [customers]
+  );
+
+  const machineById = useMemo(
+    () => new Map(machines.map((machine) => [machine.id, machine])),
+    [machines]
+  );
+
+  const pdfAttachmentByInspectionId = useMemo(() => {
+    const map = new Map<string, InspectionAttachmentRecord>();
+
+    attachments.forEach((attachment) => {
+      if (attachment.kind === "pdf" && !map.has(attachment.inspectionId)) {
+        map.set(attachment.inspectionId, attachment);
+      }
+    });
+
+    return map;
+  }, [attachments]);
 
   const customerOptions = useMemo(
     () =>
@@ -72,8 +153,8 @@ export function InspectionsTable({
         return right.inspectionNumber.localeCompare(left.inspectionNumber, "nl");
       })
       .filter((inspection) => {
-        const customer = customers.find((item) => item.id === inspection.customerId);
-        const machine = machines.find((item) => item.id === inspection.machineId);
+        const customer = customerById.get(inspection.customerId);
+        const machine = machineById.get(inspection.machineId);
 
         if (customerFilter && inspection.customerId !== customerFilter) {
           return false;
@@ -104,7 +185,24 @@ export function InspectionsTable({
           .toLowerCase()
           .includes(needle);
       });
-  }, [customerFilter, customers, dateFilter, inspections, machineFilter, machines, query]);
+  }, [
+    customerById,
+    customerFilter,
+    dateFilter,
+    inspections,
+    machineById,
+    machineFilter,
+    query
+  ]);
+
+  const groupedInspections = useMemo(
+    () => groupInspectionsByYearAndMonth(filteredInspections),
+    [filteredInspections]
+  );
+
+  const hasActiveFilters = Boolean(
+    query.trim() || customerFilter || machineFilter || dateFilter
+  );
 
   function resendMail(inspectionId: string) {
     setFeedback(null);
@@ -134,6 +232,70 @@ export function InspectionsTable({
       setSendToCustomer(true);
       router.refresh();
     });
+  }
+
+  function renderInspectionRow(inspection: InspectionRecord) {
+    const customer = customerById.get(inspection.customerId);
+    const machine = machineById.get(inspection.machineId);
+    const machineLabel = [
+      machine?.internalNumber || machine?.machineNumber,
+      machine?.brand,
+      machine?.model
+    ]
+      .filter(Boolean)
+      .join(" ");
+    const pdfAttachment = pdfAttachmentByInspectionId.get(inspection.id);
+    const statusClass =
+      inspection.status === "rejected"
+        ? "red"
+        : inspection.status === "draft"
+          ? "orange"
+          : "green";
+
+    return (
+      <div className="dataset-row compact-overview-row" key={inspection.id}>
+        <strong>
+          <span className={`status-dot ${statusClass}`} aria-hidden="true" />
+          {inspection.inspectionNumber}
+        </strong>
+        <span className="compact-overview-detail">
+          {inspection.inspectionDate} | {customer?.companyName ?? "-"} | {machineLabel || "-"}
+        </span>
+        <span className="compact-overview-actions">
+          {pdfAttachment ? (
+            <a
+              className="button-secondary"
+              href={fileUrl(pdfAttachment.storagePath)}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Rapport
+            </a>
+          ) : null}
+          <Link
+            className="button-secondary"
+            href={
+              inspection.status === "draft"
+                ? `/keuringen/nieuw?inspectionId=${inspection.id}`
+                : `/keuringen/${inspection.id}`
+            }
+          >
+            Openen
+          </Link>
+          <button
+            className="button-secondary"
+            type="button"
+            disabled={isPending}
+            onClick={() => {
+              setFeedback(null);
+              setResendInspectionId(inspection.id);
+            }}
+          >
+            Mail
+          </button>
+        </span>
+      </div>
+    );
   }
 
   return (
@@ -240,73 +402,69 @@ export function InspectionsTable({
           </div>
         </div>
       ) : null}
-      <div className="dataset-list">
-        {filteredInspections.map((inspection) => {
-          const customer = customers.find((item) => item.id === inspection.customerId);
-          const machine = machines.find((item) => item.id === inspection.machineId);
-          const machineLabel = [
-            machine?.internalNumber || machine?.machineNumber,
-            machine?.brand,
-            machine?.model
-          ]
-            .filter(Boolean)
-            .join(" ");
-          const pdfAttachment = attachments.find(
-            (attachment) => attachment.inspectionId === inspection.id && attachment.kind === "pdf"
-          );
-          const statusClass =
-            inspection.status === "rejected"
-              ? "red"
-              : inspection.status === "draft"
-                ? "orange"
-                : "green";
 
-          return (
-            <div className="dataset-row compact-overview-row" key={inspection.id}>
-              <strong>
-                <span className={`status-dot ${statusClass}`} aria-hidden="true" />
-                {inspection.inspectionNumber}
-              </strong>
-              <span className="compact-overview-detail">
-                {inspection.inspectionDate} | {customer?.companyName ?? "-"} | {machineLabel || "-"}
-              </span>
-              <span className="compact-overview-actions">
-                {pdfAttachment ? (
-                  <a
-                    className="button-secondary"
-                    href={fileUrl(pdfAttachment.storagePath)}
-                    target="_blank"
-                    rel="noreferrer"
+      {groupedInspections.length === 0 ? (
+        <div className="dataset-list">
+          <div className="dataset-row compact-overview-row">
+            <strong>Geen keuringen gevonden</strong>
+            <span className="compact-overview-detail">
+              Pas de filters aan of maak een nieuwe keuring aan.
+            </span>
+            <span />
+          </div>
+        </div>
+      ) : (
+        <div className="archive-stack">
+          {groupedInspections.map((yearGroup, yearIndex) => (
+            <details
+              className="archive-folder archive-year-folder"
+              key={yearGroup.year}
+              open={hasActiveFilters || yearIndex === 0}
+            >
+              <summary className="archive-summary">
+                <span className="archive-summary-main">
+                  <strong>{yearGroup.year}</strong>
+                  <span className="archive-summary-meta">
+                    {yearGroup.months.reduce((count, month) => count + month.inspections.length, 0)}{" "}
+                    keuringen
+                  </span>
+                </span>
+                <span className="archive-summary-meta">
+                  {yearGroup.months.length} maanden
+                </span>
+              </summary>
+              <div className="archive-folder-content">
+                {yearGroup.months.map((monthGroup, monthIndex) => (
+                  <details
+                    className="archive-folder archive-month-folder"
+                    key={monthGroup.monthKey}
+                    open={hasActiveFilters || (yearIndex === 0 && monthIndex === 0)}
                   >
-                    Rapport
-                  </a>
-                ) : null}
-                <Link
-                  className="button-secondary"
-                  href={
-                    inspection.status === "draft"
-                      ? `/keuringen/nieuw?inspectionId=${inspection.id}`
-                      : `/keuringen/${inspection.id}`
-                  }
-                >
-                  Openen
-                </Link>
-                <button
-                  className="button-secondary"
-                  type="button"
-                  disabled={isPending}
-                  onClick={() => {
-                    setFeedback(null);
-                    setResendInspectionId(inspection.id);
-                  }}
-                >
-                  Mail
-                </button>
-              </span>
-            </div>
-          );
-        })}
-      </div>
+                    <summary className="archive-summary">
+                      <span className="archive-summary-main">
+                        <strong>{monthGroup.monthLabel}</strong>
+                        <span className="archive-summary-meta">
+                          {monthGroup.inspections.length} keuringen
+                        </span>
+                      </span>
+                      <span className="archive-summary-meta">
+                        Laatste keurnummer {monthGroup.inspections[0]?.inspectionNumber ?? "-"}
+                      </span>
+                    </summary>
+                    <div className="archive-folder-content">
+                      <div className="dataset-list">
+                        {monthGroup.inspections.map((inspection) =>
+                          renderInspectionRow(inspection)
+                        )}
+                      </div>
+                    </div>
+                  </details>
+                ))}
+              </div>
+            </details>
+          ))}
+        </div>
+      )}
     </>
   );
 }

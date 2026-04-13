@@ -5,7 +5,7 @@ import {
   deleteTodoItemAction,
   updateTodoItemAction
 } from "@/app/dashboard-actions";
-import { requireUser } from "@/lib/auth";
+import { canViewActivityLog, requireUser } from "@/lib/auth";
 import {
   getRecentActivityLogs,
   getCustomerDisplayName,
@@ -83,6 +83,7 @@ export default async function HomePage({
   searchParams?: Promise<{ saved?: string; todo?: string }>;
 }) {
   const user = await requireUser();
+  const showActivityLog = canViewActivityLog(user);
   const dashboard = await getDashboardData();
   const params = await searchParams;
   const [planningRows, machines, customers, failedMailAlerts, todoItems, activityLogs] = await Promise.all([
@@ -91,7 +92,7 @@ export default async function HomePage({
     getCustomers(),
     getFailedMailAlerts(),
     getTodoItems(String(user?.id ?? "demo-user")),
-    getRecentActivityLogs(8)
+    showActivityLog ? getRecentActivityLogs(8) : Promise.resolve([])
   ]);
   const planning = planningRows.slice(0, 3);
   const todoMessage = {
@@ -233,7 +234,8 @@ export default async function HomePage({
         </section>
       ) : null}
 
-      <section className="panel" style={{ marginTop: "1rem" }}>
+      {showActivityLog ? (
+        <section className="panel" style={{ marginTop: "1rem" }}>
         <div className="eyebrow">Audittrail</div>
         <h2>Recente activiteiten</h2>
         <div className="list">
@@ -255,7 +257,8 @@ export default async function HomePage({
             ))
           )}
         </div>
-      </section>
+        </section>
+      ) : null}
 
       <section className="grid-2" style={{ marginTop: "1rem" }}>
         <article className="panel">

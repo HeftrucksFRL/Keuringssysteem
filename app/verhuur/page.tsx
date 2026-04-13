@@ -37,6 +37,60 @@ function statusBadgeStyle(phase: ReturnType<typeof rentalPhase>) {
   return { background: "#f2f4f7", color: "#344054" };
 }
 
+function formatMonthLabel(monthKey: string) {
+  const [year, month] = monthKey.split("-");
+  const parsedYear = Number(year);
+  const parsedMonth = Number(month);
+
+  if (!parsedYear || !parsedMonth) {
+    return monthKey;
+  }
+
+  return new Intl.DateTimeFormat("nl-NL", {
+    month: "long",
+    year: "numeric"
+  }).format(new Date(parsedYear, parsedMonth - 1, 1));
+}
+
+function rentalMonthKey(rental: { startDate: string; endDate: string; status: "active" | "completed" }) {
+  const phase = rentalPhase(rental);
+  const anchor = phase === "completed" ? rental.endDate : rental.startDate;
+  return anchor?.slice(0, 7) || "Onbekend";
+}
+
+function groupRentalsByYearAndMonth<
+  TRental extends { startDate: string; endDate: string; status: "active" | "completed" }
+>(rentals: TRental[]) {
+  const yearMap = new Map<string, Map<string, TRental[]>>();
+
+  rentals.forEach((rental) => {
+    const monthKey = rentalMonthKey(rental);
+    const yearKey = monthKey.slice(0, 4) || "Onbekend";
+
+    if (!yearMap.has(yearKey)) {
+      yearMap.set(yearKey, new Map<string, TRental[]>());
+    }
+
+    const monthMap = yearMap.get(yearKey)!;
+    const rows = monthMap.get(monthKey) ?? [];
+    rows.push(rental);
+    monthMap.set(monthKey, rows);
+  });
+
+  return Array.from(yearMap.entries())
+    .sort(([left], [right]) => right.localeCompare(left, "nl"))
+    .map(([year, monthMap]) => ({
+      year,
+      months: Array.from(monthMap.entries())
+        .sort(([left], [right]) => right.localeCompare(left, "nl"))
+        .map(([monthKey, rows]) => ({
+          monthKey,
+          monthLabel: formatMonthLabel(monthKey),
+          rows
+        }))
+    }));
+}
+
 export default async function RentalsPage({
   searchParams
 }: {
@@ -48,6 +102,9 @@ export default async function RentalsPage({
     getVisibleCustomers(),
     getRentalStockMachines()
   ]);
+
+  const machineById = new Map(stockMachines.map((machine) => [machine.id, machine]));
+  const customerById = new Map(customers.map((customer) => [customer.id, customer]));
 
   const groups = {
     active: rentals.filter((rental) => rentalPhase(rental) === "active"),
@@ -107,11 +164,21 @@ export default async function RentalsPage({
               <CustomerPicker customers={customers} label="Verhuren aan klant" required />
               <div className="field">
                 <label htmlFor="startDate">Startdatum</label>
-                <input id="startDate" name="startDate" type="date" defaultValue={new Date().toISOString().slice(0, 10)} />
+                <input
+                  id="startDate"
+                  name="startDate"
+                  type="date"
+                  defaultValue={new Date().toISOString().slice(0, 10)}
+                />
               </div>
               <div className="field">
                 <label htmlFor="endDate">Einddatum</label>
-                <input id="endDate" name="endDate" type="date" defaultValue={new Date().toISOString().slice(0, 10)} />
+                <input
+                  id="endDate"
+                  name="endDate"
+                  type="date"
+                  defaultValue={new Date().toISOString().slice(0, 10)}
+                />
               </div>
               <div className="field">
                 <label htmlFor="price">Prijs</label>
@@ -137,72 +204,125 @@ export default async function RentalsPage({
         />
       </section>
 
-      {visibleGroups.map((group) => (
-        <section key={group.key} style={{ marginTop: "1rem" }}>
-          <div className="eyebrow">{group.title}</div>
-          <div className="dataset-list" style={{ marginTop: "0.75rem" }}>
+      {visibleGroups.map((group, groupIndex) => {
+        const archiveGroups = groupRentalsByYearAndMonth(group.rows);
+
+        return (
+          <section key={group.key} style={{ marginTop: "1rem" }}>
+            <div className="eyebrow">{group.title}</div>
             {group.rows.length === 0 ? (
-              <div className="dataset-row compact-overview-row">
-                <strong>Geen verhuur</strong>
-                <span className="compact-overview-detail">
-                  Hier verschijnen straks de relevante verhuurregels.
-                </span>
-                <span />
+              <div className="dataset-list" style={{ marginTop: "0.75rem" }}>
+                <div className="dataset-row compact-overview-row">
+                  <strong>Geen verhuur</strong>
+                  <span className="compact-overview-detail">
+                    Hier verschijnen straks de relevante verhuurregels.
+                  </span>
+                  <span />
+                </div>
               </div>
             ) : (
-              group.rows.map((rental) => {
-                const machine = stockMachines.find((item) => item.id === rental.machineId);
-                const customer = customers.find((item) => item.id === rental.customerId) ?? null;
-                const phase = rentalPhase(rental);
-                const machineLabel =
-                  [machine?.brand, machine?.model].filter(Boolean).join(" ") ||
-                  machine?.machineNumber ||
-                  "Machine";
-                const machineNumber = machine?.internalNumber || machine?.machineNumber || "-";
-                const detailLine = [
-                  getCustomerDisplayName(customer),
-                  machineNumber,
-                  `${rental.startDate} t/m ${rental.endDate}`,
-                  rental.price || ""
-                ]
-                  .filter(Boolean)
-                  .join(" | ");
-
-                return (
-                  <div
-                    className="dataset-row compact-overview-row"
-                    key={rental.id}
-                    style={phase === "active" ? { background: "#ecfdf3", borderColor: "#abefc6" } : undefined}
+              <div className="archive-stack" style={{ marginTop: "0.75rem" }}>
+                {archiveGroups.map((yearGroup, yearIndex) => (
+                  <details
+                    className="archive-folder archive-year-folder"
+                    key={`${group.key}-${yearGroup.year}`}
+                    open={groupIndex === 0 || query?.phase !== undefined || yearIndex === 0}
                   >
-                    <strong>{machineLabel}</strong>
-                    <span className="compact-overview-detail">{detailLine}</span>
-                    <span className="compact-overview-actions">
-                      <span className="badge" style={statusBadgeStyle(phase)}>
-                        {phaseLabel(phase)}
+                    <summary className="archive-summary">
+                      <span className="archive-summary-main">
+                        <strong>{yearGroup.year}</strong>
+                        <span className="archive-summary-meta">
+                          {yearGroup.months.reduce((count, month) => count + month.rows.length, 0)}{" "}
+                          verhuurregels
+                        </span>
                       </span>
-                      <Link className="button-secondary" href={`/machines/${rental.machineId}`}>
-                        Machine
-                      </Link>
-                      <Link className="button-secondary" href={`/klanten/${rental.customerId}`}>
-                        Klant
-                      </Link>
-                      {phase !== "completed" ? (
-                        <form action={completeRentalAction}>
-                          <input type="hidden" name="rentalId" value={rental.id} />
-                          <input type="hidden" name="machineId" value={rental.machineId} />
-                          <button className="button-secondary" type="submit">
-                            Afronden
-                          </button>
-                        </form>
-                      ) : null}
-                    </span>
-                  </div>
-                );
-              })
+                      <span className="archive-summary-meta">
+                        {yearGroup.months.length} maanden
+                      </span>
+                    </summary>
+                    <div className="archive-folder-content">
+                      {yearGroup.months.map((monthGroup, monthIndex) => (
+                        <details
+                          className="archive-folder archive-month-folder"
+                          key={monthGroup.monthKey}
+                          open={yearIndex === 0 && monthIndex === 0}
+                        >
+                          <summary className="archive-summary">
+                            <span className="archive-summary-main">
+                              <strong>{monthGroup.monthLabel}</strong>
+                              <span className="archive-summary-meta">
+                                {monthGroup.rows.length} verhuurregels
+                              </span>
+                            </span>
+                          </summary>
+                          <div className="archive-folder-content">
+                            <div className="dataset-list">
+                              {monthGroup.rows.map((rental) => {
+                                const machine = machineById.get(rental.machineId);
+                                const customer = customerById.get(rental.customerId) ?? null;
+                                const phase = rentalPhase(rental);
+                                const machineLabel =
+                                  [machine?.brand, machine?.model].filter(Boolean).join(" ") ||
+                                  machine?.machineNumber ||
+                                  "Machine";
+                                const machineNumber =
+                                  machine?.internalNumber || machine?.machineNumber || "-";
+                                const detailLine = [
+                                  getCustomerDisplayName(customer),
+                                  machineNumber,
+                                  `${rental.startDate} t/m ${rental.endDate}`,
+                                  rental.price || ""
+                                ]
+                                  .filter(Boolean)
+                                  .join(" | ");
+
+                                return (
+                                  <div
+                                    className="dataset-row compact-overview-row"
+                                    key={rental.id}
+                                    style={
+                                      phase === "active"
+                                        ? { background: "#ecfdf3", borderColor: "#abefc6" }
+                                        : undefined
+                                    }
+                                  >
+                                    <strong>{machineLabel}</strong>
+                                    <span className="compact-overview-detail">{detailLine}</span>
+                                    <span className="compact-overview-actions">
+                                      <span className="badge" style={statusBadgeStyle(phase)}>
+                                        {phaseLabel(phase)}
+                                      </span>
+                                      <Link className="button-secondary" href={`/machines/${rental.machineId}`}>
+                                        Machine
+                                      </Link>
+                                      <Link className="button-secondary" href={`/klanten/${rental.customerId}`}>
+                                        Klant
+                                      </Link>
+                                      {phase !== "completed" ? (
+                                        <form action={completeRentalAction}>
+                                          <input type="hidden" name="rentalId" value={rental.id} />
+                                          <input type="hidden" name="machineId" value={rental.machineId} />
+                                          <button className="button-secondary" type="submit">
+                                            Afronden
+                                          </button>
+                                        </form>
+                                      ) : null}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </details>
+                      ))}
+                    </div>
+                  </details>
+                ))}
+              </div>
             )}
-          </div>
-        </section>
-      ))}
+          </section>
+        );
+      })}
     </section>
   );
 }

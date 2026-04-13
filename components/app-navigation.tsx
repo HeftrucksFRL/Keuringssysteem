@@ -17,15 +17,22 @@ import type { Route } from "next";
 const links: Array<{
   href: Route;
   label: string;
+  mobileLabel?: string;
   icon: typeof LayoutDashboard;
   mobileQuick?: boolean;
 }> = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard, mobileQuick: true },
-  { href: "/keuringen/nieuw", label: "Nieuwe keuring", icon: ClipboardCheck, mobileQuick: true },
+  { href: "/", label: "Dashboard", mobileLabel: "Home", icon: LayoutDashboard, mobileQuick: true },
+  {
+    href: "/keuringen/nieuw",
+    label: "Nieuwe keuring",
+    mobileLabel: "Nieuw",
+    icon: ClipboardCheck,
+    mobileQuick: true
+  },
   { href: "/klanten", label: "Klanten", icon: Users, mobileQuick: true },
   { href: "/machines", label: "Machines", icon: Forklift, mobileQuick: true },
   { href: "/planning", label: "Planning", icon: FolderKanban, mobileQuick: true },
-  { href: "/keuringen", label: "Keuringen", icon: Wrench, mobileQuick: true },
+  { href: "/keuringen", label: "Keuringen", icon: Wrench },
   { href: "/verhuur", label: "Verhuur", icon: PackageCheck }
 ];
 
@@ -91,7 +98,7 @@ export function AppNavigation() {
               href={link.href}
             >
               <Icon size={18} />
-              <span>{link.label}</span>
+              <span>{link.mobileLabel ?? link.label}</span>
             </Link>
           );
         })}
