@@ -56,11 +56,12 @@ export default function RootLayout({
               </Link>
               <span>Keuringssysteem</span>
             </div>
-            <AppNavigation />
+            <AppNavigation variant="desktop" />
             <div className="auth-slot">
               <AuthStatus />
             </div>
           </header>
+          <AppNavigation variant="mobile" />
           <main className="page">{children}</main>
         </div>
       </body>
