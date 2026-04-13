@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { requireActivityActor } from "@/lib/auth";
 import {
+  addActivityLog,
   addCustomerContact,
   createCustomer,
   deleteCustomerContact,
@@ -12,8 +14,10 @@ import {
 } from "@/lib/inspection-service";
 
 export async function createCustomerAction(formData: FormData) {
+  const actor = await requireActivityActor();
+  const companyName = String(formData.get("companyName") || "");
   const id = await createCustomer({
-    companyName: String(formData.get("companyName") || ""),
+    companyName,
     address: String(formData.get("address") || ""),
     city: String(formData.get("city") || ""),
     contactName: String(formData.get("contactName") || ""),
@@ -21,33 +25,70 @@ export async function createCustomerAction(formData: FormData) {
     email: String(formData.get("email") || "")
   });
 
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "customer.created",
+    entityType: "customer",
+    entityId: id,
+    targetLabel: companyName || "Nieuwe klant"
+  });
+
   revalidatePath("/klanten");
   revalidatePath("/keuringen/nieuw");
+  revalidatePath("/");
   redirect(`/klanten/${id}?created=1`);
 }
 
 export async function updateCustomerAction(formData: FormData) {
+  const actor = await requireActivityActor();
   const id = String(formData.get("id") || "");
+  const companyName = String(formData.get("companyName") || "");
   await updateCustomer({
     id,
-    companyName: String(formData.get("companyName") || ""),
+    companyName,
     address: String(formData.get("address") || ""),
     city: String(formData.get("city") || ""),
     contactName: String(formData.get("contactName") || ""),
     phone: String(formData.get("phone") || ""),
     email: String(formData.get("email") || "")
+  });
+
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "customer.updated",
+    entityType: "customer",
+    entityId: id,
+    targetLabel: companyName || `Klant ${id}`
   });
 
   revalidatePath("/klanten");
   revalidatePath(`/klanten/${id}`);
   revalidatePath("/keuringen/nieuw");
+  revalidatePath("/");
   redirect(`/klanten/${id}?saved=1`);
 }
 
 export async function movePlanningItemAction(formData: FormData) {
+  const actor = await requireActivityActor();
+  const id = String(formData.get("id") || "");
+  const dueDate = String(formData.get("dueDate") || "");
   await updatePlanningItem({
-    id: String(formData.get("id") || ""),
-    dueDate: String(formData.get("dueDate") || "")
+    id,
+    dueDate
+  });
+
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "planning.updated",
+    entityType: "planning",
+    entityId: id,
+    targetLabel: `Vervolgkeuring ${dueDate}`
   });
 
   revalidatePath("/planning");
@@ -55,52 +96,94 @@ export async function movePlanningItemAction(formData: FormData) {
 }
 
 export async function addCustomerContactAction(formData: FormData) {
+  const actor = await requireActivityActor();
   const customerId = String(formData.get("customerId") || "");
+  const name = String(formData.get("name") || "");
 
   await addCustomerContact({
     customerId,
-    name: String(formData.get("name") || ""),
+    name,
     department: String(formData.get("department") || ""),
     phone: String(formData.get("phone") || ""),
     email: String(formData.get("email") || ""),
     makePrimary: formData.get("makePrimary") === "on"
   });
 
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "customer_contact.created",
+    entityType: "customer_contact",
+    targetLabel: name || `Contactpersoon ${customerId}`,
+    details: { customerId }
+  });
+
   revalidatePath("/klanten");
   revalidatePath(`/klanten/${customerId}`);
   revalidatePath("/keuringen/nieuw");
+  revalidatePath("/");
   redirect(`/klanten/${customerId}?contactSaved=1`);
 }
 
 export async function updateCustomerContactAction(formData: FormData) {
+  const actor = await requireActivityActor();
   const customerId = String(formData.get("customerId") || "");
+  const contactId = String(formData.get("contactId") || "");
+  const name = String(formData.get("name") || "");
 
   await updateCustomerContact({
-    id: String(formData.get("contactId") || ""),
+    id: contactId,
     customerId,
-    name: String(formData.get("name") || ""),
+    name,
     department: String(formData.get("department") || ""),
     phone: String(formData.get("phone") || ""),
     email: String(formData.get("email") || ""),
     makePrimary: formData.get("makePrimary") === "on"
   });
 
-  revalidatePath("/klanten");
-  revalidatePath(`/klanten/${customerId}`);
-  revalidatePath("/keuringen/nieuw");
-  redirect(`/klanten/${customerId}?contactSaved=1`);
-}
-
-export async function deleteCustomerContactAction(formData: FormData) {
-  const customerId = String(formData.get("customerId") || "");
-
-  await deleteCustomerContact({
-    id: String(formData.get("contactId") || ""),
-    customerId
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "customer_contact.updated",
+    entityType: "customer_contact",
+    entityId: contactId,
+    targetLabel: name || `Contactpersoon ${contactId}`,
+    details: { customerId }
   });
 
   revalidatePath("/klanten");
   revalidatePath(`/klanten/${customerId}`);
   revalidatePath("/keuringen/nieuw");
+  revalidatePath("/");
+  redirect(`/klanten/${customerId}?contactSaved=1`);
+}
+
+export async function deleteCustomerContactAction(formData: FormData) {
+  const actor = await requireActivityActor();
+  const customerId = String(formData.get("customerId") || "");
+  const contactId = String(formData.get("contactId") || "");
+
+  await deleteCustomerContact({
+    id: contactId,
+    customerId
+  });
+
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "customer_contact.deleted",
+    entityType: "customer_contact",
+    entityId: contactId,
+    targetLabel: `Contactpersoon ${contactId}`,
+    details: { customerId }
+  });
+
+  revalidatePath("/klanten");
+  revalidatePath(`/klanten/${customerId}`);
+  revalidatePath("/keuringen/nieuw");
+  revalidatePath("/");
   redirect(`/klanten/${customerId}?contactSaved=1`);
 }

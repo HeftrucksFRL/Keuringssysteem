@@ -7,6 +7,7 @@ import {
 } from "@/app/dashboard-actions";
 import { requireUser } from "@/lib/auth";
 import {
+  getRecentActivityLogs,
   getCustomerDisplayName,
   getDashboardData,
   getCustomers,
@@ -27,6 +28,55 @@ function buildTodoNote(title: string, description?: string | null) {
   return `${trimmedTitle} - ${trimmedDescription}`;
 }
 
+function formatActivityAction(action: string) {
+  const labels: Record<string, string> = {
+    "inspection.created": "Keuring aangemaakt",
+    "inspection.updated": "Keuring bijgewerkt",
+    "inspection.resent": "Keuring opnieuw gemaild",
+    "customer.created": "Klant toegevoegd",
+    "customer.updated": "Klant bijgewerkt",
+    "customer_contact.created": "Contactpersoon toegevoegd",
+    "customer_contact.updated": "Contactpersoon bijgewerkt",
+    "customer_contact.deleted": "Contactpersoon verwijderd",
+    "machine.created": "Machine toegevoegd",
+    "machine.updated": "Machine bijgewerkt",
+    "machine.assigned": "Machine gekoppeld",
+    "machine.stocked": "Machine naar voorraad",
+    "machine.archived": "Machine gearchiveerd",
+    "machine.unarchived": "Archief ongedaan gemaakt",
+    "battery_lader.linked": "Batterij/lader gekoppeld",
+    "battery_lader.unlinked": "Batterij/lader losgekoppeld",
+    "battery_lader.archived": "Batterij/lader gearchiveerd",
+    "rental.created": "Verhuur gestart",
+    "rental.updated": "Verhuur bijgewerkt",
+    "rental.completed": "Verhuur afgerond",
+    "planning.created": "Planning toegevoegd",
+    "planning.updated": "Planning bijgewerkt",
+    "agenda.created": "Afspraak toegevoegd",
+    "agenda.updated": "Afspraak bijgewerkt",
+    "agenda.deleted": "Afspraak verwijderd",
+    "todo.created": "Notitie toegevoegd",
+    "todo.updated": "Notitie bijgewerkt",
+    "todo.deleted": "Notitie verwijderd",
+    "todo.completed": "Notitie afgerond"
+  };
+
+  return labels[action] ?? action;
+}
+
+function formatActivityMoment(value: string) {
+  if (!value) {
+    return "";
+  }
+
+  return new Intl.DateTimeFormat("nl-NL", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(value));
+}
+
 export default async function HomePage({
   searchParams
 }: {
@@ -35,12 +85,13 @@ export default async function HomePage({
   const user = await requireUser();
   const dashboard = await getDashboardData();
   const params = await searchParams;
-  const [planningRows, machines, customers, failedMailAlerts, todoItems] = await Promise.all([
+  const [planningRows, machines, customers, failedMailAlerts, todoItems, activityLogs] = await Promise.all([
     getPlanningItems(),
     getMachines(),
     getCustomers(),
     getFailedMailAlerts(),
-    getTodoItems(String(user?.id ?? "demo-user"))
+    getTodoItems(String(user?.id ?? "demo-user")),
+    getRecentActivityLogs(8)
   ]);
   const planning = planningRows.slice(0, 3);
   const todoMessage = {
@@ -181,6 +232,30 @@ export default async function HomePage({
           </div>
         </section>
       ) : null}
+
+      <section className="panel" style={{ marginTop: "1rem" }}>
+        <div className="eyebrow">Audittrail</div>
+        <h2>Recente activiteiten</h2>
+        <div className="list">
+          {activityLogs.length === 0 ? (
+            <div className="list-item static-list-item">
+              <span>Nog geen activiteiten zichtbaar.</span>
+              <strong>Leeg</strong>
+            </div>
+          ) : (
+            activityLogs.map((activity) => (
+              <div className="list-item static-list-item" key={activity.id}>
+                <span>
+                  <strong>{formatActivityAction(activity.action)}</strong>
+                  <br />
+                  {activity.targetLabel} · {activity.actorName || activity.actorEmail || "Onbekend"}
+                </span>
+                <strong>{formatActivityMoment(activity.createdAt)}</strong>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
 
       <section className="grid-2" style={{ marginTop: "1rem" }}>
         <article className="panel">

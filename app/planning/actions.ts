@@ -2,8 +2,9 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/auth";
+import { requireActivityActor, requireUser } from "@/lib/auth";
 import {
+  addActivityLog,
   addAgendaEvent,
   createManualPlanningItem,
   deleteAgendaEvent,
@@ -13,6 +14,7 @@ import {
 } from "@/lib/inspection-service";
 
 export async function createManualPlanningAction(formData: FormData) {
+  const actor = await requireActivityActor();
   const customerId = String(formData.get("customerId") || "");
   const machineId = String(formData.get("machineId") || "");
   const dueDate = String(formData.get("dueDate") || "");
@@ -27,12 +29,23 @@ export async function createManualPlanningAction(formData: FormData) {
     dueDate
   });
 
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "planning.created",
+    entityType: "planning",
+    targetLabel: `Handmatige planning ${dueDate}`,
+    details: { customerId, machineId }
+  });
+
   revalidatePath("/planning");
   revalidatePath("/");
   redirect(`/planning?month=${dueDate.slice(0, 7)}&planned=1`);
 }
 
 export async function updatePlanningItemAction(formData: FormData) {
+  const actor = await requireActivityActor();
   const ids = JSON.parse(String(formData.get("ids") || "[]")) as string[];
   const dueDate = String(formData.get("dueDate") || "");
   const month = String(formData.get("month") || "");
@@ -45,6 +58,16 @@ export async function updatePlanningItemAction(formData: FormData) {
     await updatePlanningItem({ id, dueDate });
   }
 
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "planning.updated",
+    entityType: "planning",
+    targetLabel: `Planning ${dueDate}`,
+    details: { ids, month }
+  });
+
   revalidatePath("/planning");
   revalidatePath("/");
   revalidatePath("/keuringen");
@@ -52,6 +75,7 @@ export async function updatePlanningItemAction(formData: FormData) {
 }
 
 export async function updateRentalAction(formData: FormData) {
+  const actor = await requireActivityActor();
   const rentalId = String(formData.get("rentalId") || "");
   const startDate = String(formData.get("startDate") || "");
   const endDate = String(formData.get("endDate") || "");
@@ -77,6 +101,17 @@ export async function updateRentalAction(formData: FormData) {
     redirect(`/planning?month=${month || startDate.slice(0, 7)}&error=${message}`);
   }
 
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "rental.updated",
+    entityType: "rental",
+    entityId: rentalId,
+    targetLabel: `Verhuur ${startDate} - ${endDate}`,
+    details: { customerId, price }
+  });
+
   revalidatePath("/planning");
   revalidatePath("/verhuur");
   revalidatePath("/machines");
@@ -86,6 +121,7 @@ export async function updateRentalAction(formData: FormData) {
 
 export async function createAgendaEventAction(formData: FormData) {
   const user = await requireUser();
+  const actor = await requireActivityActor();
   const title = String(formData.get("title") || "");
   const description = String(formData.get("description") || "");
   const eventDate = String(formData.get("eventDate") || "");
@@ -101,12 +137,23 @@ export async function createAgendaEventAction(formData: FormData) {
     eventDate
   });
 
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "agenda.created",
+    entityType: "agenda",
+    targetLabel: title,
+    details: { eventDate }
+  });
+
   revalidatePath("/planning");
   redirect(`/planning?month=${eventDate.slice(0, 7)}&appointment=1`);
 }
 
 export async function updateAgendaEventAction(formData: FormData) {
   const user = await requireUser();
+  const actor = await requireActivityActor();
   const id = String(formData.get("id") || "");
   const title = String(formData.get("title") || "");
   const description = String(formData.get("description") || "");
@@ -125,12 +172,24 @@ export async function updateAgendaEventAction(formData: FormData) {
     eventDate
   });
 
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "agenda.updated",
+    entityType: "agenda",
+    entityId: id,
+    targetLabel: title,
+    details: { eventDate }
+  });
+
   revalidatePath("/planning");
   redirect(`/planning?month=${month || eventDate.slice(0, 7)}&updated=1`);
 }
 
 export async function deleteAgendaEventAction(formData: FormData) {
   const user = await requireUser();
+  const actor = await requireActivityActor();
   const id = String(formData.get("id") || "");
   const month = String(formData.get("month") || "");
 
@@ -141,6 +200,16 @@ export async function deleteAgendaEventAction(formData: FormData) {
   await deleteAgendaEvent({
     id,
     ownerId: String(user?.id ?? "demo-user")
+  });
+
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "agenda.deleted",
+    entityType: "agenda",
+    entityId: id,
+    targetLabel: `Afspraak ${id}`
   });
 
   revalidatePath("/planning");

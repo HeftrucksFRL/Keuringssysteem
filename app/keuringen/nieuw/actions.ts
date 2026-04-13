@@ -1,8 +1,9 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { requireActivityActor } from "@/lib/auth";
 import { getFormDefinition } from "@/lib/form-definitions";
-import { createInspection } from "@/lib/inspection-service";
+import { addActivityLog, createInspection } from "@/lib/inspection-service";
 import type { ChecklistOption, MachineType } from "@/lib/types";
 
 export interface InspectionActionState {
@@ -27,6 +28,7 @@ export async function submitInspectionAction(
   _prevState: InspectionActionState,
   formData: FormData
 ): Promise<InspectionActionState> {
+  const actor = await requireActivityActor();
   const machineType = formData.get("machine_type");
   const checklist = formData.get("checklist");
 
@@ -99,6 +101,16 @@ export async function submitInspectionAction(
         buffer: Buffer.from(await photo.arrayBuffer())
       }))
     )
+  });
+
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "inspection.created",
+    entityType: "inspection",
+    entityId: inspection.id,
+    targetLabel: `Keuring ${inspection.inspectionNumber}`
   });
 
   redirect(`/keuringen?created=${inspection.inspectionNumber}`);

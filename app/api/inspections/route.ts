@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getFormDefinition } from "@/lib/form-definitions";
-import { createInspection, updateInspectionFromForm } from "@/lib/inspection-service";
+import { requireActivityActor } from "@/lib/auth";
+import { addActivityLog, createInspection, updateInspectionFromForm } from "@/lib/inspection-service";
 import { applyRateLimit, validateCsrf, validateOrigin } from "@/lib/security";
 import type { ChecklistOption, MachineType } from "@/lib/types";
 
@@ -143,6 +144,22 @@ export async function POST(request: NextRequest) {
     const inspection = inspectionId
       ? await updateInspectionFromForm(inspectionId, payload)
       : await createInspection(payload);
+
+    const actor = await requireActivityActor();
+    await addActivityLog({
+      actorId: actor.id,
+      actorName: actor.name,
+      actorEmail: actor.email,
+      action: inspectionId ? "inspection.updated" : "inspection.created",
+      entityType: "inspection",
+      entityId: inspection.id,
+      targetLabel: `Keuring ${inspection.inspectionNumber}`,
+      details: {
+        customerId: inspection.customerId,
+        machineId: inspection.machineId,
+        status: inspection.status
+      }
+    });
 
     return NextResponse.json({
       ok: true,

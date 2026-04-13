@@ -137,6 +137,19 @@ create table if not exists public.mail_events (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.activity_logs (
+  id uuid primary key default gen_random_uuid(),
+  actor_id uuid references auth.users(id) on delete set null,
+  actor_name text not null,
+  actor_email text,
+  action text not null,
+  entity_type text not null,
+  entity_id text,
+  target_label text not null,
+  details jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists public.planning_items (
   id uuid primary key default gen_random_uuid(),
   inspection_id uuid references public.inspections(id) on delete set null,
@@ -291,6 +304,7 @@ alter table public.machines enable row level security;
 alter table public.inspections enable row level security;
 alter table public.inspection_attachments enable row level security;
 alter table public.mail_events enable row level security;
+alter table public.activity_logs enable row level security;
 alter table public.planning_items enable row level security;
 alter table public.rentals enable row level security;
 alter table public.profiles enable row level security;
@@ -322,6 +336,9 @@ create index if not exists idx_customer_contacts_customer_id on public.customer_
 create index if not exists idx_inspections_machine_id on public.inspections(machine_id);
 create index if not exists idx_inspections_customer_id on public.inspections(customer_id);
 create index if not exists idx_inspections_date on public.inspections(inspection_date desc);
+create index if not exists idx_activity_logs_created_at on public.activity_logs(created_at desc);
+create index if not exists idx_activity_logs_actor_id on public.activity_logs(actor_id);
+create index if not exists idx_activity_logs_entity on public.activity_logs(entity_type, entity_id);
 create index if not exists idx_planning_due_date on public.planning_items(due_date);
 create index if not exists idx_rentals_machine_id on public.rentals(machine_id);
 create index if not exists idx_rentals_customer_id on public.rentals(customer_id);

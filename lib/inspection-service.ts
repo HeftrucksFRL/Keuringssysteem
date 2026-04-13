@@ -12,6 +12,7 @@ import { addTwelveMonths } from "@/lib/utils";
 import { generateInspectionDocuments } from "@/lib/documents";
 import { getYearSequenceStart } from "@/lib/inspection-number";
 import type {
+  ActivityLogRecord,
   AgendaEventRecord,
   AppDataSnapshot,
   CreateInspectionInput,
@@ -1174,6 +1175,21 @@ function mapAgendaEventRow(row: Record<string, unknown>): AgendaEventRecord {
   };
 }
 
+function mapActivityLogRow(row: Record<string, unknown>): ActivityLogRecord {
+  return {
+    id: String(row.id),
+    actorId: String(row.actor_id ?? ""),
+    actorName: String(row.actor_name ?? ""),
+    actorEmail: String(row.actor_email ?? ""),
+    action: String(row.action ?? ""),
+    entityType: String(row.entity_type ?? ""),
+    entityId: String(row.entity_id ?? ""),
+    targetLabel: String(row.target_label ?? ""),
+    details: (row.details as Record<string, unknown>) ?? {},
+    createdAt: String(row.created_at ?? "")
+  };
+}
+
 function compareTodoItems(left: TodoItemRecord, right: TodoItemRecord) {
   if (left.completed !== right.completed) {
     return left.completed ? 1 : -1;
@@ -1845,6 +1861,75 @@ export async function getFailedMailAlerts(limit = 5): Promise<MailAlertRecord[]>
       channel: event.channel,
       createdAt: event.createdAt
     }));
+}
+
+export async function addActivityLog(input: {
+  actorId?: string;
+  actorName: string;
+  actorEmail?: string;
+  action: string;
+  entityType: string;
+  entityId?: string;
+  targetLabel: string;
+  details?: Record<string, unknown>;
+}) {
+  if (!hasSupabaseConfig()) {
+    return null;
+  }
+
+  const supabase = createSupabaseAdmin();
+  const actorId =
+    input.actorId && /^[0-9a-f-]{36}$/i.test(input.actorId) ? input.actorId : null;
+
+  const { data, error } = await supabase
+    .from("activity_logs")
+    .insert({
+      actor_id: actorId,
+      actor_name: input.actorName,
+      actor_email: input.actorEmail ?? null,
+      action: input.action,
+      entity_type: input.entityType,
+      entity_id: input.entityId ?? null,
+      target_label: input.targetLabel,
+      details: input.details ?? {}
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    if (
+      error.message.includes("relation \"public.activity_logs\" does not exist") ||
+      error.message.includes("Could not find the table 'public.activity_logs'")
+    ) {
+      return null;
+    }
+    throw new Error(`Activiteit loggen is niet gelukt: ${error.message}`);
+  }
+
+  return data ? mapActivityLogRow(data) : null;
+}
+
+export async function getRecentActivityLogs(limit = 12): Promise<ActivityLogRecord[]> {
+  if (!hasSupabaseConfig()) {
+    return [];
+  }
+
+  const supabase = createSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("activity_logs")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (
+    error &&
+    (error.message.includes("relation \"public.activity_logs\" does not exist") ||
+      error.message.includes("Could not find the table 'public.activity_logs'"))
+  ) {
+    return [];
+  }
+
+  return (data ?? []).map((row) => mapActivityLogRow(row));
 }
 
 export async function getCustomers() {

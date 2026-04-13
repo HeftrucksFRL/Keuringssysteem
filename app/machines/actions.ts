@@ -3,7 +3,9 @@
 import { redirect } from "next/navigation";
 import type { Route } from "next";
 import { revalidatePath } from "next/cache";
+import { requireActivityActor } from "@/lib/auth";
 import {
+  addActivityLog,
   archiveMachine,
   assignMachineToCustomer,
   createMachine,
@@ -83,6 +85,7 @@ function getMachinePayload(formData: FormData, machineType: MachineType) {
 }
 
 export async function createMachineAction(formData: FormData) {
+  const actor = await requireActivityActor();
   const toStock = String(formData.get("toStock") || "") === "1";
   const machineType = String(formData.get("machineType") || "heftruck_reachtruck") as MachineType;
   const payload = getMachinePayload(formData, machineType);
@@ -106,14 +109,30 @@ export async function createMachineAction(formData: FormData) {
     details: payload.details
   });
 
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "machine.created",
+    entityType: machineType,
+    entityId: id,
+    targetLabel:
+      payload.internalNumber ||
+      `${payload.brand} ${payload.model}`.trim() ||
+      `Machine ${id}`,
+    details: { customerId, toStock }
+  });
+
   revalidatePath("/machines");
   revalidatePath("/klanten");
   revalidatePath("/keuringen/nieuw");
   revalidatePath("/verhuur");
+  revalidatePath("/");
   redirect(`/machines/${id}?created=1`);
 }
 
 export async function updateMachineAction(formData: FormData) {
+  const actor = await requireActivityActor();
   const id = String(formData.get("id") || "");
   const machineType = String(formData.get("machineType") || "heftruck_reachtruck") as MachineType;
   const payload = getMachinePayload(formData, machineType);
@@ -144,13 +163,29 @@ export async function updateMachineAction(formData: FormData) {
   revalidatePath("/keuringen");
   revalidatePath("/keuringen/nieuw");
   revalidatePath("/verhuur");
+  revalidatePath("/");
   for (const inspectionId of affectedInspectionIds) {
     revalidatePath(`/keuringen/${inspectionId}`);
   }
+
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "machine.updated",
+    entityType: machineType,
+    entityId: id,
+    targetLabel:
+      payload.internalNumber ||
+      `${payload.brand} ${payload.model}`.trim() ||
+      `Machine ${id}`
+  });
+
   redirect(`/machines/${id}?saved=1`);
 }
 
 export async function assignMachineToCustomerAction(formData: FormData) {
+  const actor = await requireActivityActor();
   const machineId = String(formData.get("machineId") || "");
   const customerId = String(formData.get("customerId") || "");
 
@@ -179,10 +214,22 @@ export async function assignMachineToCustomerAction(formData: FormData) {
     revalidatePath(`/keuringen/${inspectionId}`);
   }
 
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "machine.assigned",
+    entityType: "machine",
+    entityId: machineId,
+    targetLabel: `Machine ${machineId}`,
+    details: { customerId }
+  });
+
   redirect(`/machines/${machineId}?assigned=1`);
 }
 
 export async function assignMachineToStockAction(formData: FormData) {
+  const actor = await requireActivityActor();
   const machineId = String(formData.get("machineId") || "");
   if (!machineId) {
     return;
@@ -212,21 +259,43 @@ export async function assignMachineToStockAction(formData: FormData) {
   revalidatePath("/keuringen");
   revalidatePath("/keuringen/nieuw");
   revalidatePath("/verhuur");
+  revalidatePath("/");
   for (const inspectionId of affectedInspectionIds) {
     revalidatePath(`/keuringen/${inspectionId}`);
   }
 
   if (archiveAfter) {
     await archiveMachine(machineId);
+    await addActivityLog({
+      actorId: actor.id,
+      actorName: actor.name,
+      actorEmail: actor.email,
+      action: "machine.archived",
+      entityType: "machine",
+      entityId: machineId,
+      targetLabel: `Machine ${machineId}`,
+      details: { via: "detach_to_stock" }
+    });
     revalidatePath("/machines");
     revalidatePath(`/machines/${machineId}`);
     redirect(`/machines/${machineId}?detachedArchived=1`);
   }
 
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "machine.stocked",
+    entityType: "machine",
+    entityId: machineId,
+    targetLabel: `Machine ${machineId}`
+  });
+
   redirect(`/machines/${machineId}?detached=1`);
 }
 
 export async function saveBatteryChargerLinkAction(formData: FormData) {
+  const actor = await requireActivityActor();
   const batteryMachineId = String(formData.get("batteryMachineId") || "");
   const removeLink = String(formData.get("remove_link") || "").trim() === "1";
   const archiveAfter = String(formData.get("archive_after") || "").trim() === "1";
@@ -273,6 +342,21 @@ export async function saveBatteryChargerLinkAction(formData: FormData) {
   revalidatePath("/keuringen/nieuw");
   revalidatePath("/verhuur");
 
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: linkedMachineId
+      ? "battery_lader.linked"
+      : archiveAfter
+        ? "battery_lader.archived"
+        : "battery_lader.unlinked",
+    entityType: "batterij_lader",
+    entityId: batteryMachineId,
+    targetLabel: `B/L ${batteryMachineId}`,
+    details: { linkedMachineId: linkedMachineId || null }
+  });
+
   redirect(
     `${redirectTo}${redirectTo.includes("?") ? "&" : "?"}${
       linkedMachineId
@@ -285,19 +369,31 @@ export async function saveBatteryChargerLinkAction(formData: FormData) {
 }
 
 export async function archiveMachineAction(formData: FormData) {
+  const actor = await requireActivityActor();
   const machineId = String(formData.get("machineId") || "");
   if (!machineId) {
     return;
   }
 
   await archiveMachine(machineId);
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "machine.archived",
+    entityType: "machine",
+    entityId: machineId,
+    targetLabel: `Machine ${machineId}`
+  });
   revalidatePath("/machines");
   revalidatePath("/keuringen/nieuw");
   revalidatePath("/verhuur");
+  revalidatePath("/");
   redirect("/machines?archived=1");
 }
 
 export async function unarchiveMachineAction(formData: FormData) {
+  const actor = await requireActivityActor();
   const machineId = String(formData.get("machineId") || "");
   if (!machineId) {
     return;
@@ -331,5 +427,15 @@ export async function unarchiveMachineAction(formData: FormData) {
   revalidatePath(`/machines/${machineId}`);
   revalidatePath("/klanten");
   revalidatePath("/verhuur");
+  revalidatePath("/");
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "machine.unarchived",
+    entityType: machine.machineType,
+    entityId: machineId,
+    targetLabel: machine.internalNumber || machine.machineNumber || `Machine ${machineId}`
+  });
   redirect(`/machines/${machineId}?unarchived=1`);
 }

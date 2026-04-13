@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { completeRental, createRental } from "@/lib/inspection-service";
+import { requireActivityActor } from "@/lib/auth";
+import { addActivityLog, completeRental, createRental } from "@/lib/inspection-service";
 
 function redirectWithMessage(basePath: string, key: "error" | "rented" | "returned", value: string) {
   const separator = basePath.includes("?") ? "&" : "?";
@@ -10,6 +11,7 @@ function redirectWithMessage(basePath: string, key: "error" | "rented" | "return
 }
 
 export async function createRentalAction(formData: FormData) {
+  const actor = await requireActivityActor();
   const machineId = String(formData.get("machineId") || "");
   const customerId = String(formData.get("customerId") || "");
   const startDate = String(formData.get("startDate") || "");
@@ -41,14 +43,26 @@ export async function createRentalAction(formData: FormData) {
     redirectWithMessage(returnTo, "error", message);
   }
 
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "rental.created",
+    entityType: "rental",
+    targetLabel: `Verhuur ${startDate} - ${endDate}`,
+    details: { machineId, customerId, price }
+  });
+
   revalidatePath("/machines");
   revalidatePath(`/machines/${machineId}`);
   revalidatePath("/planning");
   revalidatePath("/verhuur");
+  revalidatePath("/");
   redirectWithMessage(returnTo, "rented", "1");
 }
 
 export async function completeRentalAction(formData: FormData) {
+  const actor = await requireActivityActor();
   const rentalId = String(formData.get("rentalId") || "");
   const machineId = String(formData.get("machineId") || "");
 
@@ -57,9 +71,20 @@ export async function completeRentalAction(formData: FormData) {
   }
 
   await completeRental(rentalId);
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "rental.completed",
+    entityType: "rental",
+    entityId: rentalId,
+    targetLabel: `Verhuur ${rentalId}`,
+    details: { machineId }
+  });
   revalidatePath("/machines");
   revalidatePath(`/machines/${machineId}`);
   revalidatePath("/planning");
   revalidatePath("/verhuur");
+  revalidatePath("/");
   redirect(`/machines/${machineId}?returned=1`);
 }

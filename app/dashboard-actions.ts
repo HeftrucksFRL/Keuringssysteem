@@ -2,8 +2,9 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/auth";
+import { requireActivityActor, requireUser } from "@/lib/auth";
 import {
+  addActivityLog,
   addTodoItem,
   deleteTodoItem,
   setTodoItemCompleted,
@@ -12,6 +13,7 @@ import {
 
 export async function addTodoItemAction(formData: FormData) {
   const user = await requireUser();
+  const actor = await requireActivityActor();
   const title = String(formData.get("title") || "");
   const description = String(formData.get("description") || "");
   const dueDate = String(formData.get("dueDate") || "");
@@ -27,12 +29,22 @@ export async function addTodoItemAction(formData: FormData) {
     dueDate
   });
 
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "todo.created",
+    entityType: "todo",
+    targetLabel: title
+  });
+
   revalidatePath("/");
   redirect("/?todo=added");
 }
 
 export async function updateTodoItemAction(formData: FormData) {
   const user = await requireUser();
+  const actor = await requireActivityActor();
   const id = String(formData.get("id") || "");
   const title = String(formData.get("title") || "");
   const description = String(formData.get("description") || "");
@@ -53,12 +65,23 @@ export async function updateTodoItemAction(formData: FormData) {
     completed
   });
 
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "todo.updated",
+    entityType: "todo",
+    entityId: id,
+    targetLabel: title
+  });
+
   revalidatePath("/");
   redirect("/?todo=updated");
 }
 
 export async function deleteTodoItemAction(formData: FormData) {
   const user = await requireUser();
+  const actor = await requireActivityActor();
   const id = String(formData.get("id") || "");
 
   if (!id) {
@@ -70,12 +93,23 @@ export async function deleteTodoItemAction(formData: FormData) {
     ownerId: String(user?.id ?? "demo-user")
   });
 
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "todo.deleted",
+    entityType: "todo",
+    entityId: id,
+    targetLabel: `Notitie ${id}`
+  });
+
   revalidatePath("/");
   redirect("/?todo=deleted");
 }
 
 export async function toggleTodoItemCompletedAction(formData: FormData) {
   const user = await requireUser();
+  const actor = await requireActivityActor();
   const id = String(formData.get("id") || "");
   const nextCompleted = String(formData.get("nextCompleted") || "") === "true";
 
@@ -87,6 +121,17 @@ export async function toggleTodoItemCompletedAction(formData: FormData) {
     id,
     ownerId: String(user?.id ?? "demo-user"),
     completed: nextCompleted
+  });
+
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "todo.completed",
+    entityType: "todo",
+    entityId: id,
+    targetLabel: `Notitie ${id}`,
+    details: { completed: nextCompleted }
   });
 
   revalidatePath("/");

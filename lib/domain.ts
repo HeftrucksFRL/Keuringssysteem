@@ -140,6 +140,19 @@ export interface MailAlertRecord {
   createdAt: string;
 }
 
+export interface ActivityLogRecord {
+  id: string;
+  actorId: string;
+  actorName: string;
+  actorEmail: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  targetLabel: string;
+  details: Record<string, unknown>;
+  createdAt: string;
+}
+
 export interface AppDataSnapshot {
   customers: CustomerRecord[];
   customerContacts: CustomerContactRecord[];

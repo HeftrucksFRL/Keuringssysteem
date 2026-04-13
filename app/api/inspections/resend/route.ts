@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { resendInspectionMail } from "@/lib/inspection-service";
+import { requireActivityActor } from "@/lib/auth";
+import { addActivityLog, resendInspectionMail } from "@/lib/inspection-service";
 import {
   applyRateLimit,
   isValidEmailAddress,
@@ -54,6 +55,21 @@ export async function POST(request: NextRequest) {
     await resendInspectionMail(body.inspectionId, {
       customerRecipient: customRecipient,
       sendPdfToCustomer: shouldSendPdf
+    });
+
+    const actor = await requireActivityActor();
+    await addActivityLog({
+      actorId: actor.id,
+      actorName: actor.name,
+      actorEmail: actor.email,
+      action: "inspection.resent",
+      entityType: "inspection",
+      entityId: body.inspectionId,
+      targetLabel: `Keuring ${body.inspectionId}`,
+      details: {
+        customerRecipient: customRecipient ?? null,
+        sendPdfToCustomer: shouldSendPdf
+      }
     });
     return NextResponse.json({ ok: true });
   } catch (error) {
