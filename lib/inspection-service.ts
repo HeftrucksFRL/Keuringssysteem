@@ -576,38 +576,67 @@ async function upsertSupabaseCustomerContact(
   const shouldAddAsNew = input.saveAsNewContact || !input.contactId;
 
   let selectedContactRow: Record<string, unknown> | null = null;
+  const usesMissingDepartmentColumn = (message?: string) =>
+    Boolean(
+      message?.includes("customer_contacts.department") ||
+        message?.includes("Could not find the 'department' column")
+    );
 
   if (!shouldAddAsNew && input.contactId) {
-    const { data } = await supabase
+    const updatePayload = {
+      name: nextName,
+      department: nextDepartment,
+      phone: nextPhone,
+      email: nextEmail,
+      is_primary: true
+    };
+    let result = await supabase
       .from("customer_contacts")
-      .update({
-        name: nextName,
-        department: nextDepartment,
-        phone: nextPhone,
-        email: nextEmail,
-        is_primary: true
-      })
+      .update(updatePayload)
       .eq("id", input.contactId)
       .eq("customer_id", customerId)
       .select("*")
       .maybeSingle();
-    selectedContactRow = data;
+
+    if (result.error && usesMissingDepartmentColumn(result.error.message)) {
+      const { department: _omitDepartment, ...fallbackPayload } = updatePayload;
+      result = await supabase
+        .from("customer_contacts")
+        .update(fallbackPayload)
+        .eq("id", input.contactId)
+        .eq("customer_id", customerId)
+        .select("*")
+        .maybeSingle();
+    }
+
+    selectedContactRow = result.data;
   }
 
   if (!selectedContactRow) {
-    const { data } = await supabase
+    const insertPayload = {
+      customer_id: customerId,
+      name: nextName || "Contactpersoon",
+      department: nextDepartment,
+      phone: nextPhone,
+      email: nextEmail,
+      is_primary: true
+    };
+    let result = await supabase
       .from("customer_contacts")
-      .insert({
-        customer_id: customerId,
-        name: nextName || "Contactpersoon",
-        department: nextDepartment,
-        phone: nextPhone,
-        email: nextEmail,
-        is_primary: true
-      })
+      .insert(insertPayload)
       .select("*")
       .single();
-    selectedContactRow = data;
+
+    if (result.error && usesMissingDepartmentColumn(result.error.message)) {
+      const { department: _omitDepartment, ...fallbackPayload } = insertPayload;
+      result = await supabase
+        .from("customer_contacts")
+        .insert(fallbackPayload)
+        .select("*")
+        .single();
+    }
+
+    selectedContactRow = result.data;
   }
 
   if (!selectedContactRow) {
@@ -2738,18 +2767,37 @@ export async function addCustomerContact(input: {
 }) {
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
-    const { data } = await supabase
+    const insertPayload = {
+      customer_id: input.customerId,
+      name: input.name,
+      department: input.department ?? "",
+      phone: input.phone,
+      email: input.email,
+      is_primary: Boolean(input.makePrimary)
+    };
+    let result = await supabase
       .from("customer_contacts")
-      .insert({
-        customer_id: input.customerId,
-        name: input.name,
-        department: input.department ?? "",
-        phone: input.phone,
-        email: input.email,
-        is_primary: Boolean(input.makePrimary)
-      })
+      .insert(insertPayload)
       .select("*")
       .single();
+
+    if (
+      result.error?.message?.includes("customer_contacts.department") ||
+      result.error?.message?.includes("Could not find the 'department' column")
+    ) {
+      const { department: _omitDepartment, ...fallbackPayload } = insertPayload;
+      result = await supabase
+        .from("customer_contacts")
+        .insert(fallbackPayload)
+        .select("*")
+        .single();
+    }
+
+    if (result.error) {
+      throw new Error(result.error.message);
+    }
+
+    const data = result.data;
 
     if (input.makePrimary && data) {
       await supabase
@@ -2813,19 +2861,40 @@ export async function updateCustomerContact(input: {
 }) {
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
-    const { data } = await supabase
+    const updatePayload = {
+      name: input.name,
+      department: input.department ?? "",
+      phone: input.phone,
+      email: input.email,
+      is_primary: Boolean(input.makePrimary)
+    };
+    let result = await supabase
       .from("customer_contacts")
-      .update({
-        name: input.name,
-        department: input.department ?? "",
-        phone: input.phone,
-        email: input.email,
-        is_primary: Boolean(input.makePrimary)
-      })
+      .update(updatePayload)
       .eq("id", input.id)
       .eq("customer_id", input.customerId)
       .select("*")
       .maybeSingle();
+
+    if (
+      result.error?.message?.includes("customer_contacts.department") ||
+      result.error?.message?.includes("Could not find the 'department' column")
+    ) {
+      const { department: _omitDepartment, ...fallbackPayload } = updatePayload;
+      result = await supabase
+        .from("customer_contacts")
+        .update(fallbackPayload)
+        .eq("id", input.id)
+        .eq("customer_id", input.customerId)
+        .select("*")
+        .maybeSingle();
+    }
+
+    if (result.error) {
+      throw new Error(result.error.message);
+    }
+
+    const data = result.data;
 
     if (input.makePrimary && data) {
       await supabase

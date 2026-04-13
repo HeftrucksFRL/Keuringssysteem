@@ -27,10 +27,10 @@ export default function RootLayout({
               <Link className="brand-link" href="/">
                 <Image
                   className="brand-logo"
-                  src="/heftrucks-friesland-logo.svg"
+                  src="/logo-heftrucks-frl.png"
                   alt="Heftrucks Friesland"
-                  width={220}
-                  height={56}
+                  width={196}
+                  height={54}
                   priority
                 />
               </Link>
