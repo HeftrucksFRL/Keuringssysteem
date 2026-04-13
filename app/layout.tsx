@@ -1,6 +1,6 @@
 import "./globals.css";
 import { Suspense } from "react";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import brandLogo from "../Logo Heftrucks.frl.png";
@@ -10,7 +10,25 @@ import { RouteLoadingIndicator } from "@/components/route-loading-indicator";
 
 export const metadata: Metadata = {
   title: "Keuringssysteem | Heftrucks Friesland",
-  description: "Digitale keuringsapp voor intern transportmaterieel."
+  description: "Digitale keuringsapp voor intern transportmaterieel.",
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [
+      { url: "/app-icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" }
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+    shortcut: ["/favicon-32x32.png"]
+  },
+  appleWebApp: {
+    capable: true,
+    title: "Keuringen HF",
+    statusBarStyle: "default"
+  }
+};
+
+export const viewport: Viewport = {
+  themeColor: "#005ea8"
 };
 
 export default function RootLayout({

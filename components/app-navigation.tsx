@@ -32,8 +32,8 @@ const links: Array<{
   { href: "/klanten", label: "Klanten", icon: Users, mobileQuick: true },
   { href: "/machines", label: "Machines", icon: Forklift, mobileQuick: true },
   { href: "/planning", label: "Planning", icon: FolderKanban, mobileQuick: true },
-  { href: "/keuringen", label: "Keuringen", icon: Wrench },
-  { href: "/verhuur", label: "Verhuur", icon: PackageCheck }
+  { href: "/keuringen", label: "Keuringen", mobileLabel: "Keur", icon: Wrench, mobileQuick: true },
+  { href: "/verhuur", label: "Verhuur", mobileLabel: "Huur", icon: PackageCheck, mobileQuick: true }
 ];
 
 function isActive(pathname: string, href: string) {

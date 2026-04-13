@@ -315,18 +315,28 @@ textarea {
   left: 0;
   z-index: 30;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(72px, 1fr);
   gap: 0.25rem;
   padding: 0.45rem 0.55rem calc(0.45rem + env(safe-area-inset-bottom));
   background: rgba(246, 250, 252, 0.94);
   backdrop-filter: blur(14px);
   border-top: 1px solid rgba(198, 211, 224, 0.9);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.bottom-nav::-webkit-scrollbar {
+  display: none;
 }
 
 .bottom-nav-link {
   display: grid;
   justify-items: center;
   gap: 0.2rem;
+  min-width: 72px;
   min-height: 52px;
   padding: 0.45rem 0.2rem;
   border-radius: 16px;
@@ -334,6 +344,7 @@ textarea {
   font-weight: 700;
   line-height: 1.1;
   color: var(--muted);
+  scroll-snap-align: start;
 }
 
 .bottom-nav-link.active {
