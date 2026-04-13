@@ -111,35 +111,49 @@ export default async function CustomerDetailPage({
         <section className="panel">
           <div className="eyebrow">Contactpersonen</div>
           <h2>Alle contactpersonen</h2>
-          <div className="list" style={{ marginBottom: "1rem" }}>
+          <div className="compact-contact-list">
             {contacts.map((contact) => (
-              <div className="panel" key={contact.id} style={{ padding: "1rem", marginBottom: "0.75rem" }}>
-                <form action={updateCustomerContactAction}>
-                  <input type="hidden" name="customerId" value={customer.id} />
-                  <input type="hidden" name="contactId" value={contact.id} />
-                  <div className="form-grid-wide">
-                    <div className="field">
-                      <label htmlFor={`contact-name-${contact.id}`}>Naam</label>
-                      <input id={`contact-name-${contact.id}`} name="name" defaultValue={contact.name} />
+              <details className="compact-contact-item" key={contact.id}>
+                <summary className="compact-contact-summary">
+                  <div className="compact-contact-main">
+                    <strong>{contact.name}</strong>
+                    {contact.department ? <span>{contact.department}</span> : null}
+                  </div>
+                  <div className="compact-contact-meta">
+                    {contact.phone ? <span>{contact.phone}</span> : null}
+                    {contact.email ? <span>{contact.email}</span> : null}
+                    {contact.isPrimary ? <span className="badge blue">Huidig</span> : null}
+                    <span className="compact-contact-trigger">Bewerken</span>
+                  </div>
+                </summary>
+                <div className="compact-contact-body">
+                  <form action={updateCustomerContactAction}>
+                    <input type="hidden" name="customerId" value={customer.id} />
+                    <input type="hidden" name="contactId" value={contact.id} />
+                    <div className="compact-contact-fields">
+                      <div className="field">
+                        <label htmlFor={`contact-name-${contact.id}`}>Naam</label>
+                        <input id={`contact-name-${contact.id}`} name="name" defaultValue={contact.name} />
+                      </div>
+                      <div className="field">
+                        <label htmlFor={`contact-department-${contact.id}`}>Afdeling / functie</label>
+                        <input
+                          id={`contact-department-${contact.id}`}
+                          name="department"
+                          defaultValue={contact.department}
+                          placeholder="Bijv. keuring, verhuur of planning"
+                        />
+                      </div>
+                      <div className="field">
+                        <label htmlFor={`contact-phone-${contact.id}`}>Telefoon</label>
+                        <input id={`contact-phone-${contact.id}`} name="phone" defaultValue={contact.phone} />
+                      </div>
+                      <div className="field">
+                        <label htmlFor={`contact-email-${contact.id}`}>E-mail</label>
+                        <input id={`contact-email-${contact.id}`} name="email" type="email" defaultValue={contact.email} />
+                      </div>
                     </div>
-                    <div className="field">
-                      <label htmlFor={`contact-department-${contact.id}`}>Afdeling / functie</label>
-                      <input
-                        id={`contact-department-${contact.id}`}
-                        name="department"
-                        defaultValue={contact.department}
-                        placeholder="Bijv. keuring, verhuur of planning"
-                      />
-                    </div>
-                    <div className="field">
-                      <label htmlFor={`contact-phone-${contact.id}`}>Telefoon</label>
-                      <input id={`contact-phone-${contact.id}`} name="phone" defaultValue={contact.phone} />
-                    </div>
-                    <div className="field">
-                      <label htmlFor={`contact-email-${contact.id}`}>E-mail</label>
-                      <input id={`contact-email-${contact.id}`} name="email" type="email" defaultValue={contact.email} />
-                    </div>
-                    <div className="field">
+                    <div className="compact-contact-actions">
                       <label className="status-chip" htmlFor={`contact-primary-${contact.id}`}>
                         <input
                           id={`contact-primary-${contact.id}`}
@@ -149,62 +163,70 @@ export default async function CustomerDetailPage({
                         />
                         Maak dit de huidige contactpersoon
                       </label>
+                      <button className="button-secondary" type="submit">
+                        Opslaan
+                      </button>
+                    </div>
+                  </form>
+                  <form action={deleteCustomerContactAction}>
+                    <input type="hidden" name="customerId" value={customer.id} />
+                    <input type="hidden" name="contactId" value={contact.id} />
+                    <div className="compact-contact-actions">
+                      <button className="button-secondary" type="submit">
+                        Verwijderen
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </details>
+            ))}
+            <details className="compact-contact-item compact-contact-add">
+              <summary className="compact-contact-summary">
+                <div className="compact-contact-main">
+                  <strong>Contactpersoon toevoegen</strong>
+                </div>
+                <div className="compact-contact-meta">
+                  <span className="compact-contact-trigger">Nieuw</span>
+                </div>
+              </summary>
+              <div className="compact-contact-body">
+                <form action={addCustomerContactAction}>
+                  <input type="hidden" name="customerId" value={customer.id} />
+                  <div className="compact-contact-fields">
+                    <div className="field">
+                      <label htmlFor="contact-name">Naam</label>
+                      <input id="contact-name" name="name" />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="contact-department">Afdeling / functie</label>
+                      <input
+                        id="contact-department"
+                        name="department"
+                        placeholder="Bijv. keuring, verhuur of planning"
+                      />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="contact-phone">Telefoon</label>
+                      <input id="contact-phone" name="phone" />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="contact-email">E-mail</label>
+                      <input id="contact-email" name="email" type="email" />
                     </div>
                   </div>
-                  <div className="actions">
+                  <div className="compact-contact-actions">
+                    <label className="status-chip" htmlFor="makePrimary">
+                      <input id="makePrimary" name="makePrimary" type="checkbox" />
+                      Maak dit de huidige contactpersoon
+                    </label>
                     <button className="button-secondary" type="submit">
-                      Contactpersoon opslaan
-                    </button>
-                  </div>
-                </form>
-                <form action={deleteCustomerContactAction}>
-                  <input type="hidden" name="customerId" value={customer.id} />
-                  <input type="hidden" name="contactId" value={contact.id} />
-                  <div className="actions" style={{ marginTop: "0.75rem" }}>
-                    <button className="button-secondary" type="submit">
-                      Contactpersoon verwijderen
+                      Toevoegen
                     </button>
                   </div>
                 </form>
               </div>
-            ))}
+            </details>
           </div>
-          <form action={addCustomerContactAction}>
-            <input type="hidden" name="customerId" value={customer.id} />
-            <div className="form-grid-wide">
-              <div className="field">
-                <label htmlFor="contact-name">Nieuwe contactpersoon</label>
-                <input id="contact-name" name="name" />
-              </div>
-              <div className="field">
-                <label htmlFor="contact-phone">Telefoon</label>
-                <input id="contact-phone" name="phone" />
-              </div>
-              <div className="field">
-                <label htmlFor="contact-department">Afdeling / functie</label>
-                <input
-                  id="contact-department"
-                  name="department"
-                  placeholder="Bijv. keuring, verhuur of planning"
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="contact-email">E-mail</label>
-                <input id="contact-email" name="email" type="email" />
-              </div>
-              <div className="field">
-                <label className="status-chip" htmlFor="makePrimary">
-                  <input id="makePrimary" name="makePrimary" type="checkbox" />
-                  Maak dit de huidige contactpersoon
-                </label>
-              </div>
-            </div>
-            <div className="actions">
-              <button className="button-secondary" type="submit">
-                Contactpersoon toevoegen
-              </button>
-            </div>
-          </form>
         </section>
 
         <section className="panel">

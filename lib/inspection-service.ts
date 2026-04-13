@@ -94,6 +94,141 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function planningStateForDueDate(dueDate: string): PlanningRecord["state"] {
+  return dueDate < todayIso() ? "overdue" : "scheduled";
+}
+
+async function syncSupabaseInspectionPlanning(
+  supabase: ReturnType<typeof createSupabaseAdmin>,
+  input: {
+    inspectionId: string;
+    customerId: string;
+    machineId: string;
+    dueDate: string;
+  }
+) {
+  const state = planningStateForDueDate(input.dueDate);
+  const { data: planningRows, error } = await supabase
+    .from("planning_items")
+    .select("*")
+    .eq("machine_id", input.machineId)
+    .neq("state", "completed")
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw new Error(`Planning kon niet worden bijgewerkt: ${error.message}`);
+  }
+
+  const planningItems = (planningRows ?? []).map((row) => mapPlanningRow(row));
+  const targetItem =
+    planningItems.find((item) => item.inspectionId === input.inspectionId) ??
+    planningItems[0] ??
+    null;
+
+  if (!targetItem) {
+    const { data: insertedRow, error: insertError } = await supabase
+      .from("planning_items")
+      .insert({
+        inspection_id: input.inspectionId,
+        customer_id: input.customerId,
+        machine_id: input.machineId,
+        due_date: input.dueDate,
+        state
+      })
+      .select("id")
+      .single();
+
+    if (insertError) {
+      throw new Error(`Planning kon niet worden opgeslagen: ${insertError.message}`);
+    }
+
+    return String(insertedRow?.id ?? "");
+  }
+
+  const { error: updateError } = await supabase
+    .from("planning_items")
+    .update({
+      inspection_id: input.inspectionId,
+      customer_id: input.customerId,
+      machine_id: input.machineId,
+      due_date: input.dueDate,
+      state
+    })
+    .eq("id", targetItem.id);
+
+  if (updateError) {
+    throw new Error(`Planning kon niet worden bijgewerkt: ${updateError.message}`);
+  }
+
+  const duplicateIds = planningItems
+    .filter((item) => item.id !== targetItem.id)
+    .map((item) => item.id);
+
+  if (duplicateIds.length > 0) {
+    const { error: deleteError } = await supabase
+      .from("planning_items")
+      .delete()
+      .in("id", duplicateIds);
+
+    if (deleteError) {
+      throw new Error(`Dubbele planning kon niet worden opgeruimd: ${deleteError.message}`);
+    }
+  }
+
+  return targetItem.id;
+}
+
+function syncDemoInspectionPlanning(
+  data: AppDataSnapshot,
+  input: {
+    inspectionId: string;
+    customerId: string;
+    machineId: string;
+    dueDate: string;
+  }
+) {
+  const state = planningStateForDueDate(input.dueDate);
+  const planningItems = data.planningItems.filter(
+    (item) => item.machineId === input.machineId && item.state !== "completed"
+  );
+  const targetItem =
+    planningItems.find((item) => item.inspectionId === input.inspectionId) ??
+    planningItems[0] ??
+    null;
+
+  if (!targetItem) {
+    const planningItem: PlanningRecord = {
+      id: randomUUID(),
+      inspectionId: input.inspectionId,
+      customerId: input.customerId,
+      machineId: input.machineId,
+      dueDate: input.dueDate,
+      state,
+      createdAt: nowIso(),
+      updatedAt: nowIso()
+    };
+
+    data.planningItems.unshift(planningItem);
+    return planningItem.id;
+  }
+
+  targetItem.inspectionId = input.inspectionId;
+  targetItem.customerId = input.customerId;
+  targetItem.machineId = input.machineId;
+  targetItem.dueDate = input.dueDate;
+  targetItem.state = state;
+  targetItem.updatedAt = nowIso();
+
+  const duplicateIds = new Set(
+    planningItems.filter((item) => item.id !== targetItem.id).map((item) => item.id)
+  );
+  if (duplicateIds.size > 0) {
+    data.planningItems = data.planningItems.filter((item) => !duplicateIds.has(item.id));
+  }
+
+  return targetItem.id;
+}
+
 function rentalCompletionStatus(rental: {
   status: RentalRecord["status"];
   startDate: string;
@@ -637,17 +772,12 @@ async function createDemoInspection(input: CreateInspectionInput) {
     data.attachments.unshift(attachment);
   }
 
-  const planning: PlanningRecord = {
-    id: randomUUID(),
+  syncDemoInspectionPlanning(data, {
     inspectionId: inspection.id,
     customerId: customer.id,
     machineId: machine.id,
-    dueDate: nextInspectionDate,
-    state: new Date(nextInspectionDate) < new Date() ? "overdue" : "scheduled",
-    createdAt: nowIso(),
-    updatedAt: nowIso()
-  };
-  data.planningItems.unshift(planning);
+    dueDate: nextInspectionDate
+  });
 
   if (input.linkedBatteryMachineId && input.machineType !== "batterij_lader") {
     const linkedBatteryMachine = data.machines.find(
@@ -1275,12 +1405,11 @@ export async function createInspection(input: CreateInspectionInput) {
     await storeInspectionPhoto(inspection.id, photo);
   }
 
-  await supabase.from("planning_items").insert({
-    inspection_id: inspection.id,
-    customer_id: inspection.customerId,
-    machine_id: inspection.machineId,
-    due_date: inspection.nextInspectionDate,
-    state: new Date(inspection.nextInspectionDate) < new Date() ? "overdue" : "scheduled"
+  await syncSupabaseInspectionPlanning(supabase, {
+    inspectionId: inspection.id,
+    customerId: inspection.customerId,
+    machineId: inspection.machineId,
+    dueDate: inspection.nextInspectionDate
   });
 
   if (input.linkedBatteryMachineId && input.machineType !== "batterij_lader") {
@@ -1386,15 +1515,12 @@ export async function updateInspectionFromForm(
     inspection.resultLabels = input.resultLabels;
     inspection.updatedAt = nowIso();
 
-    const planningItem = data.planningItems.find((item) => item.inspectionId === inspection.id);
-    if (planningItem) {
-      planningItem.customerId = customer.id;
-      planningItem.machineId = machine.id;
-      planningItem.dueDate = inspection.nextInspectionDate;
-      planningItem.state =
-        new Date(inspection.nextInspectionDate) < new Date() ? "overdue" : "scheduled";
-      planningItem.updatedAt = nowIso();
-    }
+    syncDemoInspectionPlanning(data, {
+      inspectionId: inspection.id,
+      customerId: customer.id,
+      machineId: machine.id,
+      dueDate: inspection.nextInspectionDate
+    });
 
     if (input.linkedBatteryMachineId && input.machineType !== "batterij_lader") {
       const linkedBatteryMachine = data.machines.find(
@@ -1561,15 +1687,12 @@ export async function updateInspectionFromForm(
 
   const inspection = mapInspectionRow(updatedRow);
 
-  await supabase
-    .from("planning_items")
-    .update({
-      customer_id: inspection.customerId,
-      machine_id: inspection.machineId,
-      due_date: inspection.nextInspectionDate,
-      state: new Date(inspection.nextInspectionDate) < new Date() ? "overdue" : "scheduled"
-    })
-    .eq("inspection_id", inspection.id);
+  await syncSupabaseInspectionPlanning(supabase, {
+    inspectionId: inspection.id,
+    customerId: inspection.customerId,
+    machineId: inspection.machineId,
+    dueDate: inspection.nextInspectionDate
+  });
 
   if (input.linkedBatteryMachineId && input.machineType !== "batterij_lader") {
     await setBatteryChargerLink({
@@ -3521,6 +3644,12 @@ export async function assignMachineToCustomer(input: {
     }
 
     const customer = mapCustomerRow(customerRow);
+    await supabase
+      .from("planning_items")
+      .update({ customer_id: input.customerId })
+      .eq("machine_id", input.machineId)
+      .neq("state", "completed");
+
     const { data: draftRows } = await supabase
       .from("inspections")
       .update({
@@ -3564,6 +3693,12 @@ export async function assignMachineToCustomer(input: {
 
   machine.customerId = input.customerId;
   machine.updatedAt = nowIso();
+  data.planningItems.forEach((item) => {
+    if (item.machineId === input.machineId && item.state !== "completed") {
+      item.customerId = input.customerId;
+      item.updatedAt = nowIso();
+    }
+  });
 
   const affectedInspectionIds: string[] = [];
   for (const inspection of data.inspections) {
@@ -3645,6 +3780,13 @@ export async function updateInspection(input: {
       }
     }
 
+    await syncSupabaseInspectionPlanning(supabase, {
+      inspectionId: inspection.id,
+      customerId: inspection.customerId,
+      machineId: inspection.machineId,
+      dueDate: inspection.nextInspectionDate
+    });
+
     const { data: attachmentRows } = await supabase
       .from("inspection_attachments")
       .select("id, kind, storage_path")
@@ -3685,6 +3827,12 @@ export async function updateInspection(input: {
     }
   }
   inspection.updatedAt = nowIso();
+  syncDemoInspectionPlanning(data, {
+    inspectionId: inspection.id,
+    customerId: inspection.customerId,
+    machineId: inspection.machineId,
+    dueDate: inspection.nextInspectionDate
+  });
   await syncDemoInspectionDocuments(data, inspection);
   await writeAppData(data);
 }

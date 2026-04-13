@@ -1,6 +1,8 @@
 import "./globals.css";
 import { Suspense } from "react";
 import type { Metadata } from "next";
+import Image from "next/image";
+import Link from "next/link";
 import { AuthStatus } from "@/components/auth-status";
 import { AppNavigation } from "@/components/app-navigation";
 import { RouteLoadingIndicator } from "@/components/route-loading-indicator";
@@ -22,13 +24,16 @@ export default function RootLayout({
           </Suspense>
           <header className="topbar">
             <div className="brand">
-              <img
-                className="brand-logo"
-                src="/logo-heftrucks-frl.png"
-                alt="Heftrucks Friesland"
-                width={196}
-                height={54}
-              />
+              <Link className="brand-link" href="/">
+                <Image
+                  className="brand-logo"
+                  src="/heftrucks-friesland-logo.svg"
+                  alt="Heftrucks Friesland"
+                  width={220}
+                  height={56}
+                  priority
+                />
+              </Link>
               <span>Keuringssysteem</span>
             </div>
             <AppNavigation />

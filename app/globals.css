@@ -99,6 +99,11 @@ textarea {
   min-width: 0;
 }
 
+.brand-link {
+  display: block;
+  flex-shrink: 0;
+}
+
 .brand-logo {
   display: block;
   width: auto;
@@ -110,6 +115,98 @@ textarea {
 .brand span {
   font-size: 0.95rem;
   font-weight: 700;
+}
+
+.compact-contact-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.compact-contact-item {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.88);
+  overflow: hidden;
+}
+
+.compact-contact-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.9rem;
+  padding: 0.85rem 1rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.compact-contact-summary::-webkit-details-marker {
+  display: none;
+}
+
+.compact-contact-main {
+  display: grid;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.compact-contact-main strong {
+  font-size: 0.98rem;
+}
+
+.compact-contact-main span {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.compact-contact-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.compact-contact-trigger {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: white;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.compact-contact-body {
+  padding: 0 1rem 1rem;
+  border-top: 1px solid rgba(179, 199, 219, 0.45);
+}
+
+.compact-contact-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.85rem;
+}
+
+.compact-contact-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  margin-top: 0.85rem;
+}
+
+.compact-contact-actions .button-secondary {
+  min-height: 36px;
+  padding: 0.55rem 0.9rem;
+}
+
+.compact-contact-add .compact-contact-summary {
+  background: rgba(234, 244, 254, 0.55);
 }
 
 .brand-mark {
@@ -1617,8 +1714,17 @@ textarea {
 
     .mobile-agenda-list {
       display: none;
-    }
   }
+
+  .compact-contact-summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .compact-contact-meta {
+    justify-content: flex-start;
+  }
+}
 
   @media (min-width: 1024px) {
     .month-grid-wrap {

@@ -43,11 +43,17 @@ async function loadReportAssets() {
 }
 
 async function loadWordTemplatePath() {
-  return firstExistingPath([path.join(process.cwd(), "Sjabloon keuringsformulier.docx")]);
+  return firstExistingPath([
+    path.join(process.cwd(), "Sjabloon keuringsformulier.docx"),
+    path.join(process.cwd(), "Keuringsrapport sjabloon.docx")
+  ]);
 }
 
 async function loadPdfTemplatePath() {
-  return firstExistingPath([path.join(process.cwd(), "Sjabloon keuringsformulier.pdf")]);
+  return firstExistingPath([
+    path.join(process.cwd(), "Sjabloon keuringsformulier.pdf"),
+    path.join(process.cwd(), "Keuringsrapport sjabloon.pdf")
+  ]);
 }
 
 function escapeXml(value: string) {
