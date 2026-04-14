@@ -65,6 +65,10 @@ function visibleField(key: string) {
   return !key.includes("sticker") && key !== "machine_number";
 }
 
+function fieldStateClass(value?: string) {
+  return `field ${String(value ?? "").trim() ? "field-complete" : "field-active"}`;
+}
+
 function buildDefaultChecklist(type: MachineType) {
   const definition = getFormDefinition(type);
   const defaultOption = definition.checklistOptions[0];
@@ -871,11 +875,25 @@ export function InspectionForm({
           <h2>Klantgegevens</h2>
           <div className="form-block">
             {selectedCustomer ? (
-              <div className="form-grid-wide" style={{ marginBottom: "1rem" }}>
-                <div className="field">
-                  <label htmlFor="contact-choice">Contactpersoon</label>
+              <div className="compact-card compact-card-summary" style={{ marginBottom: "1rem" }}>
+                <div className="eyebrow">Gekozen klant</div>
+                <div className="read-only-grid inspection-summary-grid">
+                  <div className="info-card info-card-complete">
+                    <strong>{selectedCustomer.companyName}</strong>
+                    <span>{selectedCustomer.address || "Adres nog niet ingevuld"}</span>
+                  </div>
+                  <div className={`info-card ${selectedContact || values.customer_contact ? "info-card-complete" : "info-card-muted"}`}>
+                    <strong>{selectedContact?.name || values.customer_contact || "Nog geen contactpersoon"}</strong>
+                    <span>
+                      {selectedContact?.department ||
+                        values.customer_contact_department ||
+                        "Kies een contactpersoon of voeg er direct een toe."}
+                    </span>
+                  </div>
+                </div>
+                <div style={{ display: "none" }}>
                   <select
-                    id="contact-choice"
+                    id="contact-choice-hidden"
                     value={contactMode === "new" ? "__new__" : resolvedSelectedContactId}
                     onChange={(event) => {
                       const nextValue = event.target.value;
@@ -905,17 +923,17 @@ export function InspectionForm({
                     <option value="__new__">Nieuwe contactpersoon toevoegen</option>
                   </select>
                 </div>
-                <div className="field">
+                <div className="field" style={{ display: "none" }}>
                   <label htmlFor="customer_contact_department">Afdeling / functie</label>
                   <input
-                    id="customer_contact_department"
-                    name="customer_contact_department"
+                    id="customer_contact_department_hidden"
+                    name="customer_contact_department_hidden"
                     value={values.customer_contact_department ?? ""}
                     placeholder="Bijv. keuring, verhuur of planning"
                     onChange={(event) => setFieldValue("customer_contact_department", event.target.value)}
                   />
                 </div>
-                <div className="info-card">
+                <div className="info-card" style={{ display: "none" }}>
                   <strong>
                     {contactMode === "existing"
                       ? selectedContact?.name || "Geen contactpersoon"
@@ -934,19 +952,121 @@ export function InspectionForm({
               </div>
             ) : null}
             <div className="form-grid-wide">
-              {form.machineFields.filter((field) => field.key.startsWith("customer_")).map((field) => (
-                <div className="field" key={field.key}>
-                  <label htmlFor={field.key}>{field.label}</label>
-                  <input
-                    id={field.key}
-                    name={field.key}
-                    type={field.type ?? "text"}
-                    value={values[field.key] ?? ""}
-                    placeholder={field.placeholder}
-                    onChange={(event) => setFieldValue(field.key, event.target.value)}
-                  />
-                </div>
-              ))}
+              {selectedCustomer ? (
+                <>
+                  <div className={contactMode === "new" ? "field field-active" : "field field-complete"}>
+                    <label htmlFor="contact-choice">Contactpersoon</label>
+                    <select
+                      id="contact-choice"
+                      value={contactMode === "new" ? "__new__" : resolvedSelectedContactId}
+                      onChange={(event) => {
+                        const nextValue = event.target.value;
+                        if (nextValue === "__new__") {
+                          chooseContactMode("new");
+                          return;
+                        }
+
+                        setSelectedContactId(nextValue);
+                        setContactMode("existing");
+                        const nextContact = availableContacts.find((contact) => contact.id === nextValue);
+                        if (nextContact) {
+                          setValues((current) => ({
+                            ...current,
+                            ...customerContactValues(nextContact, selectedCustomer)
+                          }));
+                        }
+                      }}
+                    >
+                      {availableContacts.map((contact) => (
+                        <option key={contact.id} value={contact.id}>
+                          {[contact.name || "Contactpersoon", contact.department, contact.isPrimary ? "huidig" : ""]
+                            .filter(Boolean)
+                            .join(" - ")}
+                        </option>
+                      ))}
+                      <option value="__new__">Nieuwe contactpersoon toevoegen</option>
+                    </select>
+                  </div>
+                  {contactMode === "new" ? (
+                    <div className={fieldStateClass(values.customer_contact)}>
+                      <label htmlFor="customer_contact_step2">Naam nieuwe contactpersoon</label>
+                      <input
+                        id="customer_contact_step2"
+                        name="customer_contact"
+                        value={values.customer_contact ?? ""}
+                        placeholder="Voor- en achternaam"
+                        onChange={(event) => setFieldValue("customer_contact", event.target.value)}
+                      />
+                    </div>
+                  ) : (
+                    <div className="info-card info-card-complete">
+                      <strong>{selectedContact?.name || "Contactpersoon"}</strong>
+                      <span>
+                        {selectedContact?.email ||
+                          selectedContact?.phone ||
+                          "Deze contactpersoon wordt voor deze keuring gebruikt."}
+                      </span>
+                    </div>
+                  )}
+                  <div className={fieldStateClass(values.customer_contact_department)}>
+                    <label htmlFor="customer_contact_department_step2">Afdeling / functie</label>
+                    <input
+                      id="customer_contact_department_step2"
+                      name="customer_contact_department"
+                      value={values.customer_contact_department ?? ""}
+                      placeholder="Bijv. keuring, verhuur of planning"
+                      onChange={(event) => setFieldValue("customer_contact_department", event.target.value)}
+                    />
+                  </div>
+                  <div className={fieldStateClass(values.customer_phone)}>
+                    <label htmlFor="customer_phone">Telefoonnummer</label>
+                    <input
+                      id="customer_phone"
+                      name="customer_phone"
+                      type="tel"
+                      value={values.customer_phone ?? ""}
+                      placeholder="Telefoon voor deze keuring"
+                      onChange={(event) => setFieldValue("customer_phone", event.target.value)}
+                    />
+                  </div>
+                  <div className={fieldStateClass(values.customer_email)}>
+                    <label htmlFor="customer_email_step2">Mailadres</label>
+                    <input
+                      id="customer_email_step2"
+                      name="customer_email"
+                      type="email"
+                      value={values.customer_email ?? ""}
+                      placeholder="Algemeen of persoonlijk e-mailadres"
+                      onChange={(event) => setFieldValue("customer_email", event.target.value)}
+                    />
+                  </div>
+                </>
+              ) : null}
+              {form.machineFields
+                .filter(
+                  (field) =>
+                    field.key.startsWith("customer_") &&
+                    (!selectedCustomer ||
+                      ![
+                        "customer_contact",
+                        "customer_contact_department",
+                        "customer_phone",
+                        "customer_email"
+                      ].includes(field.key))
+                )
+                .map((field) => (
+                  <div className={fieldStateClass(values[field.key])} key={field.key}>
+                    <label htmlFor={field.key}>{field.label}</label>
+                    <input
+                      id={field.key}
+                      name={field.key}
+                      type={field.type ?? "text"}
+                      value={values[field.key] ?? ""}
+                      placeholder={field.placeholder}
+                      onChange={(event) => setFieldValue(field.key, event.target.value)}
+                    />
+                  </div>
+                ))}
             </div>
           </div>
         </section>
@@ -957,11 +1077,11 @@ export function InspectionForm({
           <div className="eyebrow">Stap 3</div>
           <h2>Machine kiezen of aanmaken</h2>
           {selectedCustomer ? (
-            <div className="compact-card" style={{ marginBottom: "1rem" }}>
+            <div className="compact-card compact-card-summary" style={{ marginBottom: "1rem" }}>
               <div className="eyebrow">Gekozen klant</div>
-              <div className="info-card">
+              <div className="info-card info-card-complete">
                 <strong>{selectedCustomer.companyName}</strong>
-                <span>Kies hieronder een bestaande machine of zet een nieuwe erin.</span>
+                <span>{selectedCustomer.address || "Kies hieronder een bestaande machine of zet een nieuwe erin."}</span>
               </div>
             </div>
           ) : null}
@@ -979,7 +1099,7 @@ export function InspectionForm({
           {machineMode === "existing" ? (
             <>
               <div className="form-block" style={{ marginTop: "1rem" }}>
-                <div className="field autocomplete">
+                <div className="field field-active autocomplete">
                   <label htmlFor="machine-search">Zoek machine</label>
                   <input
                     id="machine-search"
@@ -1006,18 +1126,18 @@ export function InspectionForm({
                 </div>
               </div>
 
-              <div className="compact-card" style={{ marginTop: "1rem" }}>
+              <div className="compact-card compact-card-summary" style={{ marginTop: "1rem" }}>
                 <div className="eyebrow">Gekozen machine</div>
                 <div className="read-only-grid compact-machine-summary">
-                  <div className="info-card">
+                  <div className={`info-card ${selectedMachine ? "info-card-complete" : "info-card-muted"}`}>
                     <strong>{selectedMachine ? `${selectedMachine.brand} ${selectedMachine.model}`.trim() : "Nog geen machine gekozen"}</strong>
                     <span>Machine</span>
                   </div>
-                  <div className="info-card">
+                  <div className={`info-card ${selectedMachine ? "info-card-complete" : "info-card-muted"}`}>
                     <strong>{selectedMachine?.internalNumber || selectedMachine?.machineNumber || "-"}</strong>
                     <span>Intern nummer</span>
                   </div>
-                  <div className="info-card">
+                  <div className={`info-card ${selectedMachine ? "info-card-complete" : "info-card-muted"}`}>
                     <strong>{selectedMachine?.serialNumber || "-"}</strong>
                     <span>Serienummer</span>
                   </div>
@@ -1092,36 +1212,33 @@ export function InspectionForm({
             <div className="eyebrow">Stap 4</div>
             <h2>Keuring</h2>
             <p className="muted" style={{ marginTop: 0 }}>{form.title}</p>
-            <div className="compact-card" style={{ marginBottom: "1rem" }}>
+            <div className="compact-card compact-card-summary" style={{ marginBottom: "1rem" }}>
               <div className="eyebrow">Geselecteerde gegevens</div>
-              <div className="read-only-grid">
-                <div className="info-card">
+              <div className="read-only-grid inspection-summary-grid">
+                <div className="info-card info-card-complete">
                   <strong>{values.customer_name || "-"}</strong>
                   <span>Gekozen klant</span>
                 </div>
-                <div className="info-card">
-                  <strong>{values.customer_contact || "-"}</strong>
-                  <span>Contactpersoon</span>
-                </div>
-                <div className="info-card">
-                  <strong>{values.customer_contact_department || "-"}</strong>
-                  <span>Afdeling / functie</span>
-                </div>
-                <div className="info-card">
+                <div className="info-card info-card-complete">
                   <strong>{[values.brand, values.model].filter(Boolean).join(" ") || "-"}</strong>
                   <span>Gekozen machine</span>
                 </div>
-                <div className="info-card">
+                <div className="info-card info-card-complete">
                   <strong>{values.internal_number || "-"}</strong>
                   <span>Intern nummer</span>
                 </div>
+                <div className="info-card info-card-complete">
+                  <strong>{values.serial_number || "-"}</strong>
+                  <span>Serienummer</span>
+                </div>
               </div>
             </div>
-            <div className="form-block">
+            <div className="form-block form-block-active">
+              <div className="eyebrow">Nog aanvullen of aanpassen</div>
               <div className="form-grid-wide">
                 {selectedCustomer ? (
                   <>
-                    <div className="field">
+                    <div className={contactMode === "new" ? "field field-active" : "field field-complete"}>
                       <label htmlFor="contact-choice-step4">Contactpersoon voor deze keuring</label>
                       <select
                         id="contact-choice-step4"
@@ -1146,15 +1263,27 @@ export function InspectionForm({
                       >
                         {availableContacts.map((contact) => (
                           <option key={contact.id} value={contact.id}>
-                            {contact.name || "Contactpersoon"}
-                            {contact.department ? ` · ${contact.department}` : ""}
-                            {contact.isPrimary ? " · huidig" : ""}
+                            {[contact.name || "Contactpersoon", contact.department, contact.isPrimary ? "huidig" : ""]
+                              .filter(Boolean)
+                              .join(" - ")}
                           </option>
                         ))}
                         <option value="__new__">Nieuwe contactpersoon toevoegen</option>
                       </select>
                     </div>
-                    <div className="field">
+                    {contactMode === "new" ? (
+                      <div className={fieldStateClass(values.customer_contact)}>
+                        <label htmlFor="customer_contact_step4">Naam nieuwe contactpersoon</label>
+                        <input
+                          id="customer_contact_step4"
+                          name="customer_contact"
+                          value={values.customer_contact ?? ""}
+                          placeholder="Voor- en achternaam"
+                          onChange={(event) => setFieldValue("customer_contact", event.target.value)}
+                        />
+                      </div>
+                    ) : null}
+                    <div className={fieldStateClass(values.customer_email)}>
                       <label htmlFor="customer_email">Mailadres voor deze keuring</label>
                       <input
                         id="customer_email"
@@ -1165,7 +1294,7 @@ export function InspectionForm({
                         onChange={(event) => setFieldValue("customer_email", event.target.value)}
                       />
                     </div>
-                    <div className="field">
+                    <div className={fieldStateClass(values.customer_contact_department)}>
                       <label htmlFor="customer_contact_department_step4">Afdeling / functie</label>
                       <input
                         id="customer_contact_department_step4"
@@ -1179,7 +1308,7 @@ export function InspectionForm({
                 ) : null}
                 {type !== "batterij_lader" ? (
                   <>
-                    <div className="field autocomplete">
+                    <div className="field field-active autocomplete">
                       <label htmlFor="linked-battery-search">Batterij / lader koppelen (optioneel)</label>
                       <input
                         id="linked-battery-search"
@@ -1220,7 +1349,7 @@ export function InspectionForm({
                         </div>
                       ) : null}
                     </div>
-                    <div className="info-card">
+                    <div className={`info-card ${selectedLinkedBatteryMachine ? "info-card-complete" : "info-card-muted"}`}>
                       <strong>{batteryChargerLabel(selectedLinkedBatteryMachine)}</strong>
                       <span>
                         {selectedLinkedBatteryMachine
@@ -1274,7 +1403,7 @@ export function InspectionForm({
                       )
                   )
                   .map((field) => (
-                    <div className="field" key={field.key}>
+                    <div className={fieldStateClass(values[field.key])} key={field.key}>
                       <label htmlFor={field.key}>{field.label}</label>
                       <input
                         id={field.key}
@@ -1286,7 +1415,7 @@ export function InspectionForm({
                       />
                     </div>
                   ))}
-                <div className="field">
+                <div className={fieldStateClass(values.inspection_date)}>
                   <label htmlFor="inspection_date">Keuringsdatum</label>
                   <input
                     id="inspection_date"
@@ -1360,12 +1489,12 @@ export function InspectionForm({
           <section className="inspection-card">
             <div className="eyebrow">Opslaan</div>
             <h2>Resultaat en foto&apos;s</h2>
-            <div className="form-block">
+            <div className="form-block form-block-active">
               <div className="field">
                 <label>Resultaat</label>
-                <div className="status-options">
+                <div className="status-options status-options-stack">
                   {form.conclusionLabels.map((label) => (
-                    <label className="status-chip" key={label}>
+                    <label className={`status-chip status-chip-large ${selectedResultLabels.includes(label) ? "active" : ""}`} key={label}>
                       <input
                         type="checkbox"
                         name="result_labels"
@@ -1383,7 +1512,7 @@ export function InspectionForm({
                 </div>
               </div>
               <div className="field">
-                <label className="status-chip" htmlFor="send_pdf_to_customer">
+                <label className="status-chip status-chip-large status-chip-mail" htmlFor="send_pdf_to_customer">
                   <input id="send_pdf_to_customer" type="checkbox" name="send_pdf_to_customer" />
                   Mail de keuring ook naar de klant
                 </label>

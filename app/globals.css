@@ -579,6 +579,14 @@ textarea {
   font-weight: 600;
 }
 
+.field-active label {
+  color: var(--accent-deep);
+}
+
+.field-complete label {
+  color: #0d6b4d;
+}
+
 .field input,
 .field select,
 .field textarea {
@@ -587,6 +595,21 @@ textarea {
   border-radius: 14px;
   padding: 0.9rem 1rem;
   background: #f9fbfd;
+}
+
+.field-active input,
+.field-active select,
+.field-active textarea {
+  border-color: #75aede;
+  background: #f6fbff;
+  box-shadow: inset 0 0 0 1px rgba(0, 94, 168, 0.08);
+}
+
+.field-complete input,
+.field-complete select,
+.field-complete textarea {
+  border-color: #cfe7d7;
+  background: #f4fcf7;
 }
 
 .field input[type="file"] {
@@ -637,6 +660,30 @@ textarea {
 
 .status-chip input {
   margin: 0;
+}
+
+.status-options-stack {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.55rem;
+}
+
+.status-chip-large {
+  width: 100%;
+  justify-content: flex-start;
+  min-height: 54px;
+  padding: 0.85rem 1rem;
+  border-radius: 16px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.status-chip-large input {
+  flex-shrink: 0;
+}
+
+.status-chip-mail {
+  background: #ffffff;
 }
 
 .list {
@@ -1025,14 +1072,29 @@ textarea {
 
 .planning-create-panel {
   display: grid;
-  gap: 0.85rem;
+  gap: 0.65rem;
+  padding: 0.95rem 1rem;
   margin-bottom: 1rem;
 }
 
 .planning-create-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.planning-create-panel h2 {
+  margin: 0;
+  font-size: clamp(1.05rem, 4.4vw, 1.35rem);
+}
+
+.planning-create-buttons .button,
+.planning-create-buttons .button-secondary {
+  width: 100%;
+  min-height: 42px;
+  padding: 0.65rem 0.75rem;
+  border-radius: 14px;
+  font-size: 0.84rem;
 }
 
 .planning-create-modal {
@@ -1157,8 +1219,27 @@ textarea {
   background: #f3f8fc;
 }
 
+.compact-card-summary {
+  gap: 0.75rem;
+  background: #f6fbff;
+}
+
+.inspection-summary-grid {
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
 .read-only-grid {
   grid-template-columns: 1fr;
+}
+
+.info-card-complete {
+  border-color: #cfe7d7;
+  background: #effaf4;
+}
+
+.info-card-muted {
+  background: #f8fbfd;
 }
 
 .search-bar {
@@ -1289,7 +1370,30 @@ textarea {
 
 .calendar-controls {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.55rem;
+}
+
+.calendar-controls .inline-meta {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr) minmax(0, 0.8fr);
+  gap: 0.45rem;
+}
+
+.calendar-controls .inline-meta > button {
+  width: 100%;
+  min-height: 42px;
+  padding: 0.65rem 0.6rem;
+  border-radius: 14px;
+  font-size: 0.82rem;
+}
+
+.calendar-month-caption {
+  display: none;
+}
+
+.search-bar .calendar-search-input {
+  min-height: 46px;
+  padding: 0.75rem 0.9rem;
 }
 
 .mobile-agenda-list {
@@ -1648,16 +1752,21 @@ textarea {
 .calendar-filter-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.45rem;
-  margin-bottom: 0.8rem;
+  gap: 0.4rem;
+  margin-bottom: 0.65rem;
 }
 
 .calendar-filter-button {
   width: auto;
-  min-height: 36px;
-  padding: 0.45rem 0.7rem;
-  border-radius: 12px;
-  font-size: 0.82rem;
+  min-height: 32px;
+  padding: 0.35rem 0.58rem;
+  border-radius: 10px;
+  font-size: 0.76rem;
+}
+
+.form-block-active {
+  border-color: #c8dff1;
+  background: #f8fbff;
 }
 
 .compact-stock-panel {
@@ -1802,8 +1911,7 @@ textarea {
   }
 
   .planning-create-buttons {
-    flex-direction: row;
-    flex-wrap: wrap;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .inline-meta {
@@ -1830,6 +1938,19 @@ textarea {
 
   .compact-overview-actions {
     justify-content: flex-end;
+  }
+
+  .inspection-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .status-options-stack {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .status-chip-large {
+    min-height: 48px;
+    justify-content: center;
   }
 
 }
@@ -1912,9 +2033,17 @@ textarea {
       align-items: center;
     }
   
-    .calendar-controls {
+  .calendar-controls {
       justify-items: end;
     }
+
+  .calendar-controls .inline-meta {
+    grid-template-columns: auto auto auto;
+  }
+
+  .calendar-month-caption {
+    display: block;
+  }
 
   .mobile-agenda-list {
     display: none;

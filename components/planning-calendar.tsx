@@ -480,20 +480,20 @@ export function PlanningCalendar({
         <div>
           <div className="eyebrow">Planning</div>
           <h1>Agenda</h1>
-          <p className="muted" style={{ marginBottom: 0 }}>
+          <p className="muted calendar-month-caption" style={{ marginBottom: 0 }}>
             {monthLabel(anchorDate)}
           </p>
         </div>
         <div className="calendar-controls">
           <div className="inline-meta">
             <button className="button-secondary" type="button" onClick={() => setAnchorDate(addMonths(anchorDate, -1))}>
-              Vorige maand
+              Vorige
             </button>
             <button className="button-secondary" type="button" onClick={() => setAnchorDate(new Date())}>
               {monthLabel(anchorDate)}
             </button>
             <button className="button-secondary" type="button" onClick={() => setAnchorDate(addMonths(anchorDate, 1))}>
-              Volgende maand
+              Volgende
             </button>
           </div>
         </div>
@@ -501,6 +501,7 @@ export function PlanningCalendar({
 
       <div className="search-bar">
         <input
+          className="calendar-search-input"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Zoek op klant, plaats, machine of afspraak"
