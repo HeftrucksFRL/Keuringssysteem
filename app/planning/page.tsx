@@ -47,12 +47,6 @@ export default async function PlanningPage({
       ) : null}
       {params?.error ? <p className="form-message error">{params.error}</p> : null}
 
-      <PlanningCreateForm
-        customers={customers}
-        machines={machines}
-        initialMonth={params?.month}
-      />
-
       <PlanningCalendar
         items={rows}
         rentals={rentals}
@@ -60,7 +54,13 @@ export default async function PlanningPage({
         customers={customers}
         machines={machines}
         initialMonth={params?.month}
-      />
+      >
+        <PlanningCreateForm
+          customers={customers}
+          machines={machines}
+          initialMonth={params?.month}
+        />
+      </PlanningCalendar>
     </>
   );
 }

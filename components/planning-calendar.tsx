@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import {
   deleteAgendaEventAction,
   updateAgendaEventAction,
@@ -24,6 +25,7 @@ interface PlanningCalendarProps {
   customers: CustomerRecord[];
   machines: MachineRecord[];
   initialMonth?: string;
+  children?: ReactNode;
 }
 
 type ViewFilter = "all" | "inspections" | "rentals" | "appointments";
@@ -63,6 +65,15 @@ function monthLabel(date: Date) {
     month: "long",
     year: "numeric"
   });
+}
+
+function compactMonthLabel(date: Date) {
+  return date
+    .toLocaleDateString("nl-NL", {
+      month: "short",
+      year: "numeric"
+    })
+    .replace(".", "");
 }
 
 function dayLabel(date: Date) {
@@ -241,7 +252,8 @@ export function PlanningCalendar({
   agendaEventItems,
   customers,
   machines,
-  initialMonth
+  initialMonth,
+  children
 }: PlanningCalendarProps) {
   const [anchorDate, setAnchorDate] = useState(() => parseMonthKey(initialMonth));
   const [query, setQuery] = useState("");
@@ -485,7 +497,29 @@ export function PlanningCalendar({
           </p>
         </div>
         <div className="calendar-controls">
-          <div className="inline-meta">
+          <div className="calendar-mobile-toolbar">
+            <div className="calendar-month-switcher" aria-label="Maand wisselen">
+              <button
+                className="button-secondary calendar-arrow-button"
+                type="button"
+                onClick={() => setAnchorDate(addMonths(anchorDate, -1))}
+                aria-label="Vorige maand"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <div className="calendar-month-pill">{compactMonthLabel(anchorDate)}</div>
+              <button
+                className="button-secondary calendar-arrow-button"
+                type="button"
+                onClick={() => setAnchorDate(addMonths(anchorDate, 1))}
+                aria-label="Volgende maand"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
+            {children ? <div className="calendar-mobile-actions">{children}</div> : null}
+          </div>
+          <div className="inline-meta calendar-desktop-toolbar">
             <button className="button-secondary" type="button" onClick={() => setAnchorDate(addMonths(anchorDate, -1))}>
               Vorige
             </button>
@@ -499,43 +533,34 @@ export function PlanningCalendar({
         </div>
       </div>
 
-      <div className="search-bar">
-        <input
-          className="calendar-search-input"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Zoek op klant, plaats, machine of afspraak"
-        />
-      </div>
-
       <div className="calendar-filter-row">
         <button
           className={`button-secondary calendar-filter-button ${viewFilter === "all" ? "active-toggle" : ""}`}
           type="button"
           onClick={() => setViewFilter("all")}
         >
-          Toon alles
+          Alles
         </button>
         <button
           className={`button-secondary calendar-filter-button ${viewFilter === "inspections" ? "active-toggle" : ""}`}
           type="button"
           onClick={() => setViewFilter("inspections")}
         >
-          Alleen keuringen
+          Keuring
         </button>
         <button
           className={`button-secondary calendar-filter-button ${viewFilter === "rentals" ? "active-toggle" : ""}`}
           type="button"
           onClick={() => setViewFilter("rentals")}
         >
-          Alleen verhuur
+          Verhuur
         </button>
         <button
           className={`button-secondary calendar-filter-button ${viewFilter === "appointments" ? "active-toggle" : ""}`}
           type="button"
           onClick={() => setViewFilter("appointments")}
         >
-          Alleen afspraken
+          Vrij
         </button>
       </div>
 
@@ -545,15 +570,24 @@ export function PlanningCalendar({
           type="button"
           onClick={() => setSortByPlace(true)}
         >
-          Sorteer op plaats
+          Plaats
         </button>
         <button
           className={`button-secondary calendar-filter-button ${!sortByPlace ? "active-toggle" : ""}`}
           type="button"
           onClick={() => setSortByPlace(false)}
         >
-          Sorteer op klant
+          Klant
         </button>
+      </div>
+
+      <div className="search-bar">
+        <input
+          className="calendar-search-input"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Zoek in agenda"
+        />
       </div>
 
       <div className="mobile-month-grid-wrap">

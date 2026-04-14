@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
+import { CalendarPlus, ClipboardPlus } from "lucide-react";
 import { createAgendaEventAction, createManualPlanningAction } from "@/app/planning/actions";
 import type { CustomerRecord, MachineRecord } from "@/lib/domain";
 
@@ -75,18 +76,26 @@ export function PlanningCreateForm({
 
   return (
     <>
-      <section className="panel planning-create-panel">
-        <div className="eyebrow">Handmatig plannen</div>
-        <h2>Toevoegen aan agenda</h2>
-        <div className="planning-create-buttons">
-          <button className="button" type="button" onClick={() => setOpenModal("inspection")}>
-            Keuring toevoegen
-          </button>
-          <button className="button-secondary" type="button" onClick={() => setOpenModal("appointment")}>
-            Vrije afspraak toevoegen
-          </button>
-        </div>
-      </section>
+      <div className="planning-quick-actions" aria-label="Agenda acties">
+        <button
+          className="button planning-quick-button"
+          type="button"
+          onClick={() => setOpenModal("inspection")}
+          aria-label="Nieuwe keuring toevoegen"
+        >
+          <ClipboardPlus size={18} />
+          <span>Keuring</span>
+        </button>
+        <button
+          className="button-secondary planning-quick-button"
+          type="button"
+          onClick={() => setOpenModal("appointment")}
+          aria-label="Nieuwe afspraak toevoegen"
+        >
+          <CalendarPlus size={18} />
+          <span>Afspraak</span>
+        </button>
+      </div>
 
       {openModal ? (
         <div className="modal-backdrop" onClick={() => setOpenModal(null)}>

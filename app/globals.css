@@ -670,16 +670,30 @@ textarea {
 
 .status-chip-large {
   width: 100%;
-  justify-content: flex-start;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  justify-content: stretch;
   min-height: 54px;
   padding: 0.85rem 1rem;
   border-radius: 16px;
   font-weight: 700;
   line-height: 1.25;
+  gap: 0.75rem;
+  text-align: left;
 }
 
 .status-chip-large input {
+  width: 1rem;
+  height: 1rem;
   flex-shrink: 0;
+  place-self: center start;
+}
+
+.status-chip-text {
+  min-width: 0;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .status-chip-mail {
@@ -1077,6 +1091,27 @@ textarea {
   margin-bottom: 1rem;
 }
 
+.planning-quick-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.planning-quick-button {
+  width: 42px;
+  min-width: 42px;
+  min-height: 42px;
+  padding: 0;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.planning-quick-button span {
+  display: none;
+}
+
 .planning-create-buttons {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1373,10 +1408,60 @@ textarea {
   gap: 0.55rem;
 }
 
+.calendar-mobile-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.calendar-month-switcher {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.calendar-arrow-button {
+  width: 42px;
+  min-width: 42px;
+  min-height: 42px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.calendar-month-pill {
+  min-height: 42px;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #f8fbfd;
+  font-size: 0.92rem;
+  font-weight: 800;
+  text-align: center;
+  text-transform: lowercase;
+}
+
+.calendar-mobile-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .calendar-controls .inline-meta {
   display: grid;
   grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr) minmax(0, 0.8fr);
   gap: 0.45rem;
+}
+
+.calendar-desktop-toolbar {
+  display: none;
+}
+
+.calendar-desktop-actions {
+  display: inline-flex;
+  align-items: center;
 }
 
 .calendar-controls .inline-meta > button {
@@ -1759,9 +1844,9 @@ textarea {
 .calendar-filter-button {
   width: auto;
   min-height: 32px;
-  padding: 0.35rem 0.58rem;
+  padding: 0.32rem 0.55rem;
   border-radius: 10px;
-  font-size: 0.76rem;
+  font-size: 0.74rem;
 }
 
 .form-block-active {
@@ -1914,6 +1999,17 @@ textarea {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .planning-quick-button {
+    width: auto;
+    min-width: 0;
+    padding: 0.6rem 0.8rem;
+    gap: 0.45rem;
+  }
+
+  .planning-quick-button span {
+    display: inline;
+  }
+
   .inline-meta {
     flex-direction: row;
     flex-wrap: wrap;
@@ -1950,7 +2046,6 @@ textarea {
 
   .status-chip-large {
     min-height: 48px;
-    justify-content: center;
   }
 
 }
@@ -2037,8 +2132,26 @@ textarea {
       justify-items: end;
     }
 
+  .calendar-mobile-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    width: 100%;
+    order: 2;
+  }
+
+  .calendar-month-switcher {
+    display: none;
+  }
+
   .calendar-controls .inline-meta {
     grid-template-columns: auto auto auto;
+  }
+
+  .calendar-desktop-toolbar {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+    order: 1;
   }
 
   .calendar-month-caption {

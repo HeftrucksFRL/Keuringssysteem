@@ -1506,7 +1506,7 @@ export function InspectionForm({
                           );
                         }}
                       />
-                      {label}
+                      <span className="status-chip-text">{label}</span>
                     </label>
                   ))}
                 </div>
@@ -1514,7 +1514,7 @@ export function InspectionForm({
               <div className="field">
                 <label className="status-chip status-chip-large status-chip-mail" htmlFor="send_pdf_to_customer">
                   <input id="send_pdf_to_customer" type="checkbox" name="send_pdf_to_customer" />
-                  Mail de keuring ook naar de klant
+                  <span className="status-chip-text">Mail de keuring ook naar de klant</span>
                 </label>
               </div>
               <div className="field">
