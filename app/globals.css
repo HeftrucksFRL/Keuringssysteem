@@ -1726,7 +1726,9 @@ textarea {
 
 .agenda-row.scheduled {
   border-left: 6px solid #0b4f8a;
+  border-color: #7fb3e3;
   background: #eaf4fe;
+  box-shadow: inset 0 0 0 1px rgba(11, 79, 138, 0.14);
 }
 
 .agenda-row.overdue {
@@ -1735,8 +1737,9 @@ textarea {
 }
 
 .agenda-row.upcoming {
-  border-left: 4px solid #bfd4ea;
-  background: #f6faff;
+  border-left: 4px solid #cfd4dc;
+  background: #f4f5f7;
+  border-color: #e4e7ec;
 }
 
 .agenda-row.rental {
@@ -1851,6 +1854,8 @@ textarea {
 .month-cell-events {
   display: grid;
   gap: 0.3rem;
+  max-height: calc(100% - 2.2rem);
+  overflow: hidden;
 }
 
 .month-event {
@@ -1876,7 +1881,7 @@ textarea {
 
 .month-event.scheduled {
   background: #eaf4fe;
-  border-color: #7fb3e3;
+  border: 2px solid #7fb3e3;
   box-shadow: inset 0 0 0 1px rgba(11, 79, 138, 0.12);
 }
 
@@ -1886,8 +1891,8 @@ textarea {
 }
 
 .month-event.upcoming {
-  background: #f6faff;
-  border-color: #d2e3f5;
+  background: #f4f5f7;
+  border-color: #d0d5dd;
 }
 
 .month-event.rental {
@@ -1910,7 +1915,7 @@ textarea {
 
 .month-event.upcoming strong,
 .month-event.upcoming span {
-  color: #386489;
+  color: #475467;
 }
 
 .month-event.rental strong {
@@ -2237,6 +2242,28 @@ textarea {
   .calendar-month-switcher {
     display: grid;
     min-width: 320px;
+  }
+
+  .month-grid {
+    height: min(calc(100vh - 315px), 620px);
+    grid-template-rows: repeat(6, minmax(0, 1fr));
+  }
+
+  .month-cell {
+    min-height: 0;
+  }
+
+  .month-event {
+    padding: 0.34rem 0.4rem;
+  }
+
+  .month-event strong {
+    font-size: 0.76rem;
+  }
+
+  .month-event span {
+    font-size: 0.68rem;
+    line-height: 1.2;
   }
 
   .calendar-controls .inline-meta {

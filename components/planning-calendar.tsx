@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import {
+  deletePlanningItemAction,
   deleteAgendaEventAction,
   updateAgendaEventAction,
   updatePlanningItemAction,
@@ -180,13 +181,13 @@ function customerDisplayName(customer?: CustomerRecord) {
     return "Onbekende klant";
   }
 
-  return isStockCustomer(customer) ? "Eigen voorraad - Heftrucks.frl" : customer.companyName;
+  return isStockCustomer(customer) ? "Voorraad machine" : customer.companyName;
 }
 
 function stateLabel(state: PlanningDisplayState) {
   if (state === "overdue") return "Verlopen";
   if (state === "scheduled") return "Gepland";
-  return "Verwacht";
+  return "Niet ingepland";
 }
 
 function rentalPhaseLabel(rental: RentalRecord) {
@@ -975,25 +976,34 @@ export function PlanningCalendar({
                   </form>
                 </>
               ) : (
-                <form action={updatePlanningItemAction} className="panel" style={{ width: "100%", marginBottom: "0.5rem" }}>
-                  <input type="hidden" name="ids" value={JSON.stringify(selectedPlanningItemIds)} />
-                  <input type="hidden" name="month" value={monthKey(anchorDate)} />
-                  <div className="eyebrow">Keuring verplaatsen</div>
-                  <div className="field" style={{ marginTop: "0.75rem" }}>
-                    <label htmlFor="popup-planning-date">Nieuwe datum</label>
-                    <input
-                      id="popup-planning-date"
-                      name="dueDate"
-                      type="date"
-                      defaultValue={selectedEvent.dueDate}
-                    />
-                  </div>
-                  <div className="actions" style={{ marginTop: "0.75rem" }}>
-                    <button className="button" type="submit">
-                      Planning bijwerken
+                <>
+                  <form action={updatePlanningItemAction} className="panel" style={{ width: "100%", marginBottom: "0.5rem" }}>
+                    <input type="hidden" name="ids" value={JSON.stringify(selectedPlanningItemIds)} />
+                    <input type="hidden" name="month" value={monthKey(anchorDate)} />
+                    <div className="eyebrow">Keuring verplaatsen</div>
+                    <div className="field" style={{ marginTop: "0.75rem" }}>
+                      <label htmlFor="popup-planning-date">Nieuwe datum</label>
+                      <input
+                        id="popup-planning-date"
+                        name="dueDate"
+                        type="date"
+                        defaultValue={selectedEvent.dueDate}
+                      />
+                    </div>
+                    <div className="actions" style={{ marginTop: "0.75rem" }}>
+                      <button className="button" type="submit">
+                        Planning bijwerken
+                      </button>
+                    </div>
+                  </form>
+                  <form action={deletePlanningItemAction} style={{ width: "100%", marginBottom: "0.5rem" }}>
+                    <input type="hidden" name="ids" value={JSON.stringify(selectedPlanningItemIds)} />
+                    <input type="hidden" name="month" value={monthKey(anchorDate)} />
+                    <button className="button-secondary" type="submit">
+                      Planning verwijderen
                     </button>
-                  </div>
-                </form>
+                  </form>
+                </>
               )}
               {selectedEvent.kind !== "appointment" && selectedEvent.customer?.id ? (
                 <Link className="button-secondary" href={`/klanten/${selectedEvent.customer.id}`}>

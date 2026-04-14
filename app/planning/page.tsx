@@ -43,7 +43,7 @@ export default async function PlanningPage({
         <p className="form-message success">Planning is bijgewerkt.</p>
       ) : null}
       {params?.deleted ? (
-        <p className="form-message success">Afspraak is verwijderd.</p>
+        <p className="form-message success">Afspraak of planning is verwijderd.</p>
       ) : null}
       {params?.error ? <p className="form-message error">{params.error}</p> : null}
 

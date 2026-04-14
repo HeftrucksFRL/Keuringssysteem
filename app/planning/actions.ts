@@ -7,6 +7,7 @@ import {
   addActivityLog,
   addAgendaEvent,
   createManualPlanningItem,
+  deletePlanningItems,
   deleteAgendaEvent,
   updateAgendaEvent,
   updatePlanningItem,
@@ -72,6 +73,33 @@ export async function updatePlanningItemAction(formData: FormData) {
   revalidatePath("/");
   revalidatePath("/keuringen");
   redirect(`/planning?month=${month || dueDate.slice(0, 7)}&updated=1`);
+}
+
+export async function deletePlanningItemAction(formData: FormData) {
+  const actor = await requireActivityActor();
+  const ids = JSON.parse(String(formData.get("ids") || "[]")) as string[];
+  const month = String(formData.get("month") || "");
+
+  if (!ids.length) {
+    redirect(`/planning?month=${month}&error=Planning%20niet%20gevonden`);
+  }
+
+  await deletePlanningItems({ ids });
+
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "planning.deleted",
+    entityType: "planning",
+    targetLabel: `Planning verwijderd`,
+    details: { ids, month }
+  });
+
+  revalidatePath("/planning");
+  revalidatePath("/");
+  revalidatePath("/keuringen");
+  redirect(`/planning?month=${month}&deleted=1`);
 }
 
 export async function updateRentalAction(formData: FormData) {

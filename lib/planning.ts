@@ -38,5 +38,5 @@ export function getPlanningDisplayLabel(
     return "Verlopen";
   }
 
-  return displayState === "scheduled" ? "Gepland" : "Verwacht";
+  return displayState === "scheduled" ? "Gepland" : "Niet ingepland";
 }

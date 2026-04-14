@@ -53,6 +53,7 @@ function formatActivityAction(action: string) {
     "rental.completed": "Verhuur afgerond",
     "planning.created": "Planning toegevoegd",
     "planning.updated": "Planning bijgewerkt",
+    "planning.deleted": "Planning verwijderd",
     "agenda.created": "Afspraak toegevoegd",
     "agenda.updated": "Afspraak bijgewerkt",
     "agenda.deleted": "Afspraak verwijderd",

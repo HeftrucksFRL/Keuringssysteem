@@ -3490,6 +3490,65 @@ export async function updatePlanningItem(input: {
   await writeAppData(data);
 }
 
+export async function deletePlanningItems(input: {
+  ids: string[];
+}) {
+  const ids = input.ids.filter(Boolean);
+  if (ids.length === 0) {
+    return;
+  }
+
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data: currentRows } = await supabase
+      .from("planning_items")
+      .select("*")
+      .in("id", ids);
+
+    const planningRows = (currentRows ?? []).map((row) => mapPlanningRow(row));
+    const inspectionIds = planningRows
+      .map((item) => item.inspectionId)
+      .filter(Boolean);
+
+    await supabase
+      .from("planning_items")
+      .delete()
+      .in("id", ids);
+
+    if (inspectionIds.length > 0) {
+      await supabase
+        .from("inspections")
+        .update({
+          next_inspection_date: null
+        })
+        .in("id", inspectionIds);
+    }
+    return;
+  }
+
+  const data = await readAppData();
+  const linkedInspectionIds = data.planningItems
+    .filter((item) => ids.includes(item.id))
+    .map((item) => item.inspectionId)
+    .filter(Boolean);
+
+  data.planningItems = data.planningItems.filter((item) => !ids.includes(item.id));
+
+  if (linkedInspectionIds.length > 0) {
+    data.inspections = data.inspections.map((inspection) =>
+      linkedInspectionIds.includes(inspection.id)
+        ? {
+            ...inspection,
+            nextInspectionDate: "",
+            updatedAt: nowIso()
+          }
+        : inspection
+    );
+  }
+
+  await writeAppData(data);
+}
+
 export async function updateRental(input: {
   rentalId: string;
   startDate: string;
