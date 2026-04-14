@@ -119,7 +119,7 @@ export function CustomersTable({
         <div className="archive-stack">
           {groupedCustomers.map((group, groupIndex) => (
             <details
-              className="archive-folder"
+              className="archive-folder archive-folder-customers"
               key={group.letter}
               open={isSearching || groupIndex < 3}
             >

@@ -417,7 +417,7 @@ export function InspectionsTable({
         <div className="archive-stack">
           {groupedInspections.map((yearGroup, yearIndex) => (
             <details
-              className="archive-folder archive-year-folder"
+              className="archive-folder archive-year-folder archive-folder-inspections"
               key={yearGroup.year}
               open={hasActiveFilters || yearIndex === 0}
             >
@@ -436,7 +436,7 @@ export function InspectionsTable({
               <div className="archive-folder-content">
                 {yearGroup.months.map((monthGroup, monthIndex) => (
                   <details
-                    className="archive-folder archive-month-folder"
+                    className="archive-folder archive-month-folder archive-folder-inspections"
                     key={monthGroup.monthKey}
                     open={hasActiveFilters || (yearIndex === 0 && monthIndex === 0)}
                   >

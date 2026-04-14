@@ -5,7 +5,7 @@ import {
   deleteTodoItemAction,
   updateTodoItemAction
 } from "@/app/dashboard-actions";
-import { canViewActivityLog, requireUser } from "@/lib/auth";
+import { canViewActivityLog, getUserFirstName, requireUser } from "@/lib/auth";
 import {
   getRecentActivityLogs,
   getCustomerDisplayName,
@@ -85,6 +85,7 @@ export default async function HomePage({
   const user = await requireUser();
   const showActivityLog = canViewActivityLog(user);
   const dashboard = await getDashboardData();
+  const greetingName = getUserFirstName(user);
   const params = await searchParams;
   const [planningRows, machines, customers, failedMailAlerts, todoItems, activityLogs] = await Promise.all([
     getPlanningItems(),
@@ -127,7 +128,7 @@ export default async function HomePage({
     <>
       <section className="hero">
         <div className="eyebrow">Dashboard</div>
-        <h1>Welkom terug</h1>
+        <h1>Welkom terug, {greetingName}</h1>
         <p>Kies hieronder wat je vandaag wilt doen.</p>
         {params?.saved ? (
           <p className="form-message success">Keuring {params.saved} is opgeslagen.</p>

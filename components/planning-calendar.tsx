@@ -533,54 +533,6 @@ export function PlanningCalendar({
         </div>
       </div>
 
-      <div className="calendar-filter-row">
-        <button
-          className={`button-secondary calendar-filter-button ${viewFilter === "all" ? "active-toggle" : ""}`}
-          type="button"
-          onClick={() => setViewFilter("all")}
-        >
-          Alles
-        </button>
-        <button
-          className={`button-secondary calendar-filter-button ${viewFilter === "inspections" ? "active-toggle" : ""}`}
-          type="button"
-          onClick={() => setViewFilter("inspections")}
-        >
-          Keuring
-        </button>
-        <button
-          className={`button-secondary calendar-filter-button ${viewFilter === "rentals" ? "active-toggle" : ""}`}
-          type="button"
-          onClick={() => setViewFilter("rentals")}
-        >
-          Verhuur
-        </button>
-        <button
-          className={`button-secondary calendar-filter-button ${viewFilter === "appointments" ? "active-toggle" : ""}`}
-          type="button"
-          onClick={() => setViewFilter("appointments")}
-        >
-          Vrij
-        </button>
-      </div>
-
-      <div className="calendar-filter-row">
-        <button
-          className={`button-secondary calendar-filter-button ${sortByPlace ? "active-toggle" : ""}`}
-          type="button"
-          onClick={() => setSortByPlace(true)}
-        >
-          Plaats
-        </button>
-        <button
-          className={`button-secondary calendar-filter-button ${!sortByPlace ? "active-toggle" : ""}`}
-          type="button"
-          onClick={() => setSortByPlace(false)}
-        >
-          Klant
-        </button>
-      </div>
-
       <div className="search-bar">
         <input
           className="calendar-search-input"
@@ -741,6 +693,54 @@ export function PlanningCalendar({
             );
           })}
         </div>
+      </div>
+
+      <div className="calendar-filter-row">
+        <button
+          className={`button-secondary calendar-filter-button ${viewFilter === "all" ? "active-toggle" : ""}`}
+          type="button"
+          onClick={() => setViewFilter("all")}
+        >
+          Alles
+        </button>
+        <button
+          className={`button-secondary calendar-filter-button ${viewFilter === "inspections" ? "active-toggle" : ""}`}
+          type="button"
+          onClick={() => setViewFilter("inspections")}
+        >
+          Keuring
+        </button>
+        <button
+          className={`button-secondary calendar-filter-button ${viewFilter === "rentals" ? "active-toggle" : ""}`}
+          type="button"
+          onClick={() => setViewFilter("rentals")}
+        >
+          Verhuur
+        </button>
+        <button
+          className={`button-secondary calendar-filter-button ${viewFilter === "appointments" ? "active-toggle" : ""}`}
+          type="button"
+          onClick={() => setViewFilter("appointments")}
+        >
+          Vrij
+        </button>
+      </div>
+
+      <div className="calendar-filter-row">
+        <button
+          className={`button-secondary calendar-filter-button ${sortByPlace ? "active-toggle" : ""}`}
+          type="button"
+          onClick={() => setSortByPlace(true)}
+        >
+          Plaats
+        </button>
+        <button
+          className={`button-secondary calendar-filter-button ${!sortByPlace ? "active-toggle" : ""}`}
+          type="button"
+          onClick={() => setSortByPlace(false)}
+        >
+          Klant
+        </button>
       </div>
 
       {selectedDayDate ? (

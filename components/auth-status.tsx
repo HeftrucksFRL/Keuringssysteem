@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { signOutAction } from "@/app/login/actions";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, getUserDisplayName } from "@/lib/auth";
 import { hasSupabaseConfig } from "@/lib/env";
 
 export async function AuthStatus() {
@@ -18,8 +18,7 @@ export async function AuthStatus() {
     );
   }
 
-  const displayName =
-    String(user.user_metadata?.full_name || "").trim() || user.email || "Keurmeester";
+  const displayName = getUserDisplayName(user);
 
   return (
     <div className="inline-meta">

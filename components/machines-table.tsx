@@ -267,7 +267,7 @@ export function MachinesTable({
       <div className="archive-stack">
         {groupedMachines.map((group) => (
           <details
-            className="archive-folder"
+            className="archive-folder archive-folder-machines"
             key={group.key}
             open={isSearching || group.defaultOpen}
           >
