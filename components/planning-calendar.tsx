@@ -666,6 +666,8 @@ export function PlanningCalendar({
           {calendarDays.map((day) => {
             const dayKey = isoDate(day);
             const dayEvents = eventsByDay.get(dayKey) ?? [];
+            const visibleDayEvents = dayEvents.slice(0, 2);
+            const hiddenDayEvents = dayEvents.length - visibleDayEvents.length;
             const isCurrentMonth = day.getMonth() === anchorDate.getMonth();
             const isToday = dayKey === isoDate(new Date());
 
@@ -676,7 +678,7 @@ export function PlanningCalendar({
               >
                 <div className="month-cell-date">{dateNumber(day)}</div>
                 <div className="month-cell-events">
-                  {dayEvents.map((event) => (
+                  {visibleDayEvents.map((event) => (
                     <button
                       key={event.key}
                       className={`month-event ${event.kind === "appointment" ? "appointment" : event.kind === "rental" ? "rental" : event.state}`}
@@ -706,6 +708,16 @@ export function PlanningCalendar({
                       </span>
                     </button>
                   ))}
+                  {hiddenDayEvents > 0 ? (
+                    <button
+                      className="month-event month-event-more"
+                      type="button"
+                      onClick={() => setSelectedDayKey(dayKey)}
+                    >
+                      <strong>+{hiddenDayEvents} meer</strong>
+                      <span>Bekijk alle afspraken</span>
+                    </button>
+                  ) : null}
                 </div>
               </div>
             );

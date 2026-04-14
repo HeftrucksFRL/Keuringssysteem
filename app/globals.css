@@ -1855,7 +1855,7 @@ textarea {
   display: grid;
   gap: 0.3rem;
   max-height: calc(100% - 2.2rem);
-  overflow: hidden;
+  align-content: start;
 }
 
 .month-event {
@@ -1867,16 +1867,23 @@ textarea {
   border: 1px solid #dde7f0;
   text-align: left;
   cursor: pointer;
+  overflow: hidden;
 }
 
 .month-event strong {
   font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .month-event span {
   color: var(--muted);
   font-size: 0.72rem;
   line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .month-event.scheduled {
@@ -1924,6 +1931,16 @@ textarea {
 
 .month-event.appointment strong {
   color: #b4236a;
+}
+
+.month-event-more {
+  background: #f8fafc;
+  border-color: #d0d5dd;
+}
+
+.month-event-more strong,
+.month-event-more span {
+  color: #475467;
 }
 
 .active-toggle {
