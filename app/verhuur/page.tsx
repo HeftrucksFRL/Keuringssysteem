@@ -222,11 +222,11 @@ export default async function RentalsPage({
               </div>
             ) : (
               <div className="archive-stack" style={{ marginTop: "0.75rem" }}>
-                {archiveGroups.map((yearGroup, yearIndex) => (
+                {archiveGroups.map((yearGroup) => (
                   <details
                     className="archive-folder archive-year-folder"
                     key={`${group.key}-${yearGroup.year}`}
-                    open={groupIndex === 0 || query?.phase !== undefined || yearIndex === 0}
+                    open={Boolean(query?.phase)}
                   >
                     <summary className="archive-summary">
                       <span className="archive-summary-main">
@@ -241,11 +241,11 @@ export default async function RentalsPage({
                       </span>
                     </summary>
                     <div className="archive-folder-content">
-                      {yearGroup.months.map((monthGroup, monthIndex) => (
+                      {yearGroup.months.map((monthGroup) => (
                         <details
                           className="archive-folder archive-month-folder"
                           key={monthGroup.monthKey}
-                          open={yearIndex === 0 && monthIndex === 0}
+                          open={Boolean(query?.phase)}
                         >
                           <summary className="archive-summary">
                             <span className="archive-summary-main">

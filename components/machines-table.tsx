@@ -321,7 +321,7 @@ export function MachinesTable({
           <details
             className={folderClassName(group.key)}
             key={group.key}
-            open={isSearching || group.defaultOpen}
+            open={isSearching}
           >
             <summary className="archive-summary">
               <span className="archive-summary-main">

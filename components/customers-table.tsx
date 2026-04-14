@@ -116,25 +116,31 @@ export function CustomersTable({
           </div>
         </div>
       ) : (
-        <div className="archive-stack">
-          {groupedCustomers.map((group, groupIndex) => (
+        <div className="archive-stack customers-archive-grid">
+          {groupedCustomers.map((group) => (
             <details
-              className="archive-folder archive-folder-customers"
+              className="archive-folder archive-folder-customers customer-archive-folder"
               key={group.letter}
-              open={isSearching || groupIndex < 3}
+              open={isSearching}
             >
-              <summary className="archive-summary">
-                <span className="archive-summary-main">
-                  <strong>{group.letter}</strong>
+              <summary className="archive-summary customer-archive-summary">
+                <span className="customer-archive-letter">{group.letter}</span>
+                <span className="archive-summary-main customer-archive-main">
+                  <strong>Klanten {group.letter}</strong>
                   <span className="archive-summary-meta">
                     {group.customers.length} klanten
                   </span>
                 </span>
+                <span className="archive-summary-meta customer-archive-hint">Open lijst</span>
               </summary>
               <div className="archive-folder-content">
-                <div className="dataset-list">
+                <div className="dataset-list customer-dataset-grid">
                   {group.customers.map((customer) => (
-                    <Link className="dataset-row" href={`/klanten/${customer.id}`} key={customer.id}>
+                    <Link
+                      className="dataset-row customer-dataset-row"
+                      href={`/klanten/${customer.id}`}
+                      key={customer.id}
+                    >
                       <strong>{customer.companyName}</strong>
                       <span>{customer.contactName || customer.email || "-"}</span>
                       <span>
