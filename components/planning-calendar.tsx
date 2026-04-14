@@ -66,13 +66,6 @@ type AgendaEvent =
       machineList: [];
     };
 
-function monthLabel(date: Date) {
-  return date.toLocaleDateString("nl-NL", {
-    month: "long",
-    year: "numeric"
-  });
-}
-
 function compactMonthLabel(date: Date) {
   return date
     .toLocaleDateString("nl-NL", {
@@ -503,12 +496,16 @@ export function PlanningCalendar({
   return (
     <div className="panel">
       <div className="calendar-head">
-        <div>
-          <div className="eyebrow">Planning</div>
-          <h1>Agenda</h1>
-          <p className="muted calendar-month-caption" style={{ marginBottom: 0 }}>
-            {monthLabel(anchorDate)}
-          </p>
+        <div className="calendar-head-main">
+          <h1 className="calendar-title">Planning</h1>
+          <div className="search-bar calendar-head-search">
+            <input
+              className="calendar-search-input"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Zoek in agenda"
+            />
+          </div>
         </div>
         <div className="calendar-controls">
           <div className="calendar-mobile-toolbar">
@@ -533,31 +530,7 @@ export function PlanningCalendar({
             </div>
             {children ? <div className="calendar-mobile-actions">{children}</div> : null}
           </div>
-          <div className="inline-meta calendar-desktop-toolbar">
-            <button className="button-secondary" type="button" onClick={() => setAnchorDate(addMonths(anchorDate, -1))}>
-              Vorige
-            </button>
-            <button
-              className="button-secondary calendar-desktop-month-button"
-              type="button"
-              onClick={() => setAnchorDate(new Date())}
-            >
-              {monthLabel(anchorDate)}
-            </button>
-            <button className="button-secondary" type="button" onClick={() => setAnchorDate(addMonths(anchorDate, 1))}>
-              Volgende
-            </button>
-          </div>
         </div>
-      </div>
-
-      <div className="search-bar">
-        <input
-          className="calendar-search-input"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Zoek in agenda"
-        />
       </div>
 
       <div className="mobile-month-grid-wrap">
@@ -699,7 +672,7 @@ export function PlanningCalendar({
                             ? "Afspraak"
                             : "Keuring"}
                       </span>
-                      <span>
+                      <span className="month-event-meta">
                         {event.kind === "rental"
                           ? customerDisplayName(event.customer)
                           : event.kind === "appointment"
