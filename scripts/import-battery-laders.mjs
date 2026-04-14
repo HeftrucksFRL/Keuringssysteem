@@ -55,11 +55,35 @@ async function hasColumn(supabase, table, column) {
   throw new Error(`Kolomcontrole mislukt voor ${table}.${column}: ${error.message}`);
 }
 
-function clean(value) {
+function decodeHtmlEntities(value) {
   return String(value ?? "")
+    .replaceAll("&amp;", "&")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&#039;", "'")
+    .replaceAll("&apos;", "'")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">");
+}
+
+function clean(value) {
+  return decodeHtmlEntities(String(value ?? ""))
     .replace(/\r\n/g, "\n")
     .replace(/\u00a0/g, " ")
     .trim();
+}
+
+function normalizeWhitespace(value) {
+  return clean(value).replace(/\s+/g, " ");
+}
+
+function firstFilled(row, keys) {
+  for (const key of keys) {
+    const value = clean(row[key]);
+    if (value) {
+      return value;
+    }
+  }
+  return "";
 }
 
 function uniquifyHeaders(headers) {
@@ -132,10 +156,11 @@ function parseCsv(content) {
 function parseCustomerBlock(value) {
   const lines = clean(value)
     .split("\n")
-    .map((line) => line.trim())
+    .map((line) => normalizeWhitespace(line))
     .filter(Boolean);
 
   let companyName = "";
+  let address = "";
   let city = "";
   let contactName = "";
 
@@ -149,8 +174,15 @@ function parseCustomerBlock(value) {
       city = line.slice(8).trim();
       continue;
     }
+    if (lowered === "locatie") {
+      continue;
+    }
     if (lowered.startsWith("contact ")) {
       contactName = line.slice(8).trim();
+      continue;
+    }
+    if (!address && /\d/.test(line) && (line.includes(",") || /\b\d{4}\s?[a-z]{2}\b/i.test(line))) {
+      address = line;
       continue;
     }
     if (!city) {
@@ -162,7 +194,7 @@ function parseCustomerBlock(value) {
     }
   }
 
-  return { companyName, city, contactName };
+  return { companyName, address, city, contactName };
 }
 
 function normalizeDate(value) {
@@ -196,7 +228,7 @@ function normalizeChecklistValue(value) {
   if (normalized.includes("slecht") || normalized.includes("afkeur") || normalized.includes("matig")) {
     return "slecht";
   }
-  if (normalized.includes("nvt")) return "nvt";
+  if (normalized.includes("nvt") || normalized.includes("n.v.t")) return "nvt";
   return "nvt";
 }
 
@@ -236,6 +268,38 @@ function compactConfig(config) {
   );
 }
 
+function normalizeKey(value) {
+  return normalizeWhitespace(value).toLowerCase();
+}
+
+function normalizeSerialKey(value) {
+  return clean(value)
+    .replace(/\s+/g, "")
+    .toLowerCase();
+}
+
+function isMeaningfulRow(row) {
+  return Boolean(
+    clean(row.inspectionDate) &&
+      clean(row.conclusion) &&
+      (
+        clean(row.customerName) ||
+        clean(row.machine.machineNumber) ||
+        clean(row.machine.serialNumber) ||
+        clean(row.machine.configuration.vehicle_serial_number) ||
+        clean(row.machine.configuration.battery_serial_number) ||
+        clean(row.machine.configuration.charger_serial_number)
+      )
+  );
+}
+
+function pushMapValue(map, key, value) {
+  if (!key) return;
+  const current = map.get(key) ?? [];
+  current.push(value);
+  map.set(key, current);
+}
+
 const checklistMap = {
   "Staat container": "staat_container",
   Hijsogen: "hijsogen",
@@ -254,6 +318,7 @@ const checklistMap = {
   "Secundaire kabel stekker": "secundaire_kabel_stekker",
   "Secundaire kabel trekontlasting": "secundaire_kabel_trekontlasting",
   "Secundaire kabel stopknop (aan/uit schakelaar)": "secundaire_kabel_stopknop",
+  "Secundaire kabel stopknop ( aan/uit-schakelaar)": "secundaire_kabel_stopknop",
   "Veiligheid indicatielampjes": "veiligheid_indicatielampjes",
   "Veiligheid opschriften": "veiligheid_opschriften",
   "Veiligheid aarde": "veiligheid_aarde",
@@ -279,8 +344,8 @@ function mapRow(row) {
   const vehicleSerial = clean(row["Serienummer"]);
   const batteryType = clean(row["Batterijtype"]);
   const chargerType = clean(row["Ladertype"]);
-  const batteryBrand = clean(row["Fabricaat"]);
-  const chargerBrand = clean(row["Fabricaat__2"]);
+  const batteryBrand = firstFilled(row, ["Fabricaat", "Fabrikaat"]);
+  const chargerBrand = firstFilled(row, ["Fabricaat__2", "Fabrikaat__2"]);
   const batterySerial = clean(row["Serienummer__2"]);
   const chargerSerial = clean(row["Serienummer__3"]);
   const batteryInternal = clean(row["Intern nummer batterij"]);
@@ -295,13 +360,16 @@ function mapRow(row) {
 
   return {
     customerName: customer.companyName,
+    customerAddress: customer.address,
     customerCity: customer.city,
     customerContact: customer.contactName,
+    customerEmail: clean(row["E-mailadres gebruiker"]),
     inspectionDate: normalizeDate(row["Keuringsdatum"]),
     findings: clean(row["Bevindingen"]),
     recommendations: clean(row["Aanbevelingen"]),
     conclusion: clean(row["Conclusie"]),
     status: deriveStatus(row["Conclusie"]),
+    vehicleSerialKey: normalizeSerialKey(vehicleSerial),
     machine: {
       machineNumber,
       brand: batteryBrand || chargerBrand || vehicleBrand || "Batterij / lader",
@@ -324,16 +392,16 @@ function mapRow(row) {
         charger_internal_number: chargerInternal,
         drawing_number: clean(row["Tekening nummer"]),
         charger_voltage: clean(row["Netspanning"]),
-        double_insulated: clean(row["Dubbel geïsoleerd"]),
-        source_submission_time: clean(row["Inzendingstijd"])
+        double_insulated: firstFilled(row, ["Dubbel geïsoleerd", "Dubbel geÃ¯soleerd"]),
+        source_submission_time: clean(row["Inzendingstijd"]),
+        source_customer_name: customer.companyName,
+        source_customer_address: customer.address,
+        source_customer_city: customer.city,
+        source_customer_contact: customer.contactName
       })
     },
     checklist: buildChecklist(row)
   };
-}
-
-function normalizeKey(value) {
-  return clean(value).toLowerCase();
 }
 
 async function main() {
@@ -358,7 +426,7 @@ async function main() {
   const supportsContactDepartment = await hasColumn(supabase, "customer_contacts", "department");
 
   const raw = await fs.readFile(path.resolve(source), "utf8");
-  const parsedRows = parseCsv(raw).map(mapRow).filter((row) => row.customerName && row.machine.machineNumber);
+  const parsedRows = parseCsv(raw).map(mapRow).filter(isMeaningfulRow);
 
   const [customerRows, contactRows, machineRows, inspectionRows] = await Promise.all([
     supabase.from("customers").select("*"),
@@ -381,6 +449,20 @@ async function main() {
       }
     ])
   );
+  const customersById = new Map(
+    (customerRows.data ?? []).map((row) => [
+      String(row.id),
+      {
+        id: String(row.id),
+        companyName: String(row.company_name ?? ""),
+        address: String(row.address_line_1 ?? ""),
+        city: String(row.city ?? ""),
+        contactName: String(row.contact_name ?? ""),
+        phone: String(row.phone ?? ""),
+        email: String(row.email ?? "")
+      }
+    ])
+  );
   const contactsByCustomerId = new Map();
   for (const row of contactRows.data ?? []) {
     const customerId = String(row.customer_id);
@@ -392,43 +474,82 @@ async function main() {
     });
     contactsByCustomerId.set(customerId, list);
   }
-  const machinesByNumber = new Map(
-    (machineRows.data ?? []).map((row) => [
-      normalizeKey(row.machine_number),
-      {
-        id: String(row.id),
-        machineNumber: String(row.machine_number ?? "")
-      }
-    ])
-  );
+  const machinesByNumber = new Map();
+  const machinesById = new Map();
+  const exactVehicleMatches = new Map();
+  for (const row of machineRows.data ?? []) {
+    const machine = {
+      id: String(row.id),
+      customerId: String(row.customer_id),
+      machineNumber: String(row.machine_number ?? ""),
+      machineType: String(row.machine_type ?? ""),
+      serialNumber: String(row.serial_number ?? ""),
+      configuration: (row.configuration ?? {})
+    };
+    machinesByNumber.set(normalizeKey(machine.machineNumber), machine);
+    machinesById.set(machine.id, machine);
+    const serialKey = normalizeSerialKey(machine.serialNumber);
+    if (machine.machineType !== "batterij_lader" && serialKey) {
+      pushMapValue(exactVehicleMatches, serialKey, machine);
+    }
+  }
   const inspectionKeys = new Set(
     (inspectionRows.data ?? []).map((row) => `${String(row.machine_id)}|${String(row.inspection_date)}`)
   );
 
   const summary = {
+    rowsParsed: parsedRows.length,
+    rowsSkippedMissingCustomer: 0,
     customersCreated: 0,
     contactsCreated: 0,
     machinesCreated: 0,
     machinesUpdated: 0,
     inspectionsCreated: 0,
     inspectionsSkipped: 0,
-    planningCreated: 0
+    planningCreated: 0,
+    linkedExact: 0,
+    linkedPreserved: 0,
+    unlinkedNoVehicleSerial: 0,
+    unlinkedNoMatch: 0,
+    unlinkedAmbiguous: 0
   };
 
   for (const row of parsedRows) {
-    const customerKey = normalizeKey(row.customerName);
-    let customer = customersByName.get(customerKey) ?? null;
+    const machineKey = normalizeKey(row.machine.machineNumber);
+    let machine = machinesByNumber.get(machineKey) ?? null;
+    const matchedVehicles = row.vehicleSerialKey ? exactVehicleMatches.get(row.vehicleSerialKey) ?? [] : [];
+    const exactLinkedMachine = matchedVehicles.length === 1 ? matchedVehicles[0] : null;
+    const preservedLinkedMachineId =
+      exactLinkedMachine?.id ||
+      String(machine?.configuration?.linked_machine_id ?? "").trim();
+    const preservedLinkedMachine = preservedLinkedMachineId
+      ? machinesById.get(preservedLinkedMachineId) ?? null
+      : null;
+    const linkedMachine = exactLinkedMachine ?? preservedLinkedMachine ?? null;
+    const linkedCustomerFromMachine = linkedMachine
+      ? customersById.get(linkedMachine.customerId) ?? null
+      : null;
+    const customerKey = normalizeKey(row.customerName || linkedCustomerFromMachine?.companyName || "");
+    let customer =
+      (row.customerName ? customersByName.get(customerKey) : null) ??
+      linkedCustomerFromMachine ??
+      null;
+
+    if (!customer && !row.customerName) {
+      summary.rowsSkippedMissingCustomer += 1;
+      continue;
+    }
 
     if (!customer) {
       const { data, error } = await supabase
         .from("customers")
         .insert({
           company_name: row.customerName,
-          address_line_1: "",
+          address_line_1: row.customerAddress || "",
           city: row.customerCity || "",
           contact_name: row.customerContact || "",
           phone: null,
-          email: null
+          email: row.customerEmail || null
         })
         .select("*")
         .single();
@@ -445,23 +566,36 @@ async function main() {
         email: String(data.email ?? "")
       };
       customersByName.set(customerKey, customer);
+      customersById.set(customer.id, customer);
       summary.customersCreated += 1;
     } else {
+      const nextAddress = customer.address || row.customerAddress;
       const nextCity = customer.city || row.customerCity;
       const nextContactName = customer.contactName || row.customerContact;
-      if (nextCity !== customer.city || nextContactName !== customer.contactName) {
+      const nextEmail = customer.email || row.customerEmail;
+      if (
+        nextAddress !== customer.address ||
+        nextCity !== customer.city ||
+        nextContactName !== customer.contactName ||
+        nextEmail !== customer.email
+      ) {
         const { error } = await supabase
           .from("customers")
           .update({
+            address_line_1: nextAddress || null,
             city: nextCity || null,
-            contact_name: nextContactName || null
+            contact_name: nextContactName || null,
+            email: nextEmail || null
           })
           .eq("id", customer.id);
         if (error) {
           throw new Error(`Klant bijwerken mislukt voor ${row.customerName}: ${error.message}`);
         }
+        customer.address = nextAddress;
         customer.city = nextCity;
         customer.contactName = nextContactName;
+        customer.email = nextEmail;
+        customersById.set(customer.id, customer);
       }
     }
 
@@ -475,7 +609,7 @@ async function main() {
           customer_id: customer.id,
           name: row.customerContact,
           phone: null,
-          email: null,
+          email: row.customerEmail || null,
           is_primary: existingContacts.length === 0
         };
 
@@ -501,11 +635,22 @@ async function main() {
       }
     }
 
-    const machineKey = normalizeKey(row.machine.machineNumber);
-    let machine = machinesByNumber.get(machineKey) ?? null;
+    const linkedCustomer = linkedCustomerFromMachine ?? customer;
+
+    if (exactLinkedMachine) {
+      summary.linkedExact += 1;
+    } else if (preservedLinkedMachine) {
+      summary.linkedPreserved += 1;
+    } else if (!row.vehicleSerialKey) {
+      summary.unlinkedNoVehicleSerial += 1;
+    } else if (matchedVehicles.length > 1) {
+      summary.unlinkedAmbiguous += 1;
+    } else {
+      summary.unlinkedNoMatch += 1;
+    }
 
     const machinePayload = {
-      customer_id: customer.id,
+      customer_id: linkedCustomer.id,
       machine_number: row.machine.machineNumber,
       machine_type: "batterij_lader",
       availability_status: "available",
@@ -514,7 +659,14 @@ async function main() {
       serial_number: row.machine.serialNumber || null,
       build_year: Number(row.machine.buildYear || 0) || null,
       internal_number: row.machine.internalNumber || null,
-      configuration: row.machine.configuration
+      configuration: compactConfig({
+        ...(machine?.configuration ?? {}),
+        ...row.machine.configuration,
+        ...(linkedMachine ? { linked_machine_id: linkedMachine.id } : {}),
+        ...(machine?.configuration && !linkedMachine && machine.configuration.linked_machine_id
+          ? { linked_machine_id: machine.configuration.linked_machine_id }
+          : {})
+      })
     };
 
     if (!machine) {
@@ -528,15 +680,24 @@ async function main() {
       }
       machine = {
         id: String(data.id),
-        machineNumber: String(data.machine_number ?? "")
+        machineNumber: String(data.machine_number ?? ""),
+        customerId: String(data.customer_id ?? linkedCustomer.id),
+        machineType: "batterij_lader",
+        serialNumber: row.machine.serialNumber || "",
+        configuration: machinePayload.configuration
       };
       machinesByNumber.set(machineKey, machine);
+      machinesById.set(machine.id, machine);
       summary.machinesCreated += 1;
     } else {
       const { error } = await supabase.from("machines").update(machinePayload).eq("id", machine.id);
       if (error) {
         throw new Error(`B/L kaart bijwerken mislukt voor ${row.machine.machineNumber}: ${error.message}`);
       }
+      machine.customerId = linkedCustomer.id;
+      machine.serialNumber = row.machine.serialNumber || machine.serialNumber;
+      machine.configuration = machinePayload.configuration;
+      machinesById.set(machine.id, machine);
       summary.machinesUpdated += 1;
     }
 
@@ -559,7 +720,7 @@ async function main() {
     const nextInspectionDate = addTwelveMonths(row.inspectionDate);
     const inspectionPayload = {
       inspection_number: String(inspectionNumber),
-      customer_id: customer.id,
+      customer_id: linkedCustomer.id,
       machine_id: machine.id,
       machine_type: "batterij_lader",
       inspection_date: row.inspectionDate,
@@ -568,11 +729,11 @@ async function main() {
       send_pdf_to_customer: false,
       checklist: row.checklist,
       customer_snapshot: buildCustomerSnapshot({
-        companyName: customer.companyName,
-        address: customer.address,
-        contactName: row.customerContact || customer.contactName,
-        phone: customer.phone,
-        email: customer.email
+        companyName: linkedCustomer.companyName,
+        address: linkedCustomer.address,
+        contactName: row.customerContact || linkedCustomer.contactName,
+        phone: linkedCustomer.phone,
+        email: linkedCustomer.email
       }),
       machine_snapshot: buildMachineSnapshot(row.machine),
       findings: row.findings,
@@ -594,7 +755,7 @@ async function main() {
     const state = new Date(nextInspectionDate) < new Date() ? "overdue" : "scheduled";
     const { error: planningError } = await supabase.from("planning_items").insert({
       inspection_id: String(inspectionData.id),
-      customer_id: customer.id,
+      customer_id: linkedCustomer.id,
       machine_id: machine.id,
       due_date: nextInspectionDate,
       state
