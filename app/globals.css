@@ -908,13 +908,49 @@ textarea {
   background: #ecf8f1;
 }
 
-.archive-folder-machines {
-  border-color: #d8d0f2;
-  background: #faf8ff;
+.archive-folder-machines-customer {
+  border-color: #c8ddf8;
+  background: #f6faff;
 }
 
-.archive-folder-machines .archive-summary {
-  background: #f1edff;
+.archive-folder-machines-customer .archive-summary {
+  background: #eaf3ff;
+}
+
+.archive-folder-machines-stock {
+  border-color: #d9d0fb;
+  background: #faf7ff;
+}
+
+.archive-folder-machines-stock .archive-summary {
+  background: #f2eeff;
+}
+
+.archive-folder-machines-service {
+  border-color: #f4cfaa;
+  background: #fff8ef;
+}
+
+.archive-folder-machines-service .archive-summary {
+  background: #fff1df;
+}
+
+.archive-folder-machines-battery {
+  border-color: #dfc6b1;
+  background: #fdf8f3;
+}
+
+.archive-folder-machines-battery .archive-summary {
+  background: #f6ece3;
+}
+
+.archive-folder-machines-archived {
+  border-color: #f0b8b2;
+  background: #fff6f5;
+}
+
+.archive-folder-machines-archived .archive-summary {
+  background: #feeceb;
 }
 
 .archive-folder-inspections {
@@ -1426,19 +1462,19 @@ textarea {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 1rem;
-  margin-bottom: 1rem;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
 }
 
 .calendar-controls {
   display: grid;
-  gap: 0.55rem;
+  gap: 0.45rem;
 }
 
 .calendar-mobile-toolbar {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.75rem;
+  gap: 0.55rem;
   align-items: center;
 }
 
@@ -1450,9 +1486,9 @@ textarea {
 }
 
 .calendar-arrow-button {
-  width: 42px;
-  min-width: 42px;
-  min-height: 42px;
+  width: 38px;
+  min-width: 38px;
+  min-height: 38px;
   padding: 0;
   display: inline-flex;
   align-items: center;
@@ -1460,13 +1496,13 @@ textarea {
 }
 
 .calendar-month-pill {
-  min-height: 42px;
-  padding: 0.65rem 0.8rem;
+  min-height: 38px;
+  padding: 0.45rem 0.7rem;
   border: 1px solid #abefc6;
   border-radius: 14px;
   background: #ecfdf3;
   color: #067647;
-  font-size: 0.92rem;
+  font-size: 0.88rem;
   font-weight: 800;
   text-align: center;
   text-transform: lowercase;
@@ -1476,6 +1512,7 @@ textarea {
 .calendar-mobile-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 0.35rem;
 }
 
 .calendar-controls .inline-meta {
@@ -1519,8 +1556,8 @@ textarea {
 }
 
 .search-bar .calendar-search-input {
-  min-height: 46px;
-  padding: 0.75rem 0.9rem;
+  min-height: 42px;
+  padding: 0.65rem 0.8rem;
 }
 
 .mobile-agenda-list {
@@ -1530,14 +1567,14 @@ textarea {
 
 .mobile-month-grid-wrap {
   display: block;
-  margin-top: 1rem;
+  margin-top: 0.75rem;
 }
 
 .mobile-month-grid-head {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 0.3rem;
-  margin-bottom: 0.45rem;
+  gap: 0.22rem;
+  margin-bottom: 0.35rem;
 }
 
 .mobile-month-grid-head span {
@@ -1552,19 +1589,21 @@ textarea {
 .mobile-month-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 0.32rem;
+  gap: 0.24rem;
 }
 
 .mobile-month-cell {
   display: grid;
   align-content: start;
-  gap: 0.18rem;
-  min-height: 50px;
-  padding: 0.28rem;
+  justify-items: center;
+  gap: 0.14rem;
+  min-height: 0;
+  aspect-ratio: 1 / 0.82;
+  padding: 0.24rem 0.22rem 0.18rem;
   border: 1px solid #dfe8f2;
-  border-radius: 16px;
+  border-radius: 14px;
   background: #ffffff;
-  text-align: left;
+  text-align: center;
 }
 
 .mobile-month-cell.is-outside {
@@ -1586,9 +1625,10 @@ textarea {
 }
 
 .mobile-month-cell-date {
-  font-size: 0.86rem;
+  font-size: 0.8rem;
   font-weight: 800;
   color: var(--text);
+  line-height: 1;
 }
 
 .mobile-month-cell.is-today .mobile-month-cell-date {
@@ -1606,10 +1646,10 @@ textarea {
   align-items: center;
   justify-content: center;
   width: 100%;
-  min-height: 16px;
-  padding: 0.08rem 0.22rem;
+  min-height: 14px;
+  padding: 0.05rem 0.18rem;
   border-radius: 999px;
-  font-size: 0.56rem;
+  font-size: 0.54rem;
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
@@ -1617,8 +1657,8 @@ textarea {
 }
 
 .mobile-month-pill.inspection {
-  background: #fff4e5;
-  color: #b76000;
+  background: #eaf4fe;
+  color: #0b4f8a;
 }
 
 .mobile-month-pill.rental {
@@ -1685,8 +1725,8 @@ textarea {
 }
 
 .agenda-row.scheduled {
-  border-left: 5px solid var(--accent);
-  background: #eef5fd;
+  border-left: 6px solid #0b4f8a;
+  background: #eaf4fe;
 }
 
 .agenda-row.overdue {
@@ -1695,8 +1735,8 @@ textarea {
 }
 
 .agenda-row.upcoming {
-  border-left: 5px solid var(--success);
-  background: #edf9f2;
+  border-left: 4px solid #bfd4ea;
+  background: #f6faff;
 }
 
 .agenda-row.rental {
@@ -1740,7 +1780,10 @@ textarea {
 }
 
 .agenda-row.upcoming .agenda-main strong,
-.agenda-row.upcoming .agenda-time,
+.agenda-row.upcoming .agenda-time {
+  color: #386489;
+}
+
 .agenda-row.rental .agenda-main strong,
 .agenda-row.rental .agenda-time {
   color: var(--success);
@@ -1779,8 +1822,8 @@ textarea {
 }
 
 .month-cell {
-  min-height: 150px;
-  padding: 0.5rem;
+  min-height: 118px;
+  padding: 0.4rem;
   border-right: 1px solid #dfe8f2;
   border-bottom: 1px solid #dfe8f2;
   background: #fff;
@@ -1800,21 +1843,21 @@ textarea {
   justify-content: center;
   width: 2rem;
   height: 2rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.35rem;
   border-radius: 999px;
   font-weight: 700;
 }
 
 .month-cell-events {
   display: grid;
-  gap: 0.45rem;
+  gap: 0.3rem;
 }
 
 .month-event {
   display: grid;
   gap: 0.15rem;
   width: 100%;
-  padding: 0.55rem 0.6rem;
+  padding: 0.42rem 0.48rem;
   border-radius: 12px;
   border: 1px solid #dde7f0;
   text-align: left;
@@ -1822,18 +1865,19 @@ textarea {
 }
 
 .month-event strong {
-  font-size: 0.86rem;
+  font-size: 0.8rem;
 }
 
 .month-event span {
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   line-height: 1.3;
 }
 
 .month-event.scheduled {
   background: #eaf4fe;
-  border-color: #b9d8f4;
+  border-color: #7fb3e3;
+  box-shadow: inset 0 0 0 1px rgba(11, 79, 138, 0.12);
 }
 
 .month-event.overdue {
@@ -1842,8 +1886,8 @@ textarea {
 }
 
 .month-event.upcoming {
-  background: #e7f7ef;
-  border-color: #bfe7d0;
+  background: #f6faff;
+  border-color: #d2e3f5;
 }
 
 .month-event.rental {
@@ -1865,6 +1909,10 @@ textarea {
 }
 
 .month-event.upcoming strong,
+.month-event.upcoming span {
+  color: #386489;
+}
+
 .month-event.rental strong {
   color: var(--success);
 }
@@ -1888,10 +1936,10 @@ textarea {
 
 .calendar-filter-button {
   width: auto;
-  min-height: 32px;
-  padding: 0.32rem 0.55rem;
+  min-height: 30px;
+  padding: 0.28rem 0.5rem;
   border-radius: 10px;
-  font-size: 0.74rem;
+  font-size: 0.72rem;
 }
 
 .form-block-active {
@@ -2168,24 +2216,27 @@ textarea {
   }
 
   .calendar-head {
-      flex-direction: row;
-      justify-content: space-between;
-      align-items: center;
-    }
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
   
   .calendar-controls {
-      justify-items: end;
-    }
+    justify-items: end;
+  }
 
   .calendar-mobile-toolbar {
     display: flex;
+    align-items: center;
     justify-content: flex-end;
-    width: 100%;
-    order: 2;
+    gap: 0.65rem;
+    width: auto;
+    order: 1;
   }
 
   .calendar-month-switcher {
-    display: none;
+    display: grid;
+    min-width: 320px;
   }
 
   .calendar-controls .inline-meta {
@@ -2193,14 +2244,11 @@ textarea {
   }
 
   .calendar-controls .calendar-desktop-toolbar {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.65rem;
-    order: 1;
+    display: none;
   }
 
   .calendar-month-caption {
-    display: block;
+    display: none;
   }
 
   .mobile-agenda-list {

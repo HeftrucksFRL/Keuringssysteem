@@ -96,7 +96,7 @@ function todayIso() {
 }
 
 function planningStateForDueDate(dueDate: string): PlanningRecord["state"] {
-  return dueDate < todayIso() ? "overdue" : "scheduled";
+  return dueDate < todayIso() ? "overdue" : "upcoming";
 }
 
 async function syncSupabaseInspectionPlanning(
@@ -134,7 +134,8 @@ async function syncSupabaseInspectionPlanning(
         customer_id: input.customerId,
         machine_id: input.machineId,
         due_date: input.dueDate,
-        state
+        state,
+        notes: "Automatische vervolgkeuring"
       })
       .select("id")
       .single();
@@ -153,7 +154,8 @@ async function syncSupabaseInspectionPlanning(
       customer_id: input.customerId,
       machine_id: input.machineId,
       due_date: input.dueDate,
-      state
+      state,
+      notes: "Automatische vervolgkeuring"
     })
     .eq("id", targetItem.id);
 
@@ -205,6 +207,7 @@ function syncDemoInspectionPlanning(
       machineId: input.machineId,
       dueDate: input.dueDate,
       state,
+      notes: "Automatische vervolgkeuring",
       createdAt: nowIso(),
       updatedAt: nowIso()
     };
@@ -218,6 +221,7 @@ function syncDemoInspectionPlanning(
   targetItem.machineId = input.machineId;
   targetItem.dueDate = input.dueDate;
   targetItem.state = state;
+  targetItem.notes = "Automatische vervolgkeuring";
   targetItem.updatedAt = nowIso();
 
   const duplicateIds = new Set(
@@ -1145,6 +1149,7 @@ function mapPlanningRow(row: Record<string, unknown>): PlanningRecord {
     machineId: String(row.machine_id),
     dueDate: String(row.due_date ?? ""),
     state: row.state as PlanningRecord["state"],
+    notes: String(row.notes ?? ""),
     createdAt: String(row.created_at ?? ""),
     updatedAt: String(row.updated_at ?? "")
   };
@@ -2425,6 +2430,7 @@ export async function createManualPlanningItem(input: {
     machineId: input.machineId,
     dueDate: input.dueDate,
     state,
+    notes: "Handmatig gepland",
     createdAt: nowIso(),
     updatedAt: nowIso()
   };
@@ -2508,7 +2514,7 @@ const STOCK_CUSTOMER_EMAIL = "info@heftrucks.frl";
 const STOCK_CUSTOMER_PHONE = "0653842843";
 
 export function stockOwnerLabel() {
-  return "Eigen voorraad · Heftrucks.frl";
+  return "Eigen voorraad - Heftrucks.frl";
 }
 
 export function isRentalStockCustomer(
@@ -3445,7 +3451,8 @@ export async function updatePlanningItem(input: {
       .from("planning_items")
       .update({
         due_date: input.dueDate,
-        state
+        state,
+        notes: "Handmatig gepland"
       })
       .eq("id", input.id);
 
@@ -3468,6 +3475,7 @@ export async function updatePlanningItem(input: {
 
   item.dueDate = input.dueDate;
   item.state = state;
+  item.notes = "Handmatig gepland";
   item.updatedAt = nowIso();
 
   if (item.inspectionId) {

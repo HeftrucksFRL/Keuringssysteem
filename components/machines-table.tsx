@@ -11,7 +11,7 @@ interface MachinesTableProps {
   rentals: RentalRecord[];
 }
 
-type MachineFolderKey = "customer" | "stock" | "service" | "archived";
+type MachineFolderKey = "customer" | "stock" | "service" | "battery" | "archived";
 
 function archivedAt(machine: MachineRecord) {
   return machine.configuration.__archivedAt ? new Date(machine.configuration.__archivedAt) : null;
@@ -34,7 +34,7 @@ function statusBadgeStyle(
   }
 
   if (isStockMachine) {
-    return { background: "#e6f0ff", color: "#175cd3" };
+    return { background: "#f1ebff", color: "#6941c6" };
   }
 
   return { background: "#eff3f8", color: "#526273" };
@@ -120,6 +120,10 @@ function machineFolderKey(machine: MachineRecord, owner: CustomerRecord | null):
     return "archived";
   }
 
+  if (machine.machineType === "batterij_lader") {
+    return "battery";
+  }
+
   if (machine.availabilityStatus === "maintenance") {
     return "service";
   }
@@ -132,32 +136,80 @@ const machineFolderOrder: Array<{
   label: string;
   emptyLabel: string;
   defaultOpen: boolean;
+  itemLabel: string;
 }> = [
   {
     key: "customer",
     label: "Bij klanten",
     emptyLabel: "Geen machines bij klanten gevonden.",
-    defaultOpen: true
+    defaultOpen: true,
+    itemLabel: "machines"
   },
   {
     key: "stock",
     label: "Voorraad",
     emptyLabel: "Geen voorraadmachines gevonden.",
-    defaultOpen: true
+    defaultOpen: true,
+    itemLabel: "machines"
   },
   {
     key: "service",
     label: "Onderhoud / service",
     emptyLabel: "Geen machines in onderhoud of service.",
-    defaultOpen: false
+    defaultOpen: false,
+    itemLabel: "machines"
+  },
+  {
+    key: "battery",
+    label: "Batterijen en laders",
+    emptyLabel: "Geen batterijen of laders gevonden.",
+    defaultOpen: false,
+    itemLabel: "B/L"
   },
   {
     key: "archived",
     label: "Archief",
     emptyLabel: "Geen gearchiveerde machines gevonden.",
-    defaultOpen: false
+    defaultOpen: false,
+    itemLabel: "machines"
   }
 ];
+
+function folderClassName(key: MachineFolderKey) {
+  return `archive-folder archive-folder-machines archive-folder-machines-${key}`;
+}
+
+function folderRowStyle(key: MachineFolderKey) {
+  if (key === "stock") {
+    return {
+      background: "#faf7ff",
+      borderColor: "#ddd6fe"
+    };
+  }
+
+  if (key === "service") {
+    return {
+      background: "#fff8ef",
+      borderColor: "#fed7aa"
+    };
+  }
+
+  if (key === "battery") {
+    return {
+      background: "#fdf8f3",
+      borderColor: "#e9d5c4"
+    };
+  }
+
+  if (key === "customer") {
+    return {
+      background: "#f5f9ff",
+      borderColor: "#d7e6fb"
+    };
+  }
+
+  return undefined;
+}
 
 export function MachinesTable({
   machines,
@@ -267,14 +319,16 @@ export function MachinesTable({
       <div className="archive-stack">
         {groupedMachines.map((group) => (
           <details
-            className="archive-folder archive-folder-machines"
+            className={folderClassName(group.key)}
             key={group.key}
             open={isSearching || group.defaultOpen}
           >
             <summary className="archive-summary">
               <span className="archive-summary-main">
                 <strong>{group.label}</strong>
-                <span className="archive-summary-meta">{group.rows.length} machines</span>
+                <span className="archive-summary-meta">
+                  {group.rows.length} {group.itemLabel}
+                </span>
               </span>
             </summary>
             <div className="archive-folder-content">
@@ -295,6 +349,17 @@ export function MachinesTable({
                         ? stockOwnerLabel()
                         : owner.companyName
                       : "-";
+                    const rowStyle = archived
+                      ? {
+                          background: "#fef3f2",
+                          borderColor: "#fecdca"
+                        }
+                      : activeRental
+                        ? {
+                            background: "#ecfdf3",
+                            borderColor: "#abefc6"
+                          }
+                        : folderRowStyle(group.key);
                     const badgeStyle = archived
                       ? { background: "#fee4e2", color: "#b42318" }
                       : statusBadgeStyle(machine.availabilityStatus, stockMachine);
@@ -309,19 +374,7 @@ export function MachinesTable({
                         className="dataset-row"
                         href={`/machines/${machine.id}`}
                         key={machine.id}
-                        style={
-                          archived
-                            ? {
-                                background: "#fef3f2",
-                                borderColor: "#fecdca"
-                              }
-                            : activeRental
-                              ? {
-                                  background: "#ecfdf3",
-                                  borderColor: "#abefc6"
-                                }
-                              : undefined
-                        }
+                        style={rowStyle}
                       >
                         <strong>
                           {machineDisplayTitle(machine)} - {machineDisplayInternal(machine) || "-"}

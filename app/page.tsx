@@ -16,6 +16,7 @@ import {
   getPlanningItems,
   getTodoItems
 } from "@/lib/inspection-service";
+import { getPlanningDisplayLabel, getPlanningDisplayState } from "@/lib/planning";
 
 function buildTodoNote(title: string, description?: string | null) {
   const trimmedTitle = title.trim();
@@ -112,7 +113,7 @@ export default async function HomePage({
     {
       label: "Aantal keuringen deze maand",
       value: String(dashboard.inspectionsThisMonth),
-      helper: `${dashboard.inspectionsToday} vandaag · ${dashboard.inspectionsThisWeek} deze week`,
+      helper: `${dashboard.inspectionsToday} vandaag | ${dashboard.inspectionsThisWeek} deze week`,
       href: { pathname: "/keuringen", query: { period: "month" } }
     },
     {
@@ -250,7 +251,7 @@ export default async function HomePage({
                 <span>
                   <strong>{formatActivityAction(activity.action)}</strong>
                   <br />
-                  {activity.targetLabel} · {activity.actorName || activity.actorEmail || "Onbekend"}
+                  {activity.targetLabel} | {activity.actorName || activity.actorEmail || "Onbekend"}
                 </span>
                 <strong>{formatActivityMoment(activity.createdAt)}</strong>
               </div>
@@ -332,18 +333,14 @@ export default async function HomePage({
                 <span>{item.dueDate}</span>
                 <span
                   className={`badge ${
-                    item.state === "overdue"
+                    getPlanningDisplayState(item) === "overdue"
                       ? "orange"
-                      : item.state === "scheduled"
+                      : getPlanningDisplayState(item) === "scheduled"
                         ? "blue"
                         : "green"
                   }`}
                 >
-                  {item.state === "overdue"
-                    ? "Verlopen"
-                    : item.state === "scheduled"
-                      ? "Gepland"
-                      : "Aankomend"}
+                  {getPlanningDisplayLabel(item)}
                 </span>
                 <span>{item.inspectionId ? "Open keuring" : "Open planning"}</span>
               </Link>

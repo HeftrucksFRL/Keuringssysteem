@@ -17,6 +17,11 @@ import type {
   PlanningRecord,
   RentalRecord
 } from "@/lib/domain";
+import {
+  getPlanningDisplayLabel,
+  getPlanningDisplayState,
+  type PlanningDisplayState
+} from "@/lib/planning";
 
 interface PlanningCalendarProps {
   items: PlanningRecord[];
@@ -37,7 +42,7 @@ type AgendaEvent =
       dueDate: string;
       customer?: CustomerRecord;
       machineList: MachineRecord[];
-      state: PlanningRecord["state"];
+      state: PlanningDisplayState;
       place: string;
       inspectionId?: string;
     }
@@ -175,13 +180,13 @@ function customerDisplayName(customer?: CustomerRecord) {
     return "Onbekende klant";
   }
 
-  return isStockCustomer(customer) ? "Eigen voorraad · Heftrucks.frl" : customer.companyName;
+  return isStockCustomer(customer) ? "Eigen voorraad - Heftrucks.frl" : customer.companyName;
 }
 
-function stateLabel(state: PlanningRecord["state"]) {
+function stateLabel(state: PlanningDisplayState) {
   if (state === "overdue") return "Verlopen";
   if (state === "scheduled") return "Gepland";
-  return "Aankomend";
+  return "Verwacht";
 }
 
 function rentalPhaseLabel(rental: RentalRecord) {
@@ -299,7 +304,7 @@ export function PlanningCalendar({
             dueDate: item.dueDate,
             customer,
             machineList: machine ? [machine] : [],
-            state: item.state,
+            state: getPlanningDisplayState(item),
             place,
             inspectionId: item.inspectionId || undefined
           });
@@ -317,9 +322,10 @@ export function PlanningCalendar({
         if (!current.inspectionId && item.inspectionId) {
           current.inspectionId = item.inspectionId;
         }
-        if (item.state === "overdue" || current.state === "overdue") {
+        const nextState = getPlanningDisplayState(item);
+        if (nextState === "overdue" || current.state === "overdue") {
           current.state = "overdue";
-        } else if (item.state === "scheduled" || current.state === "scheduled") {
+        } else if (nextState === "scheduled" || current.state === "scheduled") {
           current.state = "scheduled";
         } else {
           current.state = "upcoming";
@@ -485,6 +491,13 @@ export function PlanningCalendar({
         ]
           .filter(Boolean)
           .join(", ") || "Adres onbekend";
+  const selectedInspectionTone =
+    selectedEvent?.kind === "inspection"
+      ? getPlanningDisplayLabel({
+          state: selectedEvent.state,
+          inspectionId: selectedEvent.inspectionId ?? ""
+        })
+      : "";
 
   return (
     <div className="panel">
@@ -629,10 +642,10 @@ export function PlanningCalendar({
                       <span>Afspraak</span>
                     ) : (
                       <span>
-                      {event.kind === "rental"
-                        ? `${rentalMomentLabel(event.rentalMoment)} · ${rentalPhaseLabel(event.rental)}`
-                        : `Keuring · ${stateLabel(event.state)}`}
-                    </span>
+                        {event.kind === "rental"
+                          ? `${rentalMomentLabel(event.rentalMoment)} - ${rentalPhaseLabel(event.rental)}`
+                          : `Keuring - ${stateLabel(event.state)}`}
+                      </span>
                     )}
                   </div>
                 </button>
@@ -760,7 +773,7 @@ export function PlanningCalendar({
                       ? "Vrij"
                       : event.kind === "rental"
                         ? "Huur"
-                        : "Keur"}
+                        : stateLabel(event.state)}
                   </strong>
                 </button>
               ))}
@@ -782,7 +795,9 @@ export function PlanningCalendar({
                 ? "Verhuur"
                 : selectedEvent.kind === "appointment"
                   ? "Afspraak"
-                  : "Geplande keuring"}
+                  : selectedInspectionTone === "Gepland"
+                    ? "Ingeplande keuring"
+                    : "Verwachte keuring"}
             </div>
             <h2>{selectedTitle}</h2>
             <p className="muted" style={{ marginTop: "-0.35rem", marginBottom: "1rem" }}>

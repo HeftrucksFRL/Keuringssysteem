@@ -73,6 +73,7 @@ export interface PlanningRecord {
   machineId: string;
   dueDate: string;
   state: "upcoming" | "overdue" | "scheduled" | "completed";
+  notes?: string;
   createdAt: string;
   updatedAt: string;
 }
