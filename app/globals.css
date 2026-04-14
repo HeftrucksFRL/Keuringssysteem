@@ -2037,6 +2037,24 @@ textarea {
   margin: auto 0;
 }
 
+.calendar-popup-actions {
+  align-items: flex-start;
+  gap: 0.55rem;
+}
+
+.calendar-popup-actions > form {
+  width: auto !important;
+  margin-bottom: 0 !important;
+}
+
+.calendar-popup-button {
+  width: auto;
+  min-height: 40px;
+  padding: 0.6rem 0.85rem;
+  border-radius: 14px;
+  font-size: 0.88rem;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -2126,6 +2144,11 @@ textarea {
   .inline-meta > a,
   .inline-meta > button {
     width: auto;
+  }
+
+  .calendar-popup-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
   }
 
   .compact-overview-row {

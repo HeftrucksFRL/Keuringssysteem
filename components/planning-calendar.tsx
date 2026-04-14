@@ -230,6 +230,10 @@ function dayPopupTitle(event: AgendaEvent) {
     return event.appointment.title;
   }
 
+  if (event.kind === "inspection") {
+    return `${customerDisplayName(event.customer)} - ${event.machineList.length}`;
+  }
+
   return customerDisplayName(event.customer);
 }
 
@@ -475,7 +479,9 @@ export function PlanningCalendar({
   const selectedTitle =
     selectedEvent?.kind === "appointment"
       ? selectedEvent.appointment.title
-      : customerDisplayName(selectedEvent?.customer);
+      : selectedEvent?.kind === "inspection"
+        ? `${customerDisplayName(selectedEvent.customer)} - ${selectedEvent.machineList.length}`
+        : customerDisplayName(selectedEvent?.customer);
   const selectedSubtitle =
     selectedEvent?.kind === "appointment"
       ? selectedEvent.appointment.description || "Losse agenda-afspraak"
@@ -603,7 +609,9 @@ export function PlanningCalendar({
                     <strong>
                       {event.kind === "appointment"
                         ? event.appointment.title
-                        : customerDisplayName(event.customer)}
+                        : event.kind === "inspection"
+                          ? `${customerDisplayName(event.customer)} - ${event.machineList.length}`
+                          : customerDisplayName(event.customer)}
                     </strong>
                     {event.kind === "appointment" ? (
                       <span>{event.appointment.description || "Losse agenda-afspraak"}</span>
@@ -663,7 +671,7 @@ export function PlanningCalendar({
                           ? event.machineList[0]?.internalNumber || event.machineList[0]?.machineNumber || "Machine"
                           : event.kind === "appointment"
                             ? event.appointment.title
-                            : customerDisplayName(event.customer)}
+                            : `${customerDisplayName(event.customer)} - ${event.machineList.length}`}
                       </strong>
                       <span>
                         {event.kind === "rental"
@@ -863,7 +871,7 @@ export function PlanningCalendar({
               </div>
             )}
 
-            <div className="actions">
+            <div className="actions calendar-popup-actions">
               {selectedEvent.kind === "rental" ? (
                 <form action={updateRentalAction} className="panel" style={{ width: "100%", marginBottom: "0.5rem" }}>
                   <input type="hidden" name="rentalId" value={selectedEvent.rental.id} />
@@ -955,7 +963,7 @@ export function PlanningCalendar({
                   <form action={deleteAgendaEventAction} style={{ width: "100%" }}>
                     <input type="hidden" name="id" value={selectedEvent.appointment.id} />
                     <input type="hidden" name="month" value={monthKey(anchorDate)} />
-                    <button className="button-secondary" type="submit">
+                    <button className="button-secondary calendar-popup-button" type="submit">
                       Afspraak verwijderen
                     </button>
                   </form>
@@ -984,23 +992,23 @@ export function PlanningCalendar({
                   <form action={deletePlanningItemAction} style={{ width: "100%", marginBottom: "0.5rem" }}>
                     <input type="hidden" name="ids" value={JSON.stringify(selectedPlanningItemIds)} />
                     <input type="hidden" name="month" value={monthKey(anchorDate)} />
-                    <button className="button-secondary" type="submit">
+                    <button className="button-secondary calendar-popup-button" type="submit">
                       Planning verwijderen
                     </button>
                   </form>
                 </>
               )}
               {selectedEvent.kind !== "appointment" && selectedEvent.customer?.id ? (
-                <Link className="button-secondary" href={`/klanten/${selectedEvent.customer.id}`}>
+                <Link className="button-secondary calendar-popup-button" href={`/klanten/${selectedEvent.customer.id}`}>
                   Open klantkaart
                 </Link>
               ) : null}
               {selectedEvent.kind !== "appointment" && selectedPrimaryMachine ? (
-                <Link className="button-secondary" href={`/machines/${selectedPrimaryMachine.id}`}>
+                <Link className="button-secondary calendar-popup-button" href={`/machines/${selectedPrimaryMachine.id}`}>
                   Open machinekaart
                 </Link>
               ) : null}
-              <button className="button" type="button" onClick={() => setSelectedEventKey("")}>
+              <button className="button calendar-popup-button" type="button" onClick={() => setSelectedEventKey("")}>
                 Sluiten
               </button>
             </div>
