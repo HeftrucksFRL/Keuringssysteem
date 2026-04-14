@@ -523,7 +523,11 @@ export function PlanningCalendar({
             <button className="button-secondary" type="button" onClick={() => setAnchorDate(addMonths(anchorDate, -1))}>
               Vorige
             </button>
-            <button className="button-secondary" type="button" onClick={() => setAnchorDate(new Date())}>
+            <button
+              className="button-secondary calendar-desktop-month-button"
+              type="button"
+              onClick={() => setAnchorDate(new Date())}
+            >
               {monthLabel(anchorDate)}
             </button>
             <button className="button-secondary" type="button" onClick={() => setAnchorDate(addMonths(anchorDate, 1))}>
