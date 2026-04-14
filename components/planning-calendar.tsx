@@ -726,23 +726,6 @@ export function PlanningCalendar({
         </button>
       </div>
 
-      <div className="calendar-filter-row">
-        <button
-          className={`button-secondary calendar-filter-button ${sortByPlace ? "active-toggle" : ""}`}
-          type="button"
-          onClick={() => setSortByPlace(true)}
-        >
-          Plaats
-        </button>
-        <button
-          className={`button-secondary calendar-filter-button ${!sortByPlace ? "active-toggle" : ""}`}
-          type="button"
-          onClick={() => setSortByPlace(false)}
-        >
-          Klant
-        </button>
-      </div>
-
       {selectedDayDate ? (
         <div className="modal-backdrop" onClick={() => setSelectedDayKey("")}>
           <div className="modal-card" onClick={(event) => event.stopPropagation()}>
