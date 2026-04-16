@@ -1,4 +1,5 @@
 import { fileUrl } from "@/lib/file-urls";
+import { canManageCleanup, requireUser } from "@/lib/auth";
 import { getInspectionAttachments } from "@/lib/inspection-service";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -49,6 +50,8 @@ export default async function CustomerDetailPage({
 }) {
   const { id } = await params;
   const query = await searchParams;
+  const currentUser = await requireUser();
+  const showCleanupTools = canManageCleanup(currentUser);
   const customer = await getCustomerById(id);
 
   if (!customer) {
@@ -327,6 +330,7 @@ export default async function CustomerDetailPage({
         </section>
       </section>
 
+      {showCleanupTools ? (
       <section className="panel" style={{ marginTop: "1rem" }}>
         <div className="eyebrow">Tijdelijk opschonen</div>
         <h2>Machines verplaatsen en dubbele klant opruimen</h2>
@@ -432,6 +436,7 @@ export default async function CustomerDetailPage({
           </form>
         </div>
       </section>
+      ) : null}
 
       <section className="panel" style={{ marginTop: "1rem" }}>
         <div className="eyebrow">Historie</div>

@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import type { Route } from "next";
 import { revalidatePath } from "next/cache";
-import { requireActivityActor } from "@/lib/auth";
+import { requireActivityActor, requireCleanupManager } from "@/lib/auth";
 import {
   addActivityLog,
   archiveMachine,
@@ -185,7 +185,7 @@ export async function updateMachineAction(formData: FormData) {
 }
 
 export async function assignMachineToCustomerAction(formData: FormData) {
-  const actor = await requireActivityActor();
+  const actor = await requireCleanupManager();
   const machineId = String(formData.get("machineId") || "");
   const customerId = String(formData.get("customerId") || "");
 
@@ -229,7 +229,7 @@ export async function assignMachineToCustomerAction(formData: FormData) {
 }
 
 export async function assignMachineToStockAction(formData: FormData) {
-  const actor = await requireActivityActor();
+  const actor = await requireCleanupManager();
   const machineId = String(formData.get("machineId") || "");
   if (!machineId) {
     return;

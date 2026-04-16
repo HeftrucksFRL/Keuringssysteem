@@ -8,6 +8,7 @@ export interface ActivityActor {
 }
 
 const activityLogViewerEmails = new Set(["info@heftruckopleiding.frl"]);
+const cleanupManagerEmails = new Set(["info@heftruckopleiding.frl"]);
 
 function toDisplayNamePart(value: string) {
   return value
@@ -83,6 +84,16 @@ export function canViewActivityLog(
   return activityLogViewerEmails.has(email);
 }
 
+export function canManageCleanup(
+  user: { email?: string | null } | null | undefined
+) {
+  const email = String(user?.email ?? "")
+    .trim()
+    .toLowerCase();
+
+  return cleanupManagerEmails.has(email);
+}
+
 export async function requireActivityActor(): Promise<ActivityActor> {
   const user = await requireUser();
   return {
@@ -90,4 +101,13 @@ export async function requireActivityActor(): Promise<ActivityActor> {
     email: String(user?.email ?? "demo@heftrucks.frl"),
     name: getUserDisplayName(user)
   };
+}
+
+export async function requireCleanupManager(): Promise<ActivityActor> {
+  const actor = await requireActivityActor();
+  if (!canManageCleanup(actor)) {
+    throw new Error("Alleen info@heftruckopleiding.frl mag deze tijdelijke opschoonacties uitvoeren.");
+  }
+
+  return actor;
 }

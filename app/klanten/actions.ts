@@ -3,7 +3,7 @@
 import type { Route } from "next";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireActivityActor } from "@/lib/auth";
+import { requireActivityActor, requireCleanupManager } from "@/lib/auth";
 import {
   addActivityLog,
   addCustomerContact,
@@ -193,7 +193,7 @@ export async function deleteCustomerContactAction(formData: FormData) {
 }
 
 export async function cleanupMoveMachineAction(formData: FormData) {
-  const actor = await requireActivityActor();
+  const actor = await requireCleanupManager();
   const customerId = String(formData.get("customerId") || "");
   const machineId = String(formData.get("machineId") || "");
   const returnTo = String(formData.get("returnTo") || "").trim() || "/klanten";
@@ -251,7 +251,7 @@ export async function cleanupMoveMachineAction(formData: FormData) {
 }
 
 export async function deleteCustomerAction(formData: FormData) {
-  const actor = await requireActivityActor();
+  const actor = await requireCleanupManager();
   const customerId = String(formData.get("customerId") || "");
 
   let deletedCustomerName = "";

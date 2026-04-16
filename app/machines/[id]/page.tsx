@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import type { Route } from "next";
 import type { MachineRecord } from "@/lib/domain";
 import { completeRentalAction, createRentalAction } from "@/app/verhuur/actions";
+import { canManageCleanup, requireUser } from "@/lib/auth";
 import {
   archiveMachineAction,
   assignMachineToStockAction,
@@ -109,6 +110,8 @@ export default async function MachineDetailPage({
 }) {
   const { id } = await params;
   const query = await searchParams;
+  const currentUser = await requireUser();
+  const canManageCustomerAssignments = canManageCleanup(currentUser);
   const machine = await getMachineById(id, { includeArchived: true });
 
   if (!machine) {
@@ -481,7 +484,10 @@ export default async function MachineDetailPage({
               )}
             </div>
           ) : null}
-          {!isArchived && machine.machineType !== "batterij_lader" && isRentalStockMachine ? (
+          {!isArchived &&
+          machine.machineType !== "batterij_lader" &&
+          isRentalStockMachine &&
+          canManageCustomerAssignments ? (
             <form action={assignMachineToCustomerAction} style={{ marginTop: "1rem" }}>
               <input type="hidden" name="machineId" value={machine.id} />
               <CustomerPicker
@@ -497,7 +503,10 @@ export default async function MachineDetailPage({
               </div>
             </form>
           ) : null}
-          {!isArchived && machine.machineType !== "batterij_lader" && !isRentalStockMachine ? (
+          {!isArchived &&
+          machine.machineType !== "batterij_lader" &&
+          !isRentalStockMachine &&
+          canManageCustomerAssignments ? (
             <form action={assignMachineToStockAction} style={{ marginTop: "1rem" }}>
               <input type="hidden" name="machineId" value={machine.id} />
               <div className="actions">
