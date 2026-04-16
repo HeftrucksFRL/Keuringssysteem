@@ -5,6 +5,8 @@ import { notFound } from "next/navigation";
 import type { Route } from "next";
 import {
   addCustomerContactAction,
+  cleanupMoveMachineAction,
+  deleteCustomerAction,
   deleteCustomerContactAction,
   updateCustomerAction,
   updateCustomerContactAction
@@ -16,8 +18,10 @@ import {
   getMachineArchivedAt,
   getMachines,
   getMachinesForCustomer,
-  getRentalsForCustomer
+  getRentalsForCustomer,
+  getVisibleCustomers
 } from "@/lib/inspection-service";
+import { CustomerPicker } from "@/components/customer-picker";
 
 function rentalPhase(rental: { startDate: string; endDate: string; status: "active" | "completed" }) {
   const today = new Date().toISOString().slice(0, 10);
@@ -35,7 +39,13 @@ export default async function CustomerDetailPage({
   searchParams
 }: {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ saved?: string; created?: string; contactSaved?: string }>;
+  searchParams?: Promise<{
+    saved?: string;
+    created?: string;
+    contactSaved?: string;
+    cleanupMoved?: string;
+    error?: string;
+  }>;
 }) {
   const { id } = await params;
   const query = await searchParams;
@@ -48,6 +58,9 @@ export default async function CustomerDetailPage({
   const machines = await getMachinesForCustomer(customer.id, { includeArchived: true });
   const contacts = await getCustomerContacts(customer.id);
   const allMachines = await getMachines({ includeArchived: true });
+  const assignableCustomers = (await getVisibleCustomers()).filter(
+    (item) => item.id !== customer.id
+  );
   const rentals = await getRentalsForCustomer(customer.id);
   const inspections = (await getInspections()).filter(
     (inspection) => inspection.customerId === customer.id
@@ -63,6 +76,10 @@ export default async function CustomerDetailPage({
         {query?.saved ? <p className="form-message success">Klant opgeslagen.</p> : null}
         {query?.created ? <p className="form-message success">Klant toegevoegd.</p> : null}
         {query?.contactSaved ? <p className="form-message success">Contactpersoon toegevoegd.</p> : null}
+        {query?.cleanupMoved ? (
+          <p className="form-message success">Machine en gekoppelde historie zijn verplaatst.</p>
+        ) : null}
+        {query?.error ? <p className="form-message error">{decodeURIComponent(query.error)}</p> : null}
         <div className="actions">
           <Link className="button" href={`/keuringen/nieuw?customerId=${customer.id}`}>
             Nieuwe keuring starten
@@ -308,6 +325,112 @@ export default async function CustomerDetailPage({
               })}
           </div>
         </section>
+      </section>
+
+      <section className="panel" style={{ marginTop: "1rem" }}>
+        <div className="eyebrow">Tijdelijk opschonen</div>
+        <h2>Machines verplaatsen en dubbele klant opruimen</h2>
+        <p className="muted">
+          Gebruik dit alleen voor de import-opschoning. Deze actie verplaatst ook de
+          gekoppelde keuringshistorie van deze machine mee van deze klant naar de nieuwe klant
+          of naar voorraad.
+        </p>
+        <div className="list" style={{ marginTop: "1rem" }}>
+          {machines.length === 0 ? (
+            <div className="list-item">
+              <span>Geen machines meer gekoppeld aan deze klant.</span>
+              <strong>Klaar om op te ruimen</strong>
+            </div>
+          ) : (
+            machines.map((machine) => (
+              <div className="list-item" key={`cleanup-${machine.id}`} style={{ display: "block" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: "1rem",
+                    alignItems: "center",
+                    flexWrap: "wrap"
+                  }}
+                >
+                  <span>
+                    <strong>{machine.internalNumber || machine.machineNumber}</strong>
+                    <br />
+                    {machine.brand} {machine.model}
+                  </span>
+                  <Link className="button-secondary" href={`/machines/${machine.id}`}>
+                    Open machinekaart
+                  </Link>
+                </div>
+                {!getMachineArchivedAt(machine) ? (
+                  <div className="grid-2" style={{ marginTop: "0.85rem" }}>
+                    <form action={cleanupMoveMachineAction}>
+                      <input type="hidden" name="machineId" value={machine.id} />
+                      <input type="hidden" name="returnTo" value={`/klanten/${customer.id}`} />
+                      <CustomerPicker
+                        customers={assignableCustomers}
+                        defaultCustomerId=""
+                        label="Verplaats naar klant"
+                        required
+                      />
+                      <div className="actions">
+                        <button className="button-secondary" type="submit">
+                          Verplaatsen
+                        </button>
+                      </div>
+                    </form>
+                    <form action={cleanupMoveMachineAction}>
+                      <input type="hidden" name="machineId" value={machine.id} />
+                      <input type="hidden" name="moveToStock" value="1" />
+                      <input type="hidden" name="returnTo" value={`/klanten/${customer.id}`} />
+                      <div className="field">
+                        <label>Voorraad</label>
+                        <div className="selected-summary">
+                          <strong>Eigen voorraad</strong>
+                          <span>Zet deze machine terug op voorraad en neem de historie mee.</span>
+                        </div>
+                      </div>
+                      <div className="actions">
+                        <button className="button-secondary" type="submit">
+                          Naar voorraad
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                ) : (
+                  <p className="muted" style={{ marginTop: "0.75rem" }}>
+                    Deze machine is gearchiveerd en kan niet meer via de opschoonactie worden verplaatst.
+                  </p>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+        <div
+          style={{
+            marginTop: "1rem",
+            paddingTop: "1rem",
+            borderTop: "1px solid var(--line)",
+            display: "flex",
+            justifyContent: "space-between",
+            gap: "1rem",
+            alignItems: "center",
+            flexWrap: "wrap"
+          }}
+        >
+          <div>
+            <strong>Dubbele klant verwijderen</strong>
+            <p className="muted" style={{ marginTop: "0.35rem" }}>
+              Dit lukt alleen als er geen machines, keuringen, planning of verhuur meer aan deze klant hangen.
+            </p>
+          </div>
+          <form action={deleteCustomerAction}>
+            <input type="hidden" name="customerId" value={customer.id} />
+            <button className="button-secondary" type="submit">
+              Klant verwijderen
+            </button>
+          </form>
+        </div>
       </section>
 
       <section className="panel" style={{ marginTop: "1rem" }}>

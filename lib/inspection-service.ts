@@ -1337,16 +1337,25 @@ export async function createInspection(input: CreateInspectionInput) {
     machineRow = data;
   }
 
-  const { data: generatedInspectionNumber, error: sequenceError } = await supabase.rpc(
-    "next_inspection_number",
-    {
-      target_date: input.inspectionDate
-    }
-  );
+  const inspectionYear = Number(input.inspectionDate.slice(0, 4));
+  const { data: yearInspectionRows, error: sequenceError } = await supabase
+    .from("inspections")
+    .select("inspection_number")
+    .gte("inspection_date", `${inspectionYear}-01-01`)
+    .lte("inspection_date", `${inspectionYear}-12-31`);
 
-  if (sequenceError || generatedInspectionNumber == null) {
+  if (sequenceError) {
     throw new Error("Keurnummer kon niet worden aangemaakt.");
   }
+
+  const generatedInspectionNumber = (() => {
+    const base = getYearSequenceStart(inspectionYear);
+    const yearValues = (yearInspectionRows ?? [])
+      .map((row) => Number(row.inspection_number))
+      .filter((value) => !Number.isNaN(value));
+
+    return yearValues.length > 0 ? Math.max(...yearValues) + 1 : base;
+  })();
 
   const { data: inserted, error: insertError } = await supabase
     .from("inspections")
@@ -2512,6 +2521,16 @@ function normalizeRentalOwnerText(value: string | undefined) {
 const STOCK_CUSTOMER_COMPANY = "Heftrucks.frl";
 const STOCK_CUSTOMER_EMAIL = "info@heftrucks.frl";
 const STOCK_CUSTOMER_PHONE = "0653842843";
+const STOCK_CUSTOMER_ALIASES = [
+  "heftrucks.frl",
+  "heftrucks friesland",
+  "heftrucks friesland b.v",
+  "heftrucks friesland bv",
+  "terpstra trading",
+  "terpstra trading b.v",
+  "terpstra trading bv"
+];
+const STOCK_CUSTOMER_EMAIL_MARKERS = ["@heftrucks.frl", "heftrucks.frl", "@terpstratrading.frl", "terpstratrading.frl"];
 
 export function stockOwnerLabel() {
   return "Eigen voorraad - Heftrucks.frl";
@@ -2523,10 +2542,8 @@ export function isRentalStockCustomer(
   const company = normalizeRentalOwnerText(customer?.companyName);
   const email = normalizeRentalOwnerText(customer?.email);
   return (
-    company.includes("heftrucks") ||
-    company.includes("friesland") ||
-    email.includes("@heftrucks.frl") ||
-    email.includes("heftrucks.frl")
+    STOCK_CUSTOMER_ALIASES.some((alias) => company.includes(alias)) ||
+    STOCK_CUSTOMER_EMAIL_MARKERS.some((marker) => email.includes(marker))
   );
 }
 
@@ -3100,6 +3117,75 @@ export async function deleteCustomerContact(input: {
   }
 
   await writeAppData(data);
+}
+
+export async function deleteCustomer(customerId: string) {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data: customerRow } = await supabase
+      .from("customers")
+      .select("*")
+      .eq("id", customerId)
+      .maybeSingle();
+
+    if (!customerRow) {
+      return null;
+    }
+
+    const customer = mapCustomerRow(customerRow);
+    if (isRentalStockCustomer(customer)) {
+      throw new Error("De eigen voorraad kan niet worden verwijderd.");
+    }
+
+    const [machineRows, inspectionRows, planningRows, rentalRows] = await Promise.all([
+      supabase.from("machines").select("id").eq("customer_id", customerId).limit(1),
+      supabase.from("inspections").select("id").eq("customer_id", customerId).limit(1),
+      supabase.from("planning_items").select("id").eq("customer_id", customerId).limit(1),
+      supabase.from("rentals").select("id").eq("customer_id", customerId).limit(1)
+    ]);
+
+    if (
+      (machineRows.data?.length ?? 0) > 0 ||
+      (inspectionRows.data?.length ?? 0) > 0 ||
+      (planningRows.data?.length ?? 0) > 0 ||
+      (rentalRows.data?.length ?? 0) > 0
+    ) {
+      throw new Error(
+        "Deze klant is nog niet leeg. Verplaats eerst machines en bijbehorende historie voordat je de dubbele klant verwijdert."
+      );
+    }
+
+    await supabase.from("customer_contacts").delete().eq("customer_id", customerId);
+    await supabase.from("customers").delete().eq("id", customerId);
+    return customer;
+  }
+
+  const data = await readAppData();
+  const customer = data.customers.find((item) => item.id === customerId) ?? null;
+  if (!customer) {
+    return null;
+  }
+
+  if (isRentalStockCustomer(customer)) {
+    throw new Error("De eigen voorraad kan niet worden verwijderd.");
+  }
+
+  const hasLinkedData =
+    data.machines.some((item) => item.customerId === customerId) ||
+    data.inspections.some((item) => item.customerId === customerId) ||
+    data.planningItems.some((item) => item.customerId === customerId) ||
+    data.rentals.some((item) => item.customerId === customerId);
+
+  if (hasLinkedData) {
+    throw new Error(
+      "Deze klant is nog niet leeg. Verplaats eerst machines en bijbehorende historie voordat je de dubbele klant verwijdert."
+    );
+  }
+
+  data.customerContacts = data.customerContacts.filter((item) => item.customerId !== customerId);
+  data.customers = data.customers.filter((item) => item.id !== customerId);
+  await writeAppData(data);
+  return customer;
 }
 
 export async function createMachine(input: {
@@ -3924,6 +4010,132 @@ export async function assignMachineToCustomer(input: {
   const affectedInspectionIds: string[] = [];
   for (const inspection of data.inspections) {
     if (inspection.machineId !== input.machineId || inspection.status !== "draft") {
+      continue;
+    }
+
+    inspection.customerId = input.customerId;
+    inspection.customerSnapshot = buildCustomerSnapshot(customer);
+    inspection.updatedAt = nowIso();
+    affectedInspectionIds.push(inspection.id);
+    await syncDemoInspectionDocuments(data, inspection);
+  }
+
+  await writeAppData(data);
+  return affectedInspectionIds;
+}
+
+export async function reassignMachineToCustomerForCleanup(input: {
+  machineId: string;
+  customerId: string;
+}) {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data: currentMachineRow } = await supabase
+      .from("machines")
+      .select("*")
+      .eq("id", input.machineId)
+      .maybeSingle();
+
+    if (!currentMachineRow) {
+      return [];
+    }
+
+    const currentMachine = mapMachineRow(currentMachineRow);
+    assertMachineNotArchiveLocked(
+      currentMachine,
+      "Deze machine tijdelijk naar een andere klant verplaatsen"
+    );
+
+    const previousCustomerId = String(currentMachineRow.customer_id ?? "");
+    if (previousCustomerId === input.customerId) {
+      return [];
+    }
+
+    const { data: customerRow } = await supabase
+      .from("customers")
+      .select("*")
+      .eq("id", input.customerId)
+      .maybeSingle();
+
+    if (!customerRow) {
+      return [];
+    }
+
+    const customer = mapCustomerRow(customerRow);
+
+    await supabase
+      .from("machines")
+      .update({ customer_id: input.customerId })
+      .eq("id", input.machineId);
+
+    await supabase
+      .from("planning_items")
+      .update({ customer_id: input.customerId })
+      .eq("machine_id", input.machineId)
+      .eq("customer_id", previousCustomerId);
+
+    const { data: inspectionRows } = await supabase
+      .from("inspections")
+      .update({
+        customer_id: input.customerId,
+        customer_snapshot: buildCustomerSnapshot(customer)
+      })
+      .eq("machine_id", input.machineId)
+      .eq("customer_id", previousCustomerId)
+      .select("*");
+
+    const affectedInspectionIds: string[] = [];
+    for (const row of inspectionRows ?? []) {
+      const inspection = mapInspectionRow(row);
+      affectedInspectionIds.push(inspection.id);
+      const { data: attachmentRows } = await supabase
+        .from("inspection_attachments")
+        .select("id, kind, storage_path")
+        .eq("inspection_id", inspection.id);
+
+      await syncSupabaseInspectionDocuments(
+        inspection,
+        (attachmentRows ?? []).map((attachment) => ({
+          id: String(attachment.id),
+          kind: String(attachment.kind),
+          storage_path: String(attachment.storage_path)
+        }))
+      );
+    }
+
+    return affectedInspectionIds;
+  }
+
+  const data = await readAppData();
+  const customer = data.customers.find((item) => item.id === input.customerId);
+  const machine = data.machines.find((item) => item.id === input.machineId);
+  if (!customer || !machine) {
+    return [];
+  }
+
+  assertMachineNotArchiveLocked(
+    machine,
+    "Deze machine tijdelijk naar een andere klant verplaatsen"
+  );
+
+  const previousCustomerId = machine.customerId;
+  if (previousCustomerId === input.customerId) {
+    return [];
+  }
+
+  machine.customerId = input.customerId;
+  machine.updatedAt = nowIso();
+
+  data.planningItems.forEach((item) => {
+    if (item.machineId === input.machineId && item.customerId === previousCustomerId) {
+      item.customerId = input.customerId;
+      item.updatedAt = nowIso();
+    }
+  });
+
+  const affectedInspectionIds: string[] = [];
+  for (const inspection of data.inspections) {
+    if (inspection.machineId !== input.machineId || inspection.customerId !== previousCustomerId) {
       continue;
     }
 

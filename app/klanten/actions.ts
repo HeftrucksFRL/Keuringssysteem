@@ -1,5 +1,6 @@
 "use server";
 
+import type { Route } from "next";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireActivityActor } from "@/lib/auth";
@@ -7,7 +8,10 @@ import {
   addActivityLog,
   addCustomerContact,
   createCustomer,
+  deleteCustomer,
   deleteCustomerContact,
+  ensureRentalStockCustomerId,
+  reassignMachineToCustomerForCleanup,
   updateCustomer,
   updateCustomerContact,
   updatePlanningItem
@@ -186,4 +190,99 @@ export async function deleteCustomerContactAction(formData: FormData) {
   revalidatePath("/keuringen/nieuw");
   revalidatePath("/");
   redirect(`/klanten/${customerId}?contactSaved=1`);
+}
+
+export async function cleanupMoveMachineAction(formData: FormData) {
+  const actor = await requireActivityActor();
+  const customerId = String(formData.get("customerId") || "");
+  const machineId = String(formData.get("machineId") || "");
+  const returnTo = String(formData.get("returnTo") || "").trim() || "/klanten";
+  const moveToStock = String(formData.get("moveToStock") || "").trim() === "1";
+
+  const targetCustomerId = moveToStock
+    ? await ensureRentalStockCustomerId()
+    : customerId;
+
+  let affectedInspectionIds: string[] = [];
+
+  try {
+    affectedInspectionIds = await reassignMachineToCustomerForCleanup({
+      machineId,
+      customerId: targetCustomerId
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? encodeURIComponent(error.message)
+        : encodeURIComponent("Machine verplaatsen is niet gelukt.");
+    redirect(
+      `${returnTo}${returnTo.includes("?") ? "&" : "?"}error=${message}` as Route
+    );
+  }
+
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: moveToStock ? "machine.cleanup_stocked" : "machine.cleanup_reassigned",
+    entityType: "machine",
+    entityId: machineId,
+    targetLabel: `Machine ${machineId}`,
+    details: {
+      customerId: targetCustomerId,
+      moveToStock,
+      syncedHistory: true
+    }
+  });
+
+  revalidatePath("/klanten");
+  revalidatePath("/machines");
+  revalidatePath("/planning");
+  revalidatePath("/keuringen");
+  revalidatePath("/keuringen/nieuw");
+  revalidatePath("/verhuur");
+  revalidatePath("/");
+  revalidatePath(returnTo.split("?")[0] || "/klanten");
+  for (const inspectionId of affectedInspectionIds) {
+    revalidatePath(`/keuringen/${inspectionId}`);
+  }
+
+  redirect(`${returnTo}${returnTo.includes("?") ? "&" : "?"}cleanupMoved=1` as Route);
+}
+
+export async function deleteCustomerAction(formData: FormData) {
+  const actor = await requireActivityActor();
+  const customerId = String(formData.get("customerId") || "");
+
+  let deletedCustomerName = "";
+
+  try {
+    const deletedCustomer = await deleteCustomer(customerId);
+    deletedCustomerName = deletedCustomer?.companyName || `Klant ${customerId}`;
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? encodeURIComponent(error.message)
+        : encodeURIComponent("Klant verwijderen is niet gelukt.");
+    redirect(`/klanten/${customerId}?error=${message}`);
+  }
+
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "customer.deleted",
+    entityType: "customer",
+    entityId: customerId,
+    targetLabel: deletedCustomerName
+  });
+
+  revalidatePath("/klanten");
+  revalidatePath("/machines");
+  revalidatePath("/planning");
+  revalidatePath("/keuringen");
+  revalidatePath("/keuringen/nieuw");
+  revalidatePath("/verhuur");
+  revalidatePath("/");
+  redirect("/klanten?deleted=1");
 }

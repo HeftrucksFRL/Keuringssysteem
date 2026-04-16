@@ -2,7 +2,12 @@ import { getInspections, getMachines, getVisibleCustomers } from "@/lib/inspecti
 import { CustomersTable } from "@/components/customers-table";
 import Link from "next/link";
 
-export default async function CustomersPage() {
+export default async function CustomersPage({
+  searchParams
+}: {
+  searchParams?: Promise<{ deleted?: string }>;
+}) {
+  const query = await searchParams;
   const customers = await getVisibleCustomers();
   const inspections = await getInspections();
   const machines = await getMachines();
@@ -11,6 +16,7 @@ export default async function CustomersPage() {
     <section className="panel">
       <div className="eyebrow">Klantenbestand</div>
       <h1>Klanten</h1>
+      {query?.deleted ? <p className="form-message success">Dubbele klant verwijderd.</p> : null}
       <div className="actions" style={{ marginTop: "0.75rem", marginBottom: "1rem" }}>
         <Link className="button" href="/klanten/nieuw">
           Klant toevoegen
