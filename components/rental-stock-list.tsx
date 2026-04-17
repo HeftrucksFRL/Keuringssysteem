@@ -30,6 +30,10 @@ export function RentalStockList({
   stockOwnerLabel
 }: RentalStockListProps) {
   const [query, setQuery] = useState("");
+  const customerById = useMemo(
+    () => new Map(customers.map((customer) => [customer.id, customer])),
+    [customers]
+  );
 
   const rentalByMachine = useMemo(() => {
     const map = new Map<string, RentalRecord>();
@@ -54,9 +58,7 @@ export function RentalStockList({
 
     return stockMachines.filter((machine) => {
       const rental = rentalByMachine.get(machine.id);
-      const rentalCustomer = rental
-        ? customers.find((customer) => customer.id === rental.customerId)
-        : null;
+      const rentalCustomer = rental ? customerById.get(rental.customerId) : null;
 
       return [
         "voorraad",
@@ -75,7 +77,7 @@ export function RentalStockList({
         .toLowerCase()
         .includes(needle);
     });
-  }, [customers, query, rentalByMachine, stockMachines]);
+  }, [customerById, query, rentalByMachine, stockMachines]);
 
   return (
     <div className="compact-stock-panel">
@@ -102,9 +104,7 @@ export function RentalStockList({
           ) : (
             filteredMachines.map((machine) => {
               const rental = rentalByMachine.get(machine.id);
-              const rentalCustomer = rental
-                ? customers.find((customer) => customer.id === rental.customerId) ?? null
-                : null;
+              const rentalCustomer = rental ? customerById.get(rental.customerId) ?? null : null;
 
               return (
                 <Link

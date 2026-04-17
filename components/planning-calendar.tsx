@@ -192,10 +192,14 @@ function eventMatchesFilter(event: AgendaEvent, filter: ViewFilter) {
 
 function mobileDaySummary(events: AgendaEvent[]) {
   const counts = {
-    inspection: events.filter((event) => event.kind === "inspection").length,
-    rental: events.filter((event) => event.kind === "rental").length,
-    appointment: events.filter((event) => event.kind === "appointment").length
+    inspection: 0,
+    rental: 0,
+    appointment: 0
   };
+
+  for (const event of events) {
+    counts[event.kind] += 1;
+  }
 
   return ([
     counts.inspection ? { kind: "inspection" as const, label: `${counts.inspection} keur` } : null,
@@ -259,6 +263,27 @@ export function PlanningCalendar({
     return Array.from({ length: 42 }, (_, index) => addDays(first, index));
   }, [anchorDate]);
 
+  const customerById = useMemo(
+    () => new Map(customers.map((customer) => [customer.id, customer])),
+    [customers]
+  );
+
+  const machineById = useMemo(
+    () => new Map(machines.map((machine) => [machine.id, machine])),
+    [machines]
+  );
+
+  const planningItemIdsByEventKey = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const item of items) {
+      const key = `inspection-${item.customerId}-${item.dueDate}`;
+      const current = map.get(key) ?? [];
+      current.push(item.id);
+      map.set(key, current);
+    }
+    return map;
+  }, [items]);
+
   const monthStart = startOfMonth(anchorDate);
   const monthStartIso = formatLocalDateInput(monthStart);
   const monthEndIso = formatLocalDateInput(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0));
@@ -269,8 +294,8 @@ export function PlanningCalendar({
     items
       .filter((item) => item.dueDate >= monthStartIso && item.dueDate <= monthEndIso)
       .forEach((item) => {
-        const customer = customers.find((entry) => entry.id === item.customerId);
-        const machine = machines.find((entry) => entry.id === item.machineId);
+        const customer = customerById.get(item.customerId);
+        const machine = machineById.get(item.machineId);
         const key = `inspection-${item.customerId}-${item.dueDate}`;
         const place = placeLabel(customer);
 
@@ -310,8 +335,8 @@ export function PlanningCalendar({
       });
 
     const rentalEvents: AgendaEvent[] = rentals.flatMap((rental) => {
-      const customer = customers.find((entry) => entry.id === rental.customerId);
-      const machine = machines.find((entry) => entry.id === rental.machineId);
+      const customer = customerById.get(rental.customerId);
+      const machine = machineById.get(rental.machineId);
       if (!machine) {
         return [];
       }
@@ -411,9 +436,9 @@ export function PlanningCalendar({
       });
   }, [
     agendaEventItems,
-    customers,
+    customerById,
     items,
-    machines,
+    machineById,
     monthEndIso,
     monthStartIso,
     query,
@@ -442,18 +467,15 @@ export function PlanningCalendar({
 
   const selectedDayEvents = selectedDayKey ? eventsByDay.get(selectedDayKey) ?? [] : [];
   const selectedDayDate = selectedDayKey ? parseLocalDateInput(selectedDayKey) : null;
-  const selectedEvent = calendarEvents.find((event) => event.key === selectedEventKey) ?? null;
+  const eventByKey = useMemo(
+    () => new Map(calendarEvents.map((event) => [event.key, event])),
+    [calendarEvents]
+  );
+  const selectedEvent = selectedEventKey ? eventByKey.get(selectedEventKey) ?? null : null;
   const selectedPrimaryMachine = selectedEvent?.machineList[0] ?? null;
   const selectedPlanningItemIds =
     selectedEvent?.kind === "inspection"
-      ? items
-          .filter(
-            (item) =>
-              item.customerId === selectedEvent.customer?.id &&
-              item.dueDate === selectedEvent.dueDate &&
-              selectedEvent.machineList.some((machine) => machine.id === item.machineId)
-          )
-          .map((item) => item.id)
+      ? planningItemIdsByEventKey.get(selectedEvent.key) ?? []
       : [];
   const selectedTitle =
     selectedEvent?.kind === "appointment"

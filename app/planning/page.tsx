@@ -3,8 +3,8 @@ import { PlanningCalendar } from "@/components/planning-calendar";
 import { requireUser } from "@/lib/auth";
 import {
   getAgendaEvents,
-  getCustomers,
-  getMachines,
+  getCustomerSummaries,
+  getMachineSummaries,
   getPlanningItems,
   getRentals
 } from "@/lib/inspection-service";
@@ -24,8 +24,8 @@ export default async function PlanningPage({
   const user = await requireUser();
   const [rows, customers, machines, rentals, agendaEvents] = await Promise.all([
     getPlanningItems(),
-    getCustomers(),
-    getMachines(),
+    getCustomerSummaries(),
+    getMachineSummaries(),
     getRentals(),
     getAgendaEvents(String(user?.id ?? "demo-user"))
   ]);

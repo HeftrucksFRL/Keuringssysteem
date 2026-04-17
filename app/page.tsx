@@ -7,13 +7,14 @@ import {
 } from "@/app/dashboard-actions";
 import { canViewActivityLog, requireUser } from "@/lib/auth";
 import {
+  getCustomerSummaries,
   getRecentActivityLogs,
   getCustomerDisplayName,
   getDashboardData,
-  getCustomers,
   getFailedMailAlerts,
-  getMachines,
-  getPlanningItems,
+  getMachineSummaries,
+  getPlanningPreview,
+  getRecentMachineSummaries,
   getTodoItems
 } from "@/lib/inspection-service";
 import { getPlanningDisplayLabel, getPlanningDisplayState } from "@/lib/planning";
@@ -88,15 +89,25 @@ export default async function HomePage({
   const showActivityLog = canViewActivityLog(user);
   const dashboard = await getDashboardData();
   const params = await searchParams;
-  const [planningRows, machines, customers, failedMailAlerts, todoItems, activityLogs] = await Promise.all([
-    getPlanningItems(),
-    getMachines(),
-    getCustomers(),
+  const [planningRows, recentMachines, failedMailAlerts, todoItems, activityLogs] = await Promise.all([
+    getPlanningPreview(3),
+    getRecentMachineSummaries(4),
     getFailedMailAlerts(),
     getTodoItems(String(user?.id ?? "demo-user")),
     showActivityLog ? getRecentActivityLogs(8) : Promise.resolve([])
   ]);
-  const planning = planningRows.slice(0, 3);
+  const customerIds = Array.from(
+    new Set([...planningRows.map((item) => item.customerId), ...recentMachines.map((item) => item.customerId)])
+  );
+  const planningMachineIds = Array.from(new Set(planningRows.map((item) => item.machineId)));
+  const [customers, planningMachines] = await Promise.all([
+    getCustomerSummaries({ ids: customerIds }),
+    getMachineSummaries({ ids: planningMachineIds })
+  ]);
+  const customerById = new Map(customers.map((customer) => [customer.id, customer]));
+  const machineById = new Map(
+    [...recentMachines, ...planningMachines].map((machine) => [machine.id, machine])
+  );
   const todoMessage = {
     added: "Notitie toegevoegd.",
     updated: "Notitie bijgewerkt.",
@@ -290,7 +301,7 @@ export default async function HomePage({
           <div className="eyebrow">Machines</div>
           <h2>Recent actieve machines</h2>
           <div className="list">
-            {machines.slice(0, 4).map((machine) => (
+            {recentMachines.map((machine) => (
               <Link className="list-item" key={machine.id} href={`/machines/${machine.id}`}>
                 <span>
                   <strong>{machine.internalNumber || machine.machineNumber}</strong>
@@ -298,7 +309,7 @@ export default async function HomePage({
                   {machine.brand} {machine.model}
                 </span>
                 <span className="badge blue">
-                  {getCustomerDisplayName(customers.find((customer) => customer.id === machine.customerId) ?? null)}
+                  {getCustomerDisplayName(customerById.get(machine.customerId) ?? null)}
                 </span>
               </Link>
             ))}
@@ -316,9 +327,9 @@ export default async function HomePage({
             <span>Status</span>
             <span>Actie</span>
           </div>
-          {planning.map((item) => {
-            const customer = customers.find((entry) => entry.id === item.customerId);
-            const machine = machines.find((entry) => entry.id === item.machineId);
+          {planningRows.map((item) => {
+            const customer = customerById.get(item.customerId);
+            const machine = machineById.get(item.machineId);
 
             const planningHref = item.inspectionId
               ? { pathname: `/keuringen/${item.inspectionId}` }

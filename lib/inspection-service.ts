@@ -8,7 +8,7 @@ import { storeInspectionPhoto } from "@/lib/attachments";
 import { appConfig, hasSupabaseConfig } from "@/lib/env";
 import { demoData } from "@/lib/demo-data";
 import { readAppData, writeAppData } from "@/lib/file-store";
-import { addTwelveMonths, todayLocalIso } from "@/lib/utils";
+import { addTwelveMonths, formatLocalDateInput, parseLocalDateInput, todayLocalIso } from "@/lib/utils";
 import { generateInspectionDocuments } from "@/lib/documents";
 import { getYearSequenceStart } from "@/lib/inspection-number";
 import {
@@ -1202,6 +1202,33 @@ function mapActivityLogRow(row: Record<string, unknown>): ActivityLogRecord {
   };
 }
 
+const CUSTOMER_SUMMARY_SELECT = [
+  "id",
+  "company_name",
+  "address_line_1",
+  "city",
+  "contact_name",
+  "phone",
+  "email",
+  "created_at",
+  "updated_at"
+].join(", ");
+
+const MACHINE_SUMMARY_SELECT = [
+  "id",
+  "customer_id",
+  "machine_number",
+  "machine_type",
+  "availability_status",
+  "brand",
+  "model",
+  "serial_number",
+  "build_year",
+  "internal_number",
+  "created_at",
+  "updated_at"
+].join(", ");
+
 function compareTodoItems(left: TodoItemRecord, right: TodoItemRecord) {
   if (left.completed !== right.completed) {
     return left.completed ? 1 : -1;
@@ -1785,46 +1812,99 @@ export async function updateInspectionFromForm(
 }
 
 export async function getDashboardData() {
-  const data = hasSupabaseConfig()
-    ? {
-        customers: await getVisibleCustomers(),
-        machines: await getMachines(),
-        inspections: await getInspections(),
-        planningItems: await getPlanningItems(),
-        rentals: await getRentals(),
-        attachments: await getInspectionAttachments(),
-        mailEvents: []
-      }
-    : {
-        ...(await listDemoData()),
-        customers: await getVisibleCustomers()
-      };
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const today = todayIso();
+    const todayDate = parseLocalDateInput(today);
+    const weekStart = new Date(todayDate);
+    const weekDay = (weekStart.getDay() + 6) % 7;
+    weekStart.setDate(weekStart.getDate() - weekDay);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+    const monthStart = `${today.slice(0, 7)}-01`;
+    const monthEnd = formatLocalDateInput(
+      new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 0)
+    );
+
+    const [
+      draftResult,
+      inspectionsTodayResult,
+      inspectionsThisMonthResult,
+      inspectionsThisWeekResult,
+      activeRentalsResult,
+      upcomingResult,
+      overdueResult
+    ] = await Promise.all([
+      supabase
+        .from("inspections")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "draft"),
+      supabase
+        .from("inspections")
+        .select("id", { count: "exact", head: true })
+        .eq("inspection_date", today),
+      supabase
+        .from("inspections")
+        .select("id", { count: "exact", head: true })
+        .gte("inspection_date", monthStart)
+        .lte("inspection_date", monthEnd),
+      supabase
+        .from("inspections")
+        .select("id", { count: "exact", head: true })
+        .gte("inspection_date", formatLocalDateInput(weekStart))
+        .lte("inspection_date", formatLocalDateInput(weekEnd)),
+      supabase
+        .from("rentals")
+        .select("id", { count: "exact", head: true })
+        .neq("status", "completed")
+        .lte("start_date", today)
+        .gte("end_date", today),
+      supabase
+        .from("planning_items")
+        .select("id", { count: "exact", head: true })
+        .eq("state", "scheduled"),
+      supabase
+        .from("planning_items")
+        .select("id", { count: "exact", head: true })
+        .eq("state", "overdue")
+    ]);
+
+    return {
+      drafts: draftResult.count ?? 0,
+      inspectionsToday: inspectionsTodayResult.count ?? 0,
+      inspectionsThisMonth: inspectionsThisMonthResult.count ?? 0,
+      inspectionsThisWeek: inspectionsThisWeekResult.count ?? 0,
+      activeRentals: activeRentalsResult.count ?? 0,
+      upcoming: upcomingResult.count ?? 0,
+      overdue: overdueResult.count ?? 0
+    };
+  }
+
+  const data = await listDemoData();
   const upcoming = data.planningItems.filter((item) => item.state === "scheduled").length;
   const overdue = data.planningItems.filter((item) => item.state === "overdue").length;
   const drafts = data.inspections.filter((item) => item.status === "draft").length;
+  const today = todayIso();
+  const todayDate = parseLocalDateInput(today);
+  const monthPrefix = today.slice(0, 7);
+  const weekStart = new Date(todayDate);
+  const weekDay = (weekStart.getDay() + 6) % 7;
+  weekStart.setDate(weekStart.getDate() - weekDay);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 6);
 
-  const now = new Date();
-  const monthPrefix = now.toISOString().slice(0, 7);
-  const monday = new Date(now);
-  const day = (monday.getDay() + 6) % 7;
-  monday.setDate(monday.getDate() - day);
-  monday.setHours(0, 0, 0, 0);
-  const sunday = new Date(monday);
-  sunday.setDate(sunday.getDate() + 6);
-  sunday.setHours(23, 59, 59, 999);
-
-    return {
-      drafts,
-      inspectionsToday: data.inspections.filter((item) => item.inspectionDate === now.toISOString().slice(0, 10)).length,
-      inspectionsThisMonth: data.inspections.filter((item) => item.inspectionDate.startsWith(monthPrefix)).length,
-      inspectionsThisWeek: data.inspections.filter((item) => {
-        const inspectionDate = new Date(item.inspectionDate);
-        return inspectionDate >= monday && inspectionDate <= sunday;
-      }).length,
-      activeRentals: data.rentals.filter((item) => rentalCompletionStatus(item) === "active").length,
-      upcoming,
-      overdue
-    };
+  return {
+    drafts,
+    inspectionsToday: data.inspections.filter((item) => item.inspectionDate === today).length,
+    inspectionsThisMonth: data.inspections.filter((item) => item.inspectionDate.startsWith(monthPrefix)).length,
+    inspectionsThisWeek: data.inspections.filter((item) => {
+      const inspectionDate = parseLocalDateInput(item.inspectionDate);
+      return inspectionDate >= weekStart && inspectionDate <= weekEnd;
+    }).length,
+    activeRentals: data.rentals.filter((item) => rentalCompletionStatus(item) === "active").length,
+    upcoming,
+    overdue
+  };
 }
 
 export async function getFailedMailAlerts(limit = 5): Promise<MailAlertRecord[]> {
@@ -1966,6 +2046,45 @@ export async function getCustomers() {
   return data.customers;
 }
 
+export async function getCustomerSummaries(options: {
+  ids?: string[];
+  visibleOnly?: boolean;
+} = {}) {
+  if (options.ids && options.ids.length === 0) {
+    return [];
+  }
+
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    let query = supabase
+      .from("customers")
+      .select(CUSTOMER_SUMMARY_SELECT)
+      .order("company_name", { ascending: true });
+
+    if (options.ids?.length) {
+      query = query.in("id", options.ids);
+    }
+
+    const { data } = await query;
+    const rows = ((data ?? []) as unknown as Record<string, unknown>[]);
+    const customers = rows.map((row) => mapCustomerRow(row));
+    return options.visibleOnly
+      ? customers.filter((customer) => !isRentalStockCustomer(customer))
+      : customers;
+  }
+
+  const data = await listDemoData();
+  let customers = data.customers;
+  if (options.ids?.length) {
+    const wantedIds = new Set(options.ids);
+    customers = customers.filter((customer) => wantedIds.has(customer.id));
+  }
+  if (options.visibleOnly) {
+    customers = customers.filter((customer) => !isRentalStockCustomer(customer));
+  }
+  return customers;
+}
+
 export async function getCustomerContacts(customerId?: string) {
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
@@ -2013,6 +2132,10 @@ export async function getVisibleCustomers() {
   return customers.filter((customer) => !isRentalStockCustomer(customer));
 }
 
+export async function getVisibleCustomerSummaries() {
+  return getCustomerSummaries({ visibleOnly: true });
+}
+
 export async function getMachines(options: { includeArchived?: boolean } = {}) {
   const includeArchived = options.includeArchived ?? false;
 
@@ -2032,6 +2155,68 @@ export async function getMachines(options: { includeArchived?: boolean } = {}) {
       availabilityStatus: machine.availabilityStatus ?? "available"
     }));
   return includeArchived ? machines : machines.filter((machine) => !isMachineArchived(machine));
+}
+
+export async function getMachineSummaries(options: {
+  ids?: string[];
+  includeArchived?: boolean;
+  limit?: number;
+  orderBy?: "machine_number" | "updated_at_desc";
+} = {}) {
+  const includeArchived = options.includeArchived ?? false;
+
+  if (options.ids && options.ids.length === 0) {
+    return [];
+  }
+
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    let query = supabase
+      .from("machines")
+      .select(MACHINE_SUMMARY_SELECT);
+
+    query =
+      options.orderBy === "updated_at_desc"
+        ? query.order("updated_at", { ascending: false })
+        : query.order("machine_number", { ascending: true });
+
+    if (options.ids?.length) {
+      query = query.in("id", options.ids);
+    }
+
+    if (options.limit) {
+      query = query.limit(options.limit);
+    }
+
+    const { data } = await query;
+    const rows = ((data ?? []) as unknown as Record<string, unknown>[]);
+    const machines = rows.map((row) => mapMachineRow(row));
+    return includeArchived ? machines : machines.filter((machine) => !isMachineArchived(machine));
+  }
+
+  const data = await listDemoData();
+  let machines = data.machines.map((machine) => ({
+    ...machine,
+    configuration: {},
+    availabilityStatus: machine.availabilityStatus ?? "available"
+  }));
+
+  if (options.ids?.length) {
+    const wantedIds = new Set(options.ids);
+    machines = machines.filter((machine) => wantedIds.has(machine.id));
+  }
+
+  machines.sort((left, right) =>
+    options.orderBy === "updated_at_desc"
+      ? right.updatedAt.localeCompare(left.updatedAt)
+      : left.machineNumber.localeCompare(right.machineNumber, "nl")
+  );
+
+  if (!includeArchived) {
+    machines = machines.filter((machine) => !isMachineArchived(machine));
+  }
+
+  return options.limit ? machines.slice(0, options.limit) : machines;
 }
 
 export function getLinkedMachineId(
@@ -2081,6 +2266,32 @@ export async function getPlanningItems() {
   }
   const data = await listDemoData();
   return data.planningItems;
+}
+
+export async function getPlanningPreview(limit = 3) {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data } = await supabase
+      .from("planning_items")
+      .select("*")
+      .neq("state", "completed")
+      .order("due_date", { ascending: true })
+      .limit(limit);
+    return (data ?? []).map((row) => mapPlanningRow(row));
+  }
+
+  const data = await listDemoData();
+  return data.planningItems
+    .filter((item) => item.state !== "completed")
+    .sort((left, right) => left.dueDate.localeCompare(right.dueDate))
+    .slice(0, limit);
+}
+
+export async function getRecentMachineSummaries(limit = 4) {
+  return getMachineSummaries({
+    limit,
+    orderBy: "updated_at_desc"
+  });
 }
 
 export async function getRentals() {
