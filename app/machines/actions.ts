@@ -13,6 +13,7 @@ import {
   getMachineArchiveLockDate,
   getMachineById,
   isMachineArchived,
+  reassignMachineToCustomerForCleanup,
   setBatteryChargerLink,
   updateMachine
 } from "@/lib/inspection-service";
@@ -192,7 +193,7 @@ export async function assignMachineToCustomerAction(formData: FormData) {
   let affectedInspectionIds: string[] = [];
 
   try {
-    affectedInspectionIds = await assignMachineToCustomer({
+    affectedInspectionIds = await reassignMachineToCustomerForCleanup({
       machineId,
       customerId
     });
@@ -241,7 +242,7 @@ export async function assignMachineToStockAction(formData: FormData) {
   let affectedInspectionIds: string[] = [];
 
   try {
-    affectedInspectionIds = await assignMachineToCustomer({
+    affectedInspectionIds = await reassignMachineToCustomerForCleanup({
       machineId,
       customerId: stockCustomerId
     });

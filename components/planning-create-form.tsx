@@ -5,13 +5,14 @@ import { useFormStatus } from "react-dom";
 import { CalendarPlus, ClipboardPlus } from "lucide-react";
 import { createAgendaEventAction, createManualPlanningAction } from "@/app/planning/actions";
 import type { CustomerRecord, MachineRecord } from "@/lib/domain";
+import { todayLocalIso } from "@/lib/utils";
 
 function buildDefaultDate(initialMonth?: string) {
-  const today = new Date();
-  const todayMonth = today.toISOString().slice(0, 7);
+  const today = todayLocalIso();
+  const todayMonth = today.slice(0, 7);
 
   if (!initialMonth || initialMonth === todayMonth) {
-    return today.toISOString().slice(0, 10);
+    return today;
   }
 
   return `${initialMonth}-01`;

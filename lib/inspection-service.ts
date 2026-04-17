@@ -8,9 +8,14 @@ import { storeInspectionPhoto } from "@/lib/attachments";
 import { appConfig, hasSupabaseConfig } from "@/lib/env";
 import { demoData } from "@/lib/demo-data";
 import { readAppData, writeAppData } from "@/lib/file-store";
-import { addTwelveMonths } from "@/lib/utils";
+import { addTwelveMonths, todayLocalIso } from "@/lib/utils";
 import { generateInspectionDocuments } from "@/lib/documents";
 import { getYearSequenceStart } from "@/lib/inspection-number";
+import {
+  getCustomerDisplayName,
+  isRentalStockCustomer,
+  stockOwnerLabel
+} from "@/lib/stock-customer";
 import type {
   ActivityLogRecord,
   AgendaEventRecord,
@@ -25,6 +30,8 @@ import type {
   RentalRecord,
   TodoItemRecord
 } from "@/lib/domain";
+
+export { getCustomerDisplayName, isRentalStockCustomer, stockOwnerLabel } from "@/lib/stock-customer";
 
 function nowIso() {
   return new Date().toISOString();
@@ -92,7 +99,7 @@ function assertMachineNotArchiveLocked(
 }
 
 function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  return todayLocalIso();
 }
 
 function planningStateForDueDate(dueDate: string): PlanningRecord["state"] {
@@ -2374,10 +2381,7 @@ export async function createManualPlanningItem(input: {
   machineId: string;
   dueDate: string;
 }) {
-  const state =
-    new Date(input.dueDate) < new Date()
-      ? "overdue"
-      : ("scheduled" as const);
+  const state = input.dueDate < todayIso() ? "overdue" : ("scheduled" as const);
 
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
@@ -2514,49 +2518,9 @@ export async function getRentalsForCustomer(customerId: string) {
   return rentals.filter((rental) => rental.customerId === customerId);
 }
 
-function normalizeRentalOwnerText(value: string | undefined) {
-  return (value ?? "").trim().toLowerCase();
-}
-
 const STOCK_CUSTOMER_COMPANY = "Heftrucks.frl";
 const STOCK_CUSTOMER_EMAIL = "info@heftrucks.frl";
 const STOCK_CUSTOMER_PHONE = "0653842843";
-const STOCK_CUSTOMER_ALIASES = [
-  "heftrucks.frl",
-  "heftrucks friesland",
-  "heftrucks friesland b.v",
-  "heftrucks friesland bv",
-  "terpstra trading",
-  "terpstra trading b.v",
-  "terpstra trading bv"
-];
-const STOCK_CUSTOMER_EMAIL_MARKERS = ["@heftrucks.frl", "heftrucks.frl", "@terpstratrading.frl", "terpstratrading.frl"];
-
-export function stockOwnerLabel() {
-  return "Eigen voorraad - Heftrucks.frl";
-}
-
-export function isRentalStockCustomer(
-  customer?: Pick<CustomerRecord, "companyName" | "email"> | null
-) {
-  const company = normalizeRentalOwnerText(customer?.companyName);
-  const email = normalizeRentalOwnerText(customer?.email);
-  return (
-    STOCK_CUSTOMER_ALIASES.some((alias) => company.includes(alias)) ||
-    STOCK_CUSTOMER_EMAIL_MARKERS.some((marker) => email.includes(marker))
-  );
-}
-
-export function getCustomerDisplayName(
-  customer?: Pick<CustomerRecord, "companyName" | "email"> | null
-) {
-  if (!customer) {
-    return "Onbekende klant";
-  }
-
-  return isRentalStockCustomer(customer) ? stockOwnerLabel() : customer.companyName;
-}
-
 export async function getRentalStockMachines() {
   const [machines, customers] = await Promise.all([getMachines(), getCustomers()]);
   const stockCustomerIds = new Set(
@@ -3520,10 +3484,7 @@ export async function updatePlanningItem(input: {
   id: string;
   dueDate: string;
 }) {
-  const state =
-    new Date(input.dueDate) < new Date()
-      ? "overdue"
-      : ("scheduled" as const);
+  const state = input.dueDate < todayIso() ? "overdue" : ("scheduled" as const);
 
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();

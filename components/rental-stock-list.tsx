@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { CustomerRecord, MachineRecord, RentalRecord } from "@/lib/domain";
+import { todayLocalIso } from "@/lib/utils";
 
 interface RentalStockListProps {
   stockMachines: MachineRecord[];
@@ -12,7 +13,7 @@ interface RentalStockListProps {
 }
 
 function rentalPhase(rental: RentalRecord) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocalIso();
   if (rental.status === "completed" || rental.endDate < today) {
     return "completed" as const;
   }

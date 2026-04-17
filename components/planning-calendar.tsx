@@ -23,6 +23,8 @@ import {
   getPlanningDisplayState,
   type PlanningDisplayState
 } from "@/lib/planning";
+import { getCustomerDisplayName, isRentalStockCustomer } from "@/lib/stock-customer";
+import { formatLocalDateInput, parseLocalDateInput, todayLocalIso } from "@/lib/utils";
 
 interface PlanningCalendarProps {
   items: PlanningRecord[];
@@ -82,11 +84,6 @@ function dayLabel(date: Date) {
   });
 }
 
-function parseIsoDate(value: string) {
-  const [year, month, day] = value.split("-").map(Number);
-  return new Date(year, month - 1, day);
-}
-
 function dateNumber(date: Date) {
   return date.toLocaleDateString("nl-NL", { day: "numeric" });
 }
@@ -113,10 +110,6 @@ function addMonths(date: Date, amount: number) {
   const next = new Date(date);
   next.setMonth(next.getMonth() + amount);
   return next;
-}
-
-function isoDate(date: Date) {
-  return date.toISOString().slice(0, 10);
 }
 
 function monthKey(date: Date) {
@@ -155,26 +148,12 @@ function placeLabel(customer?: CustomerRecord) {
   return address;
 }
 
-function normalizeRentalOwnerText(value?: string | null) {
-  return (value ?? "").trim().toLowerCase();
-}
-
-function isStockCustomer(customer?: CustomerRecord) {
-  const company = normalizeRentalOwnerText(customer?.companyName);
-  const email = normalizeRentalOwnerText(customer?.email);
-  return (
-    company.includes("heftrucks") ||
-    company.includes("friesland") ||
-    email.includes("@heftrucks.frl")
-  );
-}
-
 function customerDisplayName(customer?: CustomerRecord) {
   if (!customer) {
     return "Onbekende klant";
   }
 
-  return isStockCustomer(customer) ? "Voorraad machine" : customer.companyName;
+  return isRentalStockCustomer(customer) ? "Voorraad machine" : getCustomerDisplayName(customer);
 }
 
 function stateLabel(state: PlanningDisplayState) {
@@ -184,7 +163,7 @@ function stateLabel(state: PlanningDisplayState) {
 }
 
 function rentalPhaseLabel(rental: RentalRecord) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocalIso();
   if (rental.status === "completed" || rental.endDate < today) {
     return "Afgerond";
   }
@@ -281,8 +260,8 @@ export function PlanningCalendar({
   }, [anchorDate]);
 
   const monthStart = startOfMonth(anchorDate);
-  const monthStartIso = isoDate(monthStart);
-  const monthEndIso = isoDate(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0));
+  const monthStartIso = formatLocalDateInput(monthStart);
+  const monthEndIso = formatLocalDateInput(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0));
 
   const calendarEvents = useMemo(() => {
     const groupedPlanning = new Map<string, AgendaEvent>();
@@ -462,7 +441,7 @@ export function PlanningCalendar({
   );
 
   const selectedDayEvents = selectedDayKey ? eventsByDay.get(selectedDayKey) ?? [] : [];
-  const selectedDayDate = selectedDayKey ? parseIsoDate(selectedDayKey) : null;
+  const selectedDayDate = selectedDayKey ? parseLocalDateInput(selectedDayKey) : null;
   const selectedEvent = calendarEvents.find((event) => event.key === selectedEventKey) ?? null;
   const selectedPrimaryMachine = selectedEvent?.machineList[0] ?? null;
   const selectedPlanningItemIds =
@@ -547,10 +526,10 @@ export function PlanningCalendar({
         </div>
         <div className="mobile-month-grid">
           {calendarDays.map((day) => {
-            const dayKey = isoDate(day);
+            const dayKey = formatLocalDateInput(day);
             const dayEvents = eventsByDay.get(dayKey) ?? [];
             const isCurrentMonth = day.getMonth() === anchorDate.getMonth();
-            const isToday = dayKey === isoDate(new Date());
+            const isToday = dayKey === todayLocalIso();
             const daySummary = mobileDaySummary(dayEvents);
 
             return (
@@ -586,7 +565,7 @@ export function PlanningCalendar({
           mobileDays.map(({ date, groups }) => (
             <section className="agenda-day-card" key={date}>
               <div className="agenda-day-head">
-                <strong>{dayLabel(new Date(date))}</strong>
+                <strong>{dayLabel(parseLocalDateInput(date))}</strong>
                 <span>
                   {groups.length} {groups.length === 1 ? "afspraak" : "afspraken"}
                 </span>
@@ -645,12 +624,12 @@ export function PlanningCalendar({
         </div>
         <div className="month-grid">
           {calendarDays.map((day) => {
-            const dayKey = isoDate(day);
+            const dayKey = formatLocalDateInput(day);
             const dayEvents = eventsByDay.get(dayKey) ?? [];
             const visibleDayEvents = dayEvents.slice(0, 2);
             const hiddenDayEvents = dayEvents.length - visibleDayEvents.length;
             const isCurrentMonth = day.getMonth() === anchorDate.getMonth();
-            const isToday = dayKey === isoDate(new Date());
+            const isToday = dayKey === todayLocalIso();
 
             return (
               <div

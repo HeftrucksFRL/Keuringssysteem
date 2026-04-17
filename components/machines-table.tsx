@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { CustomerRecord, MachineRecord, RentalRecord } from "@/lib/domain";
-import { titleCase } from "@/lib/utils";
+import { isRentalStockCustomer, stockOwnerLabel } from "@/lib/stock-customer";
+import { titleCase, todayLocalIso } from "@/lib/utils";
 
 interface MachinesTableProps {
   machines: MachineRecord[];
@@ -53,24 +54,6 @@ function statusLabel(
   }
 
   return isStockMachine ? "Beschikbaar" : "Bij klant";
-}
-
-function normalizeRentalOwnerText(value?: string | null) {
-  return (value ?? "").trim().toLowerCase();
-}
-
-function isStockCustomer(customer?: CustomerRecord | null) {
-  const company = normalizeRentalOwnerText(customer?.companyName);
-  const email = normalizeRentalOwnerText(customer?.email);
-  return (
-    company.includes("heftrucks") ||
-    company.includes("friesland") ||
-    email.includes("@heftrucks.frl")
-  );
-}
-
-function stockOwnerLabel() {
-  return "Eigen voorraad - Heftrucks.frl";
 }
 
 function machineDisplayTitle(machine: MachineRecord) {
@@ -128,7 +111,7 @@ function machineFolderKey(machine: MachineRecord, owner: CustomerRecord | null):
     return "service";
   }
 
-  return isStockCustomer(owner) ? "stock" : "customer";
+  return isRentalStockCustomer(owner) ? "stock" : "customer";
 }
 
 const machineFolderOrder: Array<{
@@ -224,7 +207,7 @@ export function MachinesTable({
   );
 
   const activeRentalsByMachine = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayLocalIso();
     return new Map(
       rentals
         .filter(
@@ -249,7 +232,7 @@ export function MachinesTable({
       const rentalCustomer = activeRental
         ? customerById.get(activeRental.customerId) ?? null
         : null;
-      const stockMachine = isStockCustomer(owner);
+      const stockMachine = isRentalStockCustomer(owner);
       const stockSearchTerms = stockMachine
         ? ["voorraad", "eigen voorraad", "heftrucks.frl", "heftrucks friesland"]
         : [];
@@ -342,7 +325,7 @@ export function MachinesTable({
                     const rentalCustomer = activeRental
                       ? customerById.get(activeRental.customerId) ?? null
                       : null;
-                    const stockMachine = isStockCustomer(owner);
+                    const stockMachine = isRentalStockCustomer(owner);
                     const archived = isArchived(machine);
                     const ownerLabel = owner
                       ? stockMachine
