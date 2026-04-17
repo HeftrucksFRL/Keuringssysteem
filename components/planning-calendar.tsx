@@ -626,7 +626,8 @@ export function PlanningCalendar({
           {calendarDays.map((day) => {
             const dayKey = formatLocalDateInput(day);
             const dayEvents = eventsByDay.get(dayKey) ?? [];
-            const visibleDayEvents = dayEvents.slice(0, 2);
+            const visibleDayEventCount = dayEvents.length > 2 ? 1 : 2;
+            const visibleDayEvents = dayEvents.slice(0, visibleDayEventCount);
             const hiddenDayEvents = dayEvents.length - visibleDayEvents.length;
             const isCurrentMonth = day.getMonth() === anchorDate.getMonth();
             const isToday = dayKey === todayLocalIso();
