@@ -12,22 +12,42 @@ function withHourReading(
   type: FormDefinition["type"],
   fields: FormDefinition["machineFields"]
 ) {
+  const insertBeforeInspectionDate = (
+    currentFields: FormDefinition["machineFields"],
+    field: { key: string; label: string; type?: "text" | "textarea" | "date" | "number" | "email" }
+  ) => {
+    if (currentFields.some((currentField) => currentField.key === field.key)) {
+      return currentFields;
+    }
+
+    const inspectionDateIndex = currentFields.findIndex(
+      (currentField) => currentField.key === "inspection_date"
+    );
+
+    if (inspectionDateIndex === -1) {
+      return [...currentFields, field];
+    }
+
+    return [
+      ...currentFields.slice(0, inspectionDateIndex),
+      field,
+      ...currentFields.slice(inspectionDateIndex)
+    ];
+  };
+
+  let nextFields = insertBeforeInspectionDate(fields, {
+    key: "location",
+    label: "Locatie"
+  });
+
   if (type === "batterij_lader" || type === "stellingmateriaal") {
-    return fields;
+    return nextFields;
   }
 
   const hourField = { key: "hour_reading", label: "Urenstand", type: "number" as const };
-  const inspectionDateIndex = fields.findIndex((field) => field.key === "inspection_date");
+  nextFields = insertBeforeInspectionDate(nextFields, hourField);
 
-  if (inspectionDateIndex === -1) {
-    return [...fields, hourField];
-  }
-
-  return [
-    ...fields.slice(0, inspectionDateIndex),
-    hourField,
-    ...fields.slice(inspectionDateIndex)
-  ];
+  return nextFields;
 }
 
 export const formDefinitions: FormDefinition[] = [
@@ -744,7 +764,7 @@ export const formDefinitions: FormDefinition[] = [
       { key: "battery_brand", label: "Fabricaat batterij" },
       { key: "battery_serial_number", label: "Serienummer batterij" },
       { key: "battery_internal_number", label: "Intern nummer batterij" },
-      { key: "drawing_number", label: "Tekening nummer" },
+      { key: "drawing_number", label: "Bakmaat" },
       { key: "battery_sticker_number", label: "Stickernummer batterij" },
       { key: "charger_type", label: "Ladertype" },
       { key: "charger_brand", label: "Fabricaat lader" },

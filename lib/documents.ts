@@ -4,6 +4,10 @@ import AdmZip from "adm-zip";
 import { PDFDocument, PDFEmbeddedPage, PDFPage, StandardFonts, rgb } from "pdf-lib";
 import { getFormDefinition } from "@/lib/form-definitions";
 import type { InspectionRecord } from "@/lib/domain";
+import {
+  formatMachineBrandTypeSerial,
+  getMachineLocation
+} from "@/lib/machine-presentation";
 
 interface GenerateDocumentsOptions {
   persistToDisk?: boolean;
@@ -243,24 +247,49 @@ function inspectionStatusLabel(inspection: InspectionRecord) {
   return "Goedgekeurd";
 }
 
-function summaryRows(inspection: InspectionRecord): Array<[string, string]> {
-  return [
-    ["Keurnummer", inspection.inspectionNumber],
-    ["Datum", inspection.inspectionDate],
-    ["Status", inspectionStatusLabel(inspection)],
+function inspectionMachineLabel(inspection: InspectionRecord) {
+  return formatMachineBrandTypeSerial(
+    {
+      machineType: inspection.machineType,
+      brand: inspection.machineSnapshot.brand,
+      model: inspection.machineSnapshot.model,
+      serial_number: inspection.machineSnapshot.serial_number,
+      configuration: inspection.machineSnapshot
+    },
+    { includeSerial: inspection.machineType !== "batterij_lader" }
+  );
+}
+
+function customerMachineRows(inspection: InspectionRecord): Array<[string, string]> {
+  const rows: Array<[string, string]> = [
     ["Klant", inspection.customerSnapshot.customer_name ?? "-"],
     ["Adres", inspection.customerSnapshot.customer_address ?? "-"],
     ["Contactpersoon", inspection.customerSnapshot.customer_contact ?? "-"],
     ["Afdeling / functie", inspection.customerSnapshot.customer_contact_department ?? "-"],
     ["Telefoon", inspection.customerSnapshot.customer_phone ?? "-"],
     ["E-mail", inspection.customerSnapshot.customer_email ?? "-"],
-    [
-      "Machine",
-      `${inspection.machineSnapshot.brand ?? ""} ${inspection.machineSnapshot.model ?? ""}`.trim() ||
-        "-"
-    ],
-    ["Intern nummer", inspection.machineSnapshot.internal_number ?? "-"],
-    ["Serienummer", inspection.machineSnapshot.serial_number ?? "-"]
+    ["Machine", inspectionMachineLabel(inspection)],
+    ["Locatie", getMachineLocation({ configuration: inspection.machineSnapshot }) || "-"]
+  ];
+
+  if (inspection.machineType === "batterij_lader") {
+    if ((inspection.machineSnapshot.drawing_number ?? "").trim()) {
+      rows.push(["Bakmaat", inspection.machineSnapshot.drawing_number ?? "-"]);
+    }
+  } else {
+    rows.push(["Bouwjaar", inspection.machineSnapshot.build_year ?? "-"]);
+    rows.push(["Intern nummer", inspection.machineSnapshot.internal_number ?? "-"]);
+  }
+
+  return rows;
+}
+
+function summaryRows(inspection: InspectionRecord): Array<[string, string]> {
+  return [
+    ["Keurnummer", inspection.inspectionNumber],
+    ["Datum", inspection.inspectionDate],
+    ["Status", inspectionStatusLabel(inspection)],
+    ...customerMachineRows(inspection)
   ];
 }
 
@@ -489,32 +518,15 @@ export async function generateInspectionDocuments(
   }
 
   function drawTwoColumnInfoCard() {
-    const infoRows: Array<[[string, string], [string, string]]> = [
-      [
-        ["Klant", inspection.customerSnapshot.customer_name ?? "-"],
-        [
-          "Machine",
-          `${inspection.machineSnapshot.brand ?? ""} ${inspection.machineSnapshot.model ?? ""}`.trim() ||
-            "-"
-        ]
-      ],
-      [
-        ["Adres", inspection.customerSnapshot.customer_address ?? "-"],
-        ["Bouwjaar", inspection.machineSnapshot.build_year ?? "-"]
-      ],
-      [
-        ["Contactpersoon", inspection.customerSnapshot.customer_contact ?? "-"],
-        ["Intern nummer", inspection.machineSnapshot.internal_number ?? "-"]
-      ],
-      [
-        ["Afdeling / functie", inspection.customerSnapshot.customer_contact_department ?? "-"],
-        ["Serienummer", inspection.machineSnapshot.serial_number ?? "-"]
-      ],
-      [
-        ["Telefoon", inspection.customerSnapshot.customer_phone ?? "-"],
-        ["E-mail", inspection.customerSnapshot.customer_email ?? "-"]
-      ]
-    ];
+    const flatRows = customerMachineRows(inspection);
+    const infoRows: Array<[[string, string], [string, string]]> = [];
+
+    for (let index = 0; index < flatRows.length; index += 2) {
+      infoRows.push([
+        flatRows[index],
+        flatRows[index + 1] ?? ["", ""]
+      ]);
+    }
 
     const columnWidth = (contentWidth - 42) / 2;
     const rightColumnX = contentLeft + 14 + columnWidth + 14;

@@ -30,6 +30,10 @@ import {
   isRentalStockCustomer
 } from "@/lib/inspection-service";
 import { fileUrl } from "@/lib/file-urls";
+import {
+  formatMachineBrandTypeSerial,
+  getMachineLocation
+} from "@/lib/machine-presentation";
 import { titleCase } from "@/lib/utils";
 import { MachineTypeFields } from "@/components/machine-type-fields";
 
@@ -139,7 +143,12 @@ export default async function MachineDetailPage({
           "vehicle_type",
           "vehicle_build_year",
           "vehicle_internal_number",
-          "vehicle_serial_number"
+          "vehicle_serial_number",
+          "battery_serial_number",
+          "battery_internal_number",
+          "charger_serial_number",
+          "charger_internal_number",
+          "double_insulated"
         ]
       : [];
   const linkableMachines = machines.filter(
@@ -201,6 +210,12 @@ export default async function MachineDetailPage({
             : isRentalStockMachine
             ? `Intern nummer ${machine.internalNumber || "-"} uit de eigen voorraad. Vanuit dit dossier kun je keuringen en verhuur voorbereiden.`
             : `Intern nummer ${machine.internalNumber || "-"} bij ${customer?.companyName ?? "onbekende klant"}. Vanuit dit dossier kun je eerdere keuringen openen en de volgende inspectie voorbereiden.`}
+        </p>
+        <p>
+          {machine.machineType === "batterij_lader"
+            ? machineTitle(machine)
+            : formatMachineBrandTypeSerial(machine)}{" "}
+          | Locatie: {getMachineLocation(machine) || "-"}
         </p>
         <p>
           <span className="badge" style={statusBadge.style}>
@@ -300,11 +315,19 @@ export default async function MachineDetailPage({
             </div>
           </div>
           <MachineTypeFields
-          machineType={machine.machineType}
-          values={machineFormValues(machine)}
-          disabled={isArchived}
-          hiddenKeys={hiddenBatteryVehicleFields}
-        />
+            machineType={machine.machineType}
+            values={machineFormValues(machine)}
+            disabled={isArchived}
+            hiddenKeys={hiddenBatteryVehicleFields}
+          />
+          {(() => {
+            const formValues = machineFormValues(machine) as Record<string, string>;
+            return machine.machineType === "batterij_lader"
+              ? hiddenBatteryVehicleFields.map((key) => (
+                  <input key={key} type="hidden" name={key} value={formValues[key] ?? ""} />
+                ))
+              : null;
+          })()}
           {machine.machineType === "batterij_lader" && linkedMachine ? (
             <div className="selected-summary" style={{ marginTop: "1rem" }}>
               <strong>Voertuig volgt uit gekoppelde machine</strong>
@@ -344,6 +367,10 @@ export default async function MachineDetailPage({
             ) : (
               <>
                 <div className="list-item">
+                  <span>Locatie</span>
+                  <strong>{getMachineLocation(machine) || "-"}</strong>
+                </div>
+                <div className="list-item">
                   <span>Bedrijf</span>
                   <strong>{customer?.companyName ?? "-"}</strong>
                 </div>
@@ -361,6 +388,12 @@ export default async function MachineDetailPage({
                 </div>
               </>
             )}
+            {isRentalStockMachine ? (
+              <div className="list-item">
+                <span>Locatie</span>
+                <strong>{getMachineLocation(machine) || "-"}</strong>
+              </div>
+            ) : null}
             {machine.machineType === "batterij_lader" ? (
               <div
                 className="list-item"

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Route } from "next";
 import { updateInspectionAction } from "@/app/keuringen/actions";
+import { formatMachineBrandTypeSerial, getMachineLocation } from "@/lib/machine-presentation";
 import {
   getAttachmentsForInspection,
   getCustomers,
@@ -43,7 +44,20 @@ export default async function InspectionDetailPage({
         <div className="eyebrow">Keuringsdossier</div>
         <h1>Keuring {inspection.inspectionNumber}</h1>
         <p>
-          {customer?.companyName ?? "-"} | {machine?.brand ?? ""} {machine?.model ?? ""}
+          {customer?.companyName ?? "-"} |{" "}
+          {machine
+            ? formatMachineBrandTypeSerial(machine, {
+                includeSerial: machine.machineType !== "batterij_lader"
+              })
+            : formatMachineBrandTypeSerial({
+                machineType: inspection.machineType,
+                brand: inspection.machineSnapshot.brand,
+                model: inspection.machineSnapshot.model,
+                serial_number: inspection.machineSnapshot.serial_number,
+                configuration: inspection.machineSnapshot
+              }, {
+                includeSerial: inspection.machineType !== "batterij_lader"
+              })}
         </p>
         {query?.saved ? <p className="form-message success">Keuring opgeslagen.</p> : null}
         <div className="actions">
@@ -105,6 +119,32 @@ export default async function InspectionDetailPage({
             <div className="list-item">
               <span>Mail klant</span>
               <strong>{inspection.sendPdfToCustomer ? "Ja" : "Nee"}</strong>
+            </div>
+            <div className="list-item">
+              <span>Machine</span>
+              <strong>
+                {machine
+                  ? formatMachineBrandTypeSerial(machine, {
+                      includeSerial: machine.machineType !== "batterij_lader"
+                    })
+                  : formatMachineBrandTypeSerial({
+                      machineType: inspection.machineType,
+                      brand: inspection.machineSnapshot.brand,
+                      model: inspection.machineSnapshot.model,
+                      serial_number: inspection.machineSnapshot.serial_number,
+                      configuration: inspection.machineSnapshot
+                    }, {
+                      includeSerial: inspection.machineType !== "batterij_lader"
+                    })}
+              </strong>
+            </div>
+            <div className="list-item">
+              <span>Locatie</span>
+              <strong>
+                {machine
+                  ? getMachineLocation(machine) || "-"
+                  : getMachineLocation({ configuration: inspection.machineSnapshot }) || "-"}
+              </strong>
             </div>
           </div>
         </article>

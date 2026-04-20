@@ -3,6 +3,10 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { CustomerRecord, MachineRecord, RentalRecord } from "@/lib/domain";
+import {
+  formatMachineBrandTypeSerial,
+  getMachineLocation
+} from "@/lib/machine-presentation";
 import { isRentalStockCustomer, stockOwnerLabel } from "@/lib/stock-customer";
 import { titleCase, todayLocalIso } from "@/lib/utils";
 
@@ -57,20 +61,9 @@ function statusLabel(
 }
 
 function machineDisplayTitle(machine: MachineRecord) {
-  if (machine.machineType === "batterij_lader") {
-    const batteryBrand = machine.configuration.battery_brand || machine.brand;
-    const batteryType = machine.configuration.battery_type || machine.model;
-    const chargerBrand = machine.configuration.charger_brand || "";
-    const chargerType = machine.configuration.charger_type || "";
-
-    return (
-      [batteryBrand, batteryType].filter(Boolean).join(" ") ||
-      [chargerBrand, chargerType].filter(Boolean).join(" ") ||
-      "Batterij / lader"
-    );
-  }
-
-  return [machine.brand, machine.model].filter(Boolean).join(" ") || "Machine";
+  return formatMachineBrandTypeSerial(machine, {
+    includeSerial: machine.machineType !== "batterij_lader"
+  });
 }
 
 function machineDisplayInternal(machine: MachineRecord) {
@@ -88,11 +81,7 @@ function machineDisplayInternal(machine: MachineRecord) {
 
 function machineDisplaySerial(machine: MachineRecord) {
   if (machine.machineType === "batterij_lader") {
-    return (
-      machine.configuration.battery_serial_number ||
-      machine.configuration.charger_serial_number ||
-      machine.serialNumber
-    );
+    return "";
   }
 
   return machine.serialNumber;
@@ -251,6 +240,7 @@ export function MachinesTable({
         machine.configuration.charger_brand,
         machine.configuration.charger_type,
         machine.configuration.charger_serial_number,
+        machine.configuration.location,
         owner?.companyName,
         rentalCustomer?.companyName,
         statusLabel(machine.availabilityStatus, stockMachine),
@@ -362,7 +352,16 @@ export function MachinesTable({
                         <strong>
                           {machineDisplayTitle(machine)} - {machineDisplayInternal(machine) || "-"}
                         </strong>
-                        <span>Serienr: {machineDisplaySerial(machine) || "-"}</span>
+                        <span>
+                          {[
+                            `Locatie: ${getMachineLocation(machine) || "-"}`,
+                            machineDisplaySerial(machine)
+                              ? `Serienr: ${machineDisplaySerial(machine)}`
+                              : ""
+                          ]
+                            .filter(Boolean)
+                            .join(" | ")}
+                        </span>
                         <span>
                           {activeRental
                             ? `Verhuurd aan ${rentalCustomer?.companyName ?? "-"}`

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getCsrfHeaders } from "@/lib/client-security";
 import { fileUrl } from "@/lib/file-urls";
+import { formatMachineBrandTypeSerial } from "@/lib/machine-presentation";
 import type {
   CustomerRecord,
   InspectionAttachmentRecord,
@@ -130,9 +131,9 @@ export function InspectionsTable({
       machines
         .map((machine) => ({
           id: machine.id,
-          label: [machine.internalNumber || machine.machineNumber, machine.brand, machine.model]
+          label: [formatMachineBrandTypeSerial(machine), machine.internalNumber || machine.machineNumber]
             .filter(Boolean)
-            .join(" ")
+            .join(" | ")
         }))
         .sort((left, right) => left.label.localeCompare(right.label, "nl")),
     [machines]
@@ -237,13 +238,7 @@ export function InspectionsTable({
   function renderInspectionRow(inspection: InspectionRecord) {
     const customer = customerById.get(inspection.customerId);
     const machine = machineById.get(inspection.machineId);
-    const machineLabel = [
-      machine?.internalNumber || machine?.machineNumber,
-      machine?.brand,
-      machine?.model
-    ]
-      .filter(Boolean)
-      .join(" ");
+    const machineLabel = machine ? formatMachineBrandTypeSerial(machine) : "-";
     const pdfAttachment = pdfAttachmentByInspectionId.get(inspection.id);
     const statusClass =
       inspection.status === "rejected"
@@ -259,7 +254,7 @@ export function InspectionsTable({
           {inspection.inspectionNumber}
         </strong>
         <span className="compact-overview-detail">
-          {inspection.inspectionDate} | {customer?.companyName ?? "-"} | {machineLabel || "-"}
+          {inspection.inspectionDate} | {customer?.companyName ?? "-"} | {machineLabel}
         </span>
         <span className="compact-overview-actions">
           {pdfAttachment ? (

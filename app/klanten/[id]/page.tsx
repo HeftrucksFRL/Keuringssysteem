@@ -22,6 +22,7 @@ import {
   getRentalsForCustomer,
   getVisibleCustomers
 } from "@/lib/inspection-service";
+import { formatMachineBrandTypeSerial, getMachineLocation } from "@/lib/machine-presentation";
 import { CustomerPicker } from "@/components/customer-picker";
 
 function rentalPhase(rental: { startDate: string; endDate: string; status: "active" | "completed" }) {
@@ -264,12 +265,14 @@ export default async function CustomerDetailPage({
                     : undefined
                 }
               >
-                <span>
-                  <strong>{machine.internalNumber || machine.machineNumber}</strong>
-                  <br />
-                  {machine.brand} {machine.model}
-                </span>
-                <strong>
+                    <span>
+                      <strong>{formatMachineBrandTypeSerial(machine)}</strong>
+                      <br />
+                      {[`Locatie: ${getMachineLocation(machine) || "-"}`, machine.internalNumber || machine.machineNumber]
+                        .filter(Boolean)
+                        .join(" | ")}
+                    </span>
+                    <strong>
                   {getMachineArchivedAt(machine)
                     ? machine.machineType === "batterij_lader"
                       ? "Batterij en/of lader gearchiveerd"
@@ -292,11 +295,13 @@ export default async function CustomerDetailPage({
                     <span>
                       <strong>
                         {machine
-                          ? `${machine.internalNumber || machine.machineNumber} - ${machine.brand} ${machine.model}`.trim()
+                          ? formatMachineBrandTypeSerial(machine)
                           : "Verhuurde machine"}
                       </strong>
                       <br />
-                      {rental.startDate} t/m {rental.endDate}
+                      {[`Locatie: ${machine ? getMachineLocation(machine) || "-" : "-"}`, `${rental.startDate} t/m ${rental.endDate}`]
+                        .filter(Boolean)
+                        .join(" | ")}
                     </span>
                     <strong>In verhuur</strong>
                   </Link>
@@ -316,11 +321,13 @@ export default async function CustomerDetailPage({
                     <span>
                       <strong>
                         {machine
-                          ? `${machine.internalNumber || machine.machineNumber} - ${machine.brand} ${machine.model}`.trim()
+                          ? formatMachineBrandTypeSerial(machine)
                           : "Aanstaande huur"}
                       </strong>
                       <br />
-                      {rental.startDate} t/m {rental.endDate}
+                      {[`Locatie: ${machine ? getMachineLocation(machine) || "-" : "-"}`, `${rental.startDate} t/m ${rental.endDate}`]
+                        .filter(Boolean)
+                        .join(" | ")}
                     </span>
                     <strong>Aanstaande huur</strong>
                   </Link>
@@ -451,7 +458,15 @@ export default async function CustomerDetailPage({
         {inspections.map((inspection) => (
           <div className="table-row" key={inspection.id}>
             <span>{inspection.inspectionNumber}</span>
-            <span>{inspection.machineSnapshot.model || inspection.machineSnapshot.brand || "-"}</span>
+            <span>
+              {formatMachineBrandTypeSerial({
+                machineType: inspection.machineType,
+                brand: inspection.machineSnapshot.brand,
+                model: inspection.machineSnapshot.model,
+                serial_number: inspection.machineSnapshot.serial_number,
+                configuration: inspection.machineSnapshot
+              })}
+            </span>
             <span>{inspection.inspectionDate}</span>
             <span>
                   {attachments.find(

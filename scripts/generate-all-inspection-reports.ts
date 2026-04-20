@@ -11,6 +11,8 @@ interface AttachmentRow {
   storage_path: string;
 }
 
+const REPORT_BATCH_SIZE = Number(process.env.REPORT_BATCH_SIZE || 50);
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -114,6 +116,7 @@ async function main() {
 
   const summary = {
     total: inspections.length,
+    batchSize: REPORT_BATCH_SIZE,
     generated: 0,
     failed: 0,
     pdfAttachmentsCreated: 0,
@@ -122,152 +125,164 @@ async function main() {
     wordAttachmentsUpdated: 0
   };
 
-  for (let index = 0; index < inspections.length; index += 1) {
-    const inspection = inspections[index];
+  for (let batchStart = 0; batchStart < inspections.length; batchStart += REPORT_BATCH_SIZE) {
+    const batch = inspections.slice(batchStart, batchStart + REPORT_BATCH_SIZE);
+    console.log(
+      `Batch ${Math.floor(batchStart / REPORT_BATCH_SIZE) + 1}/${Math.ceil(
+        inspections.length / REPORT_BATCH_SIZE
+      )}: ${batch.length} rapporten`
+    );
 
-    try {
-      const documents = await generateInspectionDocuments(inspection);
-      const yearPrefix = inspection.inspectionDate.slice(0, 4) || "onbekend";
-      const versionToken = (inspection.updatedAt || nowIso()).replace(/[^0-9]/g, "").slice(0, 14);
-      const pdfStoragePath = `${yearPrefix}/${inspection.inspectionNumber}/${inspection.inspectionNumber}-${versionToken}.pdf`;
-      const wordStoragePath = `${yearPrefix}/${inspection.inspectionNumber}/${inspection.inspectionNumber}-${versionToken}.docx`;
+    for (let batchIndex = 0; batchIndex < batch.length; batchIndex += 1) {
+      const index = batchStart + batchIndex;
+      const inspection = batch[batchIndex];
 
-      await supabase.storage.from("inspection-files").upload(pdfStoragePath, documents.pdfBuffer, {
-        upsert: true,
-        contentType: "application/pdf"
-      });
-      await supabase.storage.from("inspection-files").upload(wordStoragePath, documents.wordBuffer, {
-        upsert: true,
-        contentType:
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-      });
+      try {
+        const documents = await generateInspectionDocuments(inspection);
+        const yearPrefix = inspection.inspectionDate.slice(0, 4) || "onbekend";
+        const versionToken = (inspection.updatedAt || nowIso())
+          .replace(/[^0-9]/g, "")
+          .slice(0, 14);
+        const pdfStoragePath = `${yearPrefix}/${inspection.inspectionNumber}/${inspection.inspectionNumber}-${versionToken}.pdf`;
+        const wordStoragePath = `${yearPrefix}/${inspection.inspectionNumber}/${inspection.inspectionNumber}-${versionToken}.docx`;
 
-      const { error: updateInspectionError } = await supabase
-        .from("inspections")
-        .update({
-          pdf_path: pdfStoragePath,
-          word_path: wordStoragePath
-        })
-        .eq("id", inspection.id);
-
-      if (updateInspectionError) {
-        throw new Error(`Keuring ${inspection.inspectionNumber}: paden opslaan mislukt: ${updateInspectionError.message}`);
-      }
-
-      const existingAttachments = attachmentsByInspectionId.get(inspection.id) ?? [];
-      const pdfAttachment = existingAttachments.find((attachment) => attachment.kind === "pdf");
-      const wordAttachment = existingAttachments.find((attachment) => attachment.kind === "word");
-
-      if (pdfAttachment) {
-        const { error } = await supabase
-          .from("inspection_attachments")
-          .update({
-            storage_path: pdfStoragePath,
-            file_name: documents.pdfFileName,
-            mime_type: "application/pdf"
-          })
-          .eq("id", pdfAttachment.id);
-
-        if (error) {
-          throw new Error(`Keuring ${inspection.inspectionNumber}: pdf-bijlage bijwerken mislukt: ${error.message}`);
-        }
-
-        pdfAttachment.storage_path = pdfStoragePath;
-        summary.pdfAttachmentsUpdated += 1;
-      } else {
-        const { data, error } = await supabase
-          .from("inspection_attachments")
-          .insert({
-            inspection_id: inspection.id,
-            storage_path: pdfStoragePath,
-            file_name: documents.pdfFileName,
-            mime_type: "application/pdf",
-            kind: "pdf"
-          })
-          .select("id, inspection_id, kind, storage_path")
-          .single();
-
-        if (error || !data) {
-          throw new Error(`Keuring ${inspection.inspectionNumber}: pdf-bijlage aanmaken mislukt: ${error?.message ?? "onbekende fout"}`);
-        }
-
-        existingAttachments.push({
-          id: String(data.id),
-          inspection_id: String(data.inspection_id),
-          kind: String(data.kind),
-          storage_path: String(data.storage_path ?? "")
+        await supabase.storage.from("inspection-files").upload(pdfStoragePath, documents.pdfBuffer, {
+          upsert: true,
+          contentType: "application/pdf"
         });
-        attachmentsByInspectionId.set(inspection.id, existingAttachments);
-        summary.pdfAttachmentsCreated += 1;
-      }
-
-      if (wordAttachment) {
-        const { error } = await supabase
-          .from("inspection_attachments")
-          .update({
-            storage_path: wordStoragePath,
-            file_name: documents.wordFileName,
-            mime_type:
-              "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          })
-          .eq("id", wordAttachment.id);
-
-        if (error) {
-          throw new Error(`Keuring ${inspection.inspectionNumber}: word-bijlage bijwerken mislukt: ${error.message}`);
-        }
-
-        wordAttachment.storage_path = wordStoragePath;
-        summary.wordAttachmentsUpdated += 1;
-      } else {
-        const { data, error } = await supabase
-          .from("inspection_attachments")
-          .insert({
-            inspection_id: inspection.id,
-            storage_path: wordStoragePath,
-            file_name: documents.wordFileName,
-            mime_type:
-              "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            kind: "word"
-          })
-          .select("id, inspection_id, kind, storage_path")
-          .single();
-
-        if (error || !data) {
-          throw new Error(`Keuring ${inspection.inspectionNumber}: word-bijlage aanmaken mislukt: ${error?.message ?? "onbekende fout"}`);
-        }
-
-        existingAttachments.push({
-          id: String(data.id),
-          inspection_id: String(data.inspection_id),
-          kind: String(data.kind),
-          storage_path: String(data.storage_path ?? "")
+        await supabase.storage.from("inspection-files").upload(wordStoragePath, documents.wordBuffer, {
+          upsert: true,
+          contentType:
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         });
-        attachmentsByInspectionId.set(inspection.id, existingAttachments);
-        summary.wordAttachmentsCreated += 1;
-      }
 
-      const stalePaths = existingAttachments
-        .map((attachment) => attachment.storage_path)
-        .filter(
-          (storagePath) => storagePath !== pdfStoragePath && storagePath !== wordStoragePath
+        const { error: updateInspectionError } = await supabase
+          .from("inspections")
+          .update({
+            pdf_path: pdfStoragePath,
+            word_path: wordStoragePath
+          })
+          .eq("id", inspection.id);
+
+        if (updateInspectionError) {
+          throw new Error(`Keuring ${inspection.inspectionNumber}: paden opslaan mislukt: ${updateInspectionError.message}`);
+        }
+
+        const existingAttachments = attachmentsByInspectionId.get(inspection.id) ?? [];
+        const pdfAttachment = existingAttachments.find((attachment) => attachment.kind === "pdf");
+        const wordAttachment = existingAttachments.find((attachment) => attachment.kind === "word");
+
+        if (pdfAttachment) {
+          const { error } = await supabase
+            .from("inspection_attachments")
+            .update({
+              storage_path: pdfStoragePath,
+              file_name: documents.pdfFileName,
+              mime_type: "application/pdf"
+            })
+            .eq("id", pdfAttachment.id);
+
+          if (error) {
+            throw new Error(`Keuring ${inspection.inspectionNumber}: pdf-bijlage bijwerken mislukt: ${error.message}`);
+          }
+
+          pdfAttachment.storage_path = pdfStoragePath;
+          summary.pdfAttachmentsUpdated += 1;
+        } else {
+          const { data, error } = await supabase
+            .from("inspection_attachments")
+            .insert({
+              inspection_id: inspection.id,
+              storage_path: pdfStoragePath,
+              file_name: documents.pdfFileName,
+              mime_type: "application/pdf",
+              kind: "pdf"
+            })
+            .select("id, inspection_id, kind, storage_path")
+            .single();
+
+          if (error || !data) {
+            throw new Error(`Keuring ${inspection.inspectionNumber}: pdf-bijlage aanmaken mislukt: ${error?.message ?? "onbekende fout"}`);
+          }
+
+          existingAttachments.push({
+            id: String(data.id),
+            inspection_id: String(data.inspection_id),
+            kind: String(data.kind),
+            storage_path: String(data.storage_path ?? "")
+          });
+          attachmentsByInspectionId.set(inspection.id, existingAttachments);
+          summary.pdfAttachmentsCreated += 1;
+        }
+
+        if (wordAttachment) {
+          const { error } = await supabase
+            .from("inspection_attachments")
+            .update({
+              storage_path: wordStoragePath,
+              file_name: documents.wordFileName,
+              mime_type:
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            })
+            .eq("id", wordAttachment.id);
+
+          if (error) {
+            throw new Error(`Keuring ${inspection.inspectionNumber}: word-bijlage bijwerken mislukt: ${error.message}`);
+          }
+
+          wordAttachment.storage_path = wordStoragePath;
+          summary.wordAttachmentsUpdated += 1;
+        } else {
+          const { data, error } = await supabase
+            .from("inspection_attachments")
+            .insert({
+              inspection_id: inspection.id,
+              storage_path: wordStoragePath,
+              file_name: documents.wordFileName,
+              mime_type:
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+              kind: "word"
+            })
+            .select("id, inspection_id, kind, storage_path")
+            .single();
+
+          if (error || !data) {
+            throw new Error(`Keuring ${inspection.inspectionNumber}: word-bijlage aanmaken mislukt: ${error?.message ?? "onbekende fout"}`);
+          }
+
+          existingAttachments.push({
+            id: String(data.id),
+            inspection_id: String(data.inspection_id),
+            kind: String(data.kind),
+            storage_path: String(data.storage_path ?? "")
+          });
+          attachmentsByInspectionId.set(inspection.id, existingAttachments);
+          summary.wordAttachmentsCreated += 1;
+        }
+
+        const stalePaths = existingAttachments
+          .map((attachment) => attachment.storage_path)
+          .filter(
+            (storagePath) => storagePath !== pdfStoragePath && storagePath !== wordStoragePath
+          );
+
+        if (stalePaths.length > 0) {
+          await supabase.storage.from("inspection-files").remove(stalePaths);
+        }
+
+        summary.generated += 1;
+
+        if ((index + 1) % 25 === 0 || index === inspections.length - 1) {
+          console.log(`[${index + 1}/${inspections.length}] rapporten bijgewerkt`);
+        }
+      } catch (error) {
+        summary.failed += 1;
+        console.error(
+          error instanceof Error
+            ? error.message
+            : `Keuring ${inspection.inspectionNumber}: onbekende fout`
         );
-
-      if (stalePaths.length > 0) {
-        await supabase.storage.from("inspection-files").remove(stalePaths);
       }
-
-      summary.generated += 1;
-
-      if ((index + 1) % 25 === 0 || index === inspections.length - 1) {
-        console.log(`[${index + 1}/${inspections.length}] rapporten bijgewerkt`);
-      }
-    } catch (error) {
-      summary.failed += 1;
-      console.error(
-        error instanceof Error
-          ? error.message
-          : `Keuring ${inspection.inspectionNumber}: onbekende fout`
-      );
     }
   }
 
