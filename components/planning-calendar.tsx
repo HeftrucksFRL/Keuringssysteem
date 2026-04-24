@@ -516,7 +516,9 @@ export function PlanningCalendar({
     selectedEvent?.kind === "inspection"
       ? getPlanningDisplayLabel({
           state: selectedEvent.state,
-          inspectionId: selectedEvent.inspectionId ?? ""
+          inspectionId: selectedEvent.inspectionId ?? "",
+          dueDate: selectedEvent.dueDate,
+          notes: selectedEvent.state === "scheduled" ? "Handmatig gepland" : ""
         })
       : "";
   const showMoveAction =

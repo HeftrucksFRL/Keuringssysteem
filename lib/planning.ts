@@ -1,4 +1,5 @@
 import type { PlanningRecord } from "@/lib/domain";
+import { todayLocalIso } from "@/lib/utils";
 
 export type PlanningDisplayState = "upcoming" | "overdue" | "scheduled" | "completed";
 
@@ -12,13 +13,13 @@ export function isManualPlanningItem(item: Pick<PlanningRecord, "inspectionId" |
 }
 
 export function getPlanningDisplayState(
-  item: Pick<PlanningRecord, "state" | "inspectionId" | "notes">
+  item: Pick<PlanningRecord, "state" | "inspectionId" | "notes" | "dueDate">
 ): PlanningDisplayState {
   if (item.state === "completed") {
     return "completed";
   }
 
-  if (item.state === "overdue") {
+  if (item.state === "overdue" || item.dueDate < todayLocalIso()) {
     return "overdue";
   }
 
@@ -26,7 +27,7 @@ export function getPlanningDisplayState(
 }
 
 export function getPlanningDisplayLabel(
-  item: Pick<PlanningRecord, "state" | "inspectionId" | "notes">
+  item: Pick<PlanningRecord, "state" | "inspectionId" | "notes" | "dueDate">
 ) {
   const displayState = getPlanningDisplayState(item);
 

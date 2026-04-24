@@ -3733,7 +3733,10 @@ export async function updatePlanningItem(input: {
       .eq("id", input.id)
       .maybeSingle();
     const state =
-      mode === "move" && currentItem?.state === "overdue" ? ("overdue" as const) : baseState;
+      mode === "move" &&
+      (currentItem?.state === "overdue" || String(currentItem?.due_date ?? "") < todayIso())
+        ? ("overdue" as const)
+        : baseState;
 
     await supabase
       .from("planning_items")
@@ -3762,7 +3765,9 @@ export async function updatePlanningItem(input: {
   }
 
   const state =
-    mode === "move" && item.state === "overdue" ? ("overdue" as const) : baseState;
+    mode === "move" && (item.state === "overdue" || item.dueDate < todayIso())
+      ? ("overdue" as const)
+      : baseState;
 
   item.dueDate = input.dueDate;
   item.state = state;
