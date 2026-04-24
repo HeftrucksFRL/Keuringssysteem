@@ -2268,6 +2268,26 @@ export async function getPlanningItems() {
   return data.planningItems;
 }
 
+export async function getPlanningItemsByIds(ids: string[]) {
+  const wantedIds = ids.filter(Boolean);
+  if (wantedIds.length === 0) {
+    return [];
+  }
+
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data } = await supabase
+      .from("planning_items")
+      .select("*")
+      .in("id", wantedIds);
+    return (data ?? []).map((row) => mapPlanningRow(row));
+  }
+
+  const data = await listDemoData();
+  const idSet = new Set(wantedIds);
+  return data.planningItems.filter((item) => idSet.has(item.id));
+}
+
 export async function getPlanningPreview(limit = 3) {
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
@@ -3694,8 +3714,16 @@ export async function deleteMachine(machineId: string) {
 export async function updatePlanningItem(input: {
   id: string;
   dueDate: string;
+  mode?: "move" | "schedule";
 }) {
-  const state = input.dueDate < todayIso() ? "overdue" : ("scheduled" as const);
+  const mode = input.mode === "move" ? "move" : "schedule";
+  const baseState =
+    input.dueDate < todayIso()
+      ? "overdue"
+      : mode === "move"
+        ? ("upcoming" as const)
+        : ("scheduled" as const);
+  const notes = mode === "move" ? "Automatische vervolgkeuring" : "Handmatig gepland";
 
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
@@ -3704,13 +3732,15 @@ export async function updatePlanningItem(input: {
       .select("*")
       .eq("id", input.id)
       .maybeSingle();
+    const state =
+      mode === "move" && currentItem?.state === "overdue" ? ("overdue" as const) : baseState;
 
     await supabase
       .from("planning_items")
       .update({
         due_date: input.dueDate,
         state,
-        notes: "Handmatig gepland"
+        notes
       })
       .eq("id", input.id);
 
@@ -3731,9 +3761,12 @@ export async function updatePlanningItem(input: {
     return;
   }
 
+  const state =
+    mode === "move" && item.state === "overdue" ? ("overdue" as const) : baseState;
+
   item.dueDate = input.dueDate;
   item.state = state;
-  item.notes = "Handmatig gepland";
+  item.notes = notes;
   item.updatedAt = nowIso();
 
   if (item.inspectionId) {

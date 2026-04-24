@@ -50,13 +50,14 @@ export async function updatePlanningItemAction(formData: FormData) {
   const ids = JSON.parse(String(formData.get("ids") || "[]")) as string[];
   const dueDate = String(formData.get("dueDate") || "");
   const month = String(formData.get("month") || "");
+  const mode = String(formData.get("mode") || "") === "move" ? "move" : "schedule";
 
   if (!ids.length || !dueDate) {
     redirect(`/planning?month=${month}&error=Vul%20een%20geldige%20datum%20in`);
   }
 
   for (const id of ids) {
-    await updatePlanningItem({ id, dueDate });
+    await updatePlanningItem({ id, dueDate, mode });
   }
 
   await addActivityLog({
@@ -66,13 +67,15 @@ export async function updatePlanningItemAction(formData: FormData) {
     action: "planning.updated",
     entityType: "planning",
     targetLabel: `Planning ${dueDate}`,
-    details: { ids, month }
+    details: { ids, month, mode }
   });
 
   revalidatePath("/planning");
   revalidatePath("/");
   revalidatePath("/keuringen");
-  redirect(`/planning?month=${month || dueDate.slice(0, 7)}&updated=1`);
+  redirect(
+    `/planning?month=${month || dueDate.slice(0, 7)}&${mode === "move" ? "moved" : "scheduled"}=1`
+  );
 }
 
 export async function deletePlanningItemAction(formData: FormData) {

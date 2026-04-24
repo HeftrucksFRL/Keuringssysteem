@@ -15,6 +15,8 @@ export default async function PlanningPage({
   searchParams?: Promise<{
     month?: string;
     planned?: string;
+    scheduled?: string;
+    moved?: string;
     appointment?: string;
     updated?: string;
     deleted?: string;
@@ -35,6 +37,12 @@ export default async function PlanningPage({
     <>
       {params?.planned ? (
         <p className="form-message success">Keuring is toegevoegd aan de agenda.</p>
+      ) : null}
+      {params?.scheduled ? (
+        <p className="form-message success">Keuring is ingepland.</p>
+      ) : null}
+      {params?.moved ? (
+        <p className="form-message success">Verwachte keuring is verplaatst.</p>
       ) : null}
       {params?.appointment ? (
         <p className="form-message success">Afspraak is toegevoegd aan de agenda.</p>

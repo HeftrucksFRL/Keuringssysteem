@@ -1700,6 +1700,21 @@ textarea {
   color: #0b4f8a;
 }
 
+.mobile-month-pill.scheduled {
+  background: #eaf4fe;
+  color: #0b4f8a;
+}
+
+.mobile-month-pill.overdue {
+  background: #fff0d8;
+  color: #c97a00;
+}
+
+.mobile-month-pill.upcoming {
+  background: #f4f5f7;
+  color: #475467;
+}
+
 .mobile-month-pill.rental {
   background: #ecfdf3;
   color: #0d8d59;

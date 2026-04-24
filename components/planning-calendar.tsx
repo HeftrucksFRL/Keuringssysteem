@@ -196,16 +196,36 @@ function mobileDaySummary(events: AgendaEvent[]) {
     rental: 0,
     appointment: 0
   };
+  let inspectionTone: PlanningDisplayState = "upcoming";
 
   for (const event of events) {
     counts[event.kind] += 1;
+    if (event.kind === "inspection") {
+      if (event.state === "overdue") {
+        inspectionTone = "overdue";
+      } else if (event.state === "scheduled" && inspectionTone !== "overdue") {
+        inspectionTone = "scheduled";
+      }
+    }
   }
 
   return ([
-    counts.inspection ? { kind: "inspection" as const, label: `${counts.inspection} keur` } : null,
-    counts.rental ? { kind: "rental" as const, label: `${counts.rental} huur` } : null,
-    counts.appointment ? { kind: "appointment" as const, label: `${counts.appointment} vrij` } : null
-  ].filter(Boolean) as Array<{ kind: "inspection" | "rental" | "appointment"; label: string }>).slice(0, 3);
+    counts.inspection
+      ? {
+          kind: "inspection" as const,
+          tone: inspectionTone,
+          label: `${counts.inspection} keur`
+        }
+      : null,
+    counts.rental ? { kind: "rental" as const, tone: "rental" as const, label: `${counts.rental} huur` } : null,
+    counts.appointment
+      ? { kind: "appointment" as const, tone: "appointment" as const, label: `${counts.appointment} vrij` }
+      : null
+  ].filter(Boolean) as Array<{
+    kind: "inspection" | "rental" | "appointment";
+    tone: PlanningDisplayState | "rental" | "appointment";
+    label: string;
+  }>).slice(0, 3);
 }
 
 function dayPopupTitle(event: AgendaEvent) {
@@ -499,6 +519,9 @@ export function PlanningCalendar({
           inspectionId: selectedEvent.inspectionId ?? ""
         })
       : "";
+  const showMoveAction =
+    selectedEvent?.kind === "inspection" &&
+    (selectedEvent.state === "upcoming" || selectedEvent.state === "overdue");
 
   return (
     <div className="panel">
@@ -568,7 +591,10 @@ export function PlanningCalendar({
                     <span className="mobile-month-cell-empty" />
                   ) : (
                     daySummary.map((item) => (
-                      <span className={`mobile-month-pill ${item.kind}`} key={`${dayKey}-${item.kind}`}>
+                      <span
+                        className={`mobile-month-pill ${item.tone}`}
+                        key={`${dayKey}-${item.kind}`}
+                      >
                         {item.label}
                       </span>
                     ))
@@ -986,8 +1012,13 @@ export function PlanningCalendar({
                       />
                     </div>
                     <div className="actions" style={{ marginTop: "0.75rem" }}>
-                      <button className="button" type="submit">
-                        Planning bijwerken
+                      {showMoveAction ? (
+                        <button className="button-secondary" type="submit" name="mode" value="move">
+                          Verplaatsen
+                        </button>
+                      ) : null}
+                      <button className="button" type="submit" name="mode" value="schedule">
+                        Inplannen
                       </button>
                     </div>
                   </form>
