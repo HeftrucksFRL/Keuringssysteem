@@ -21,8 +21,18 @@ const STOCK_CUSTOMER_EMAIL_MARKERS = [
   "terpstratrading.frl"
 ];
 
+const HISTORY_CUSTOMER_ALIASES = [
+  "historiebak",
+  "historie bak",
+  "historie machines"
+];
+
 export function stockOwnerLabel() {
   return "Eigen voorraad - Heftrucks.frl";
+}
+
+export function historyOwnerLabel() {
+  return "Historiebak";
 }
 
 export function isRentalStockCustomer(
@@ -36,6 +46,13 @@ export function isRentalStockCustomer(
   );
 }
 
+export function isMachineHistoryCustomer(
+  customer?: Pick<CustomerRecord, "companyName" | "email"> | null
+) {
+  const company = normalizeRentalOwnerText(customer?.companyName);
+  return HISTORY_CUSTOMER_ALIASES.some((alias) => company.includes(alias));
+}
+
 export function getCustomerDisplayName(
   customer?: Pick<CustomerRecord, "companyName" | "email"> | null
 ) {
@@ -43,5 +60,9 @@ export function getCustomerDisplayName(
     return "Onbekende klant";
   }
 
-  return isRentalStockCustomer(customer) ? stockOwnerLabel() : customer.companyName;
+  if (isRentalStockCustomer(customer)) {
+    return stockOwnerLabel();
+  }
+
+  return isMachineHistoryCustomer(customer) ? historyOwnerLabel() : customer.companyName;
 }

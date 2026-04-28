@@ -7,7 +7,12 @@ import {
   formatMachineBrandTypeSerial,
   getMachineLocation
 } from "@/lib/machine-presentation";
-import { isRentalStockCustomer, stockOwnerLabel } from "@/lib/stock-customer";
+import {
+  historyOwnerLabel,
+  isMachineHistoryCustomer,
+  isRentalStockCustomer,
+  stockOwnerLabel
+} from "@/lib/stock-customer";
 import { titleCase, todayLocalIso } from "@/lib/utils";
 
 interface MachinesTableProps {
@@ -16,7 +21,7 @@ interface MachinesTableProps {
   rentals: RentalRecord[];
 }
 
-type MachineFolderKey = "customer" | "stock" | "service" | "battery" | "archived";
+type MachineFolderKey = "customer" | "stock" | "history" | "service" | "battery" | "archived";
 
 function archivedAt(machine: MachineRecord) {
   return machine.configuration.__archivedAt ? new Date(machine.configuration.__archivedAt) : null;
@@ -47,8 +52,13 @@ function statusBadgeStyle(
 
 function statusLabel(
   status: MachineRecord["availabilityStatus"],
-  isStockMachine: boolean
+  isStockMachine: boolean,
+  isHistoryMachine = false
 ) {
+  if (isHistoryMachine) {
+    return "Historiebak";
+  }
+
   if (status === "rented") {
     return "In verhuur";
   }
@@ -92,6 +102,10 @@ function machineFolderKey(machine: MachineRecord, owner: CustomerRecord | null):
     return "archived";
   }
 
+  if (isMachineHistoryCustomer(owner)) {
+    return "history";
+  }
+
   if (machine.machineType === "batterij_lader") {
     return "battery";
   }
@@ -122,6 +136,13 @@ const machineFolderOrder: Array<{
     label: "Voorraad",
     emptyLabel: "Geen voorraadmachines gevonden.",
     defaultOpen: true,
+    itemLabel: "machines"
+  },
+  {
+    key: "history",
+    label: "Historiebak",
+    emptyLabel: "Geen historiemachines gevonden.",
+    defaultOpen: false,
     itemLabel: "machines"
   },
   {
@@ -163,6 +184,13 @@ function folderRowStyle(key: MachineFolderKey) {
     return {
       background: "#fff8ef",
       borderColor: "#fed7aa"
+    };
+  }
+
+  if (key === "history") {
+    return {
+      background: "#fff5fb",
+      borderColor: "#f9a8d4"
     };
   }
 
@@ -222,8 +250,12 @@ export function MachinesTable({
         ? customerById.get(activeRental.customerId) ?? null
         : null;
       const stockMachine = isRentalStockCustomer(owner);
+      const historyMachine = isMachineHistoryCustomer(owner);
       const stockSearchTerms = stockMachine
         ? ["voorraad", "eigen voorraad", "heftrucks.frl", "heftrucks friesland"]
+        : [];
+      const historySearchTerms = historyMachine
+        ? ["historiebak", "historie", "historiemachine"]
         : [];
 
       return [
@@ -243,10 +275,11 @@ export function MachinesTable({
         machine.configuration.location,
         owner?.companyName,
         rentalCustomer?.companyName,
-        statusLabel(machine.availabilityStatus, stockMachine),
+        statusLabel(machine.availabilityStatus, stockMachine, historyMachine),
         isArchived(machine) ? "gearchiveerd archief" : "",
         machineFolderOrder.find((group) => group.key === machineFolderKey(machine, owner))?.label,
-        ...stockSearchTerms
+        ...stockSearchTerms,
+        ...historySearchTerms
       ]
         .filter(Boolean)
         .join(" ")
@@ -316,9 +349,12 @@ export function MachinesTable({
                       ? customerById.get(activeRental.customerId) ?? null
                       : null;
                     const stockMachine = isRentalStockCustomer(owner);
+                    const historyMachine = isMachineHistoryCustomer(owner);
                     const archived = isArchived(machine);
                     const ownerLabel = owner
-                      ? stockMachine
+                      ? historyMachine
+                        ? historyOwnerLabel()
+                        : stockMachine
                         ? stockOwnerLabel()
                         : owner.companyName
                       : "-";
@@ -335,12 +371,14 @@ export function MachinesTable({
                         : folderRowStyle(group.key);
                     const badgeStyle = archived
                       ? { background: "#fee4e2", color: "#b42318" }
-                      : statusBadgeStyle(machine.availabilityStatus, stockMachine);
+                      : historyMachine
+                        ? { background: "#fce7f3", color: "#be185d" }
+                        : statusBadgeStyle(machine.availabilityStatus, stockMachine);
                     const badgeLabel = archived
                       ? machine.machineType === "batterij_lader"
                         ? "Batterij en/of lader gearchiveerd"
                         : "Machine gearchiveerd"
-                      : statusLabel(machine.availabilityStatus, stockMachine);
+                      : statusLabel(machine.availabilityStatus, stockMachine, historyMachine);
 
                     return (
                       <Link

@@ -926,6 +926,15 @@ textarea {
   background: #f2eeff;
 }
 
+.archive-folder-machines-history {
+  border-color: #f9a8d4;
+  background: #fff5fb;
+}
+
+.archive-folder-machines-history .archive-summary {
+  background: #fce7f3;
+}
+
 .archive-folder-machines-service {
   border-color: #f4cfaa;
   background: #fff8ef;

@@ -13,6 +13,8 @@ import { generateInspectionDocuments } from "@/lib/documents";
 import { getYearSequenceStart } from "@/lib/inspection-number";
 import {
   getCustomerDisplayName,
+  historyOwnerLabel,
+  isMachineHistoryCustomer,
   isRentalStockCustomer,
   stockOwnerLabel
 } from "@/lib/stock-customer";
@@ -31,7 +33,13 @@ import type {
   TodoItemRecord
 } from "@/lib/domain";
 
-export { getCustomerDisplayName, isRentalStockCustomer, stockOwnerLabel } from "@/lib/stock-customer";
+export {
+  getCustomerDisplayName,
+  historyOwnerLabel,
+  isMachineHistoryCustomer,
+  isRentalStockCustomer,
+  stockOwnerLabel
+} from "@/lib/stock-customer";
 
 function nowIso() {
   return new Date().toISOString();
@@ -2069,7 +2077,9 @@ export async function getCustomerSummaries(options: {
     const rows = ((data ?? []) as unknown as Record<string, unknown>[]);
     const customers = rows.map((row) => mapCustomerRow(row));
     return options.visibleOnly
-      ? customers.filter((customer) => !isRentalStockCustomer(customer))
+      ? customers.filter(
+          (customer) => !isRentalStockCustomer(customer) && !isMachineHistoryCustomer(customer)
+        )
       : customers;
   }
 
@@ -2080,7 +2090,9 @@ export async function getCustomerSummaries(options: {
     customers = customers.filter((customer) => wantedIds.has(customer.id));
   }
   if (options.visibleOnly) {
-    customers = customers.filter((customer) => !isRentalStockCustomer(customer));
+    customers = customers.filter(
+      (customer) => !isRentalStockCustomer(customer) && !isMachineHistoryCustomer(customer)
+    );
   }
   return customers;
 }
@@ -2129,7 +2141,9 @@ export async function getCustomerContacts(customerId?: string) {
 
 export async function getVisibleCustomers() {
   const customers = await getCustomers();
-  return customers.filter((customer) => !isRentalStockCustomer(customer));
+  return customers.filter(
+    (customer) => !isRentalStockCustomer(customer) && !isMachineHistoryCustomer(customer)
+  );
 }
 
 export async function getVisibleCustomerSummaries() {

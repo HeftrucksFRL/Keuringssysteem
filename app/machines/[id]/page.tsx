@@ -27,6 +27,7 @@ import {
   getMachines,
   getRentalsForMachine,
   isMachineArchiveLocked,
+  isMachineHistoryCustomer,
   isRentalStockCustomer
 } from "@/lib/inspection-service";
 import { fileUrl } from "@/lib/file-urls";
@@ -171,6 +172,7 @@ export default async function MachineDetailPage({
     ? customers.find((item) => item.id === activeRental.customerId) ?? null
     : null;
   const isRentalStockMachine = isRentalStockCustomer(customer);
+  const isHistoryMachine = isMachineHistoryCustomer(customer);
   const archivedAt = getMachineArchivedAt(machine);
   const archiveLockedAt = getMachineArchiveLockDate(machine);
   const archiveLocked = isMachineArchiveLocked(machine);
@@ -178,7 +180,8 @@ export default async function MachineDetailPage({
   const assignableCustomers = customers.filter(
     (item) =>
       item.id !== machine.customerId &&
-      (!isRentalStockMachine || !isRentalStockCustomer(item))
+      !isRentalStockCustomer(item) &&
+      !isMachineHistoryCustomer(item)
   );
   const statusBadge =
     isArchived
@@ -193,6 +196,8 @@ export default async function MachineDetailPage({
       ? { label: "In verhuur", style: { background: "#dff6ec", color: "#0d8d59" } }
       : machine.availabilityStatus === "maintenance"
         ? { label: "Onderhoud", style: { background: "#fff0d8", color: "#d97706" } }
+        : isHistoryMachine
+          ? { label: "Historiebak", style: { background: "#fce7f3", color: "#be185d" } }
         : isRentalStockMachine
           ? { label: "Beschikbaar", style: { background: "#e6f0ff", color: "#175cd3" } }
           : { label: "Bij klant", style: { background: "#eff3f8", color: "#526273" } };
@@ -207,6 +212,8 @@ export default async function MachineDetailPage({
         <p>
           {isArchived
             ? `Deze machine is gearchiveerd. Controleer hieronder de archiefstatus en open alleen nog het dossier als naslag.`
+            : isHistoryMachine
+            ? `Intern nummer ${machine.internalNumber || "-"} staat in de Historiebak. Koppel deze machine aan een klant zodra hij weer in de werkgang terugkomt.`
             : isRentalStockMachine
             ? `Intern nummer ${machine.internalNumber || "-"} uit de eigen voorraad. Vanuit dit dossier kun je keuringen en verhuur voorbereiden.`
             : `Intern nummer ${machine.internalNumber || "-"} bij ${customer?.companyName ?? "onbekende klant"}. Vanuit dit dossier kun je eerdere keuringen openen en de volgende inspectie voorbereiden.`}
@@ -353,9 +360,16 @@ export default async function MachineDetailPage({
         </form>
 
         <article className="panel">
-          <div className="eyebrow">{isRentalStockMachine ? "Voorraad" : "Klant"}</div>
+          <div className="eyebrow">
+            {isHistoryMachine ? "Historiebak" : isRentalStockMachine ? "Voorraad" : "Klant"}
+          </div>
           <div className="list">
-            {isRentalStockMachine ? (
+            {isHistoryMachine ? (
+              <div className="list-item">
+                <span>Status</span>
+                <strong>Machine in Historiebak</strong>
+              </div>
+            ) : isRentalStockMachine ? (
               <div className="list-item">
                 <span>Status</span>
                 <strong>
@@ -388,7 +402,7 @@ export default async function MachineDetailPage({
                 </div>
               </>
             )}
-            {isRentalStockMachine ? (
+            {isRentalStockMachine || isHistoryMachine ? (
               <div className="list-item">
                 <span>Locatie</span>
                 <strong>{getMachineLocation(machine) || "-"}</strong>
@@ -519,19 +533,19 @@ export default async function MachineDetailPage({
           ) : null}
           {!isArchived &&
           machine.machineType !== "batterij_lader" &&
-          isRentalStockMachine &&
+          (isRentalStockMachine || isHistoryMachine) &&
           canManageCustomerAssignments ? (
             <form action={assignMachineToCustomerAction} style={{ marginTop: "1rem" }}>
               <input type="hidden" name="machineId" value={machine.id} />
               <CustomerPicker
                 customers={assignableCustomers}
                 defaultCustomerId=""
-                label={isRentalStockMachine ? "Verplaatsen naar klant" : "Toevoegen aan klant"}
+                label="Verplaatsen naar klant"
                 required
               />
               <div className="actions">
                 <button className="button-secondary" type="submit">
-                  {isRentalStockMachine ? "Machine verplaatsen" : "Machine koppelen"}
+                  Machine koppelen
                 </button>
               </div>
             </form>
@@ -539,6 +553,7 @@ export default async function MachineDetailPage({
           {!isArchived &&
           machine.machineType !== "batterij_lader" &&
           !isRentalStockMachine &&
+          !isHistoryMachine &&
           canManageCustomerAssignments ? (
             <form action={assignMachineToStockAction} style={{ marginTop: "1rem" }}>
               <input type="hidden" name="machineId" value={machine.id} />

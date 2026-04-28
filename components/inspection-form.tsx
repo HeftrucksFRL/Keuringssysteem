@@ -1100,7 +1100,7 @@ export function InspectionForm({
             <>
               <div className="form-block" style={{ marginTop: "1rem" }}>
                 <div className="field field-active autocomplete">
-                  <label htmlFor="machine-search">Zoek machine</label>
+                  <label htmlFor="machine-search">Zoek machine op serienummer</label>
                   <input
                     id="machine-search"
                     value={machineQuery}
