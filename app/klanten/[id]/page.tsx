@@ -17,12 +17,11 @@ import {
 import {
   getCustomerById,
   getCustomerContacts,
-  getCustomerLocations,
   getInspectionAttachmentsForInspections,
   getInspectionsForCustomer,
   getMachineArchivedAt,
-  getMachines,
   getMachinesForCustomer,
+  getMachineSummaries,
   getRentalsForCustomer,
   getVisibleCustomers
 } from "@/lib/inspection-service";
@@ -65,13 +64,17 @@ export default async function CustomerDetailPage({
   }
 
   const machines = await getMachinesForCustomer(customer.id, { includeArchived: true });
-  const locations = await getCustomerLocations(customer.id);
+  const locations = customer.locations ?? [];
   const contacts = await getCustomerContacts(customer.id);
-  const allMachines = await getMachines({ includeArchived: true });
   const assignableCustomers = (await getVisibleCustomers()).filter(
     (item) => item.id !== customer.id
   );
   const rentals = await getRentalsForCustomer(customer.id);
+  const rentalMachineIds = Array.from(new Set(rentals.map((rental) => rental.machineId)));
+  const allMachines =
+    rentalMachineIds.length > 0
+      ? await getMachineSummaries({ ids: rentalMachineIds, includeArchived: true })
+      : machines;
   const inspections = await getInspectionsForCustomer(customer.id);
   const attachments = await getInspectionAttachmentsForInspections(
     inspections.map((inspection) => inspection.id)

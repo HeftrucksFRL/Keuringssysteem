@@ -19,6 +19,7 @@ interface Props {
   customerContacts: CustomerContactRecord[];
   machines: MachineRecord[];
   inspections: InspectionRecord[];
+  inspectionNumberSeeds?: Record<string, number>;
   defaultType?: MachineType;
   defaultCustomerId?: string;
   defaultMachineId?: string;
@@ -236,6 +237,7 @@ export function InspectionForm({
   customerContacts,
   machines,
   inspections,
+  inspectionNumberSeeds = {},
   defaultType = "heftruck_reachtruck",
   defaultCustomerId = "",
   defaultMachineId = "",
@@ -295,6 +297,7 @@ export function InspectionForm({
     existingInspection ? resultLabelsFromStatus(existingInspection.status) : []
   );
   const [draftNotice, setDraftNotice] = useState("");
+  const [inspectionHistory, setInspectionHistory] = useState<InspectionRecord[]>(inspections);
 
   const form = useMemo(() => getFormDefinition(type), [type]);
   const selectedCustomer = customers.find((item) => item.id === selectedCustomerId) ?? null;
@@ -345,16 +348,23 @@ export function InspectionForm({
 
     const inspectionDate = values.inspection_date || new Date().toISOString().slice(0, 10);
     const year = Number(inspectionDate.slice(0, 4));
-    const sequencesForYear = inspections
+    const sequencesForYear = inspectionHistory
       .filter((inspection) => inspection.inspectionDate.startsWith(String(year)))
       .map((inspection) => Number(inspection.inspectionNumber))
       .filter((sequence) => !Number.isNaN(sequence));
 
     const lastSequenceForYear =
-      sequencesForYear.length > 0 ? Math.max(...sequencesForYear) : null;
+      sequencesForYear.length > 0
+        ? Math.max(...sequencesForYear)
+        : inspectionNumberSeeds[String(year)] ?? null;
 
     return previewNextInspectionNumber(year, lastSequenceForYear);
-  }, [existingInspection?.inspectionNumber, inspections, values.inspection_date]);
+  }, [
+    existingInspection?.inspectionNumber,
+    inspectionHistory,
+    inspectionNumberSeeds,
+    values.inspection_date
+  ]);
 
   const filteredCustomers = useMemo(() => {
     const query = customerQuery.trim().toLowerCase();
@@ -532,7 +542,7 @@ export function InspectionForm({
       ...machineConfigurationValues(selectedMachine.configuration)
     }));
     setMachineQuery([selectedMachine.internalNumber || selectedMachine.machineNumber, selectedMachine.brand, selectedMachine.model].filter(Boolean).join(" "));
-    const previousInspection = latestInspectionForMachine(inspections, selectedMachine.id);
+    const previousInspection = latestInspectionForMachine(inspectionHistory, selectedMachine.id);
     if (!previousInspection) {
       setChecklist(buildDefaultChecklist(selectedMachine.machineType));
       return;
@@ -548,7 +558,36 @@ export function InspectionForm({
       inspection_date: current.inspection_date
     }));
     setChecklist({ ...buildDefaultChecklist(selectedMachine.machineType), ...previousInspection.checklist });
-  }, [selectedMachine, inspections, isEditingExisting]);
+  }, [selectedMachine, inspectionHistory, isEditingExisting]);
+
+  useEffect(() => {
+    if (isEditingExisting || !selectedMachineId) {
+      return;
+    }
+
+    if (inspectionHistory.some((inspection) => inspection.machineId === selectedMachineId)) {
+      return;
+    }
+
+    let cancelled = false;
+    fetch(`/api/machines/${selectedMachineId}/latest-inspection`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: { inspection?: InspectionRecord | null } | null) => {
+        if (cancelled || !payload?.inspection) {
+          return;
+        }
+        setInspectionHistory((current) =>
+          current.some((inspection) => inspection.id === payload.inspection!.id)
+            ? current
+            : [...current, payload.inspection!]
+        );
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [inspectionHistory, isEditingExisting, selectedMachineId]);
 
   useEffect(() => {
     if (type === "batterij_lader") {

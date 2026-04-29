@@ -17,17 +17,18 @@ import { CustomerPicker } from "@/components/customer-picker";
 import { MachinePicker } from "@/components/machine-picker";
 import { LinkedBatteryDialog } from "@/components/linked-battery-dialog";
 import {
-  getCustomerLocations,
+  getCustomerById,
+  getCustomerSummaries,
   getInspectionAttachmentsForInspections,
   getMachineArchivedAt,
   getMachineArchiveLockDate,
   getLinkedBatteryChargerMachines,
   getLinkedMachineId,
-  getCustomers,
   getMachineById,
   getMachineHistory,
-  getMachines,
+  getMachineSummaries,
   getRentalsForMachine,
+  getVisibleCustomers,
   isMachineArchiveLocked,
   isMachineHistoryCustomer,
   isRentalStockCustomer
@@ -125,20 +126,19 @@ export default async function MachineDetailPage({
     notFound();
   }
 
-  const customers = await getCustomers();
-  const machines = await getMachines({ includeArchived: true });
-  const customer = customers.find((item) => item.id === machine.customerId) ?? null;
-  const customerLocations = customer ? await getCustomerLocations(customer.id) : [];
-  const history = await getMachineHistory(machine.id);
-  const rentals = await getRentalsForMachine(machine.id);
-  const linkedBatteryMachines =
+  const [customer, history, rentals, linkedBatteryMachines] = await Promise.all([
+    getCustomerById(machine.customerId),
+    getMachineHistory(machine.id),
+    getRentalsForMachine(machine.id),
     machine.machineType === "batterij_lader"
-      ? []
-      : await getLinkedBatteryChargerMachines(machine.id, { includeArchived: true });
+      ? Promise.resolve([])
+      : getLinkedBatteryChargerMachines(machine.id, { includeArchived: true })
+  ]);
+  const customerLocations = customer?.locations ?? [];
   const linkedMachineId = getLinkedMachineId(machine);
   const linkedMachine =
     machine.machineType === "batterij_lader" && linkedMachineId
-      ? machines.find((item) => item.id === linkedMachineId) ?? null
+      ? await getMachineById(linkedMachineId, { includeArchived: true })
       : null;
   const hiddenBatteryVehicleFields =
     machine.machineType === "batterij_lader"
@@ -155,12 +155,15 @@ export default async function MachineDetailPage({
           "double_insulated"
         ]
       : [];
-  const linkableMachines = machines.filter(
-    (item) =>
-      item.id !== machine.id &&
-      item.machineType !== "batterij_lader" &&
-      !item.configuration.__archivedAt
-  );
+  const linkableMachines =
+    machine.machineType === "batterij_lader" && !linkedMachine
+      ? (await getMachineSummaries({ includeArchived: true })).filter(
+          (item) =>
+            item.id !== machine.id &&
+            item.machineType !== "batterij_lader" &&
+            !("__archivedAt" in item.configuration)
+        )
+      : [];
   const historyAttachments = await getInspectionAttachmentsForInspections(
     history.map((inspection) => inspection.id)
   );
@@ -173,8 +176,16 @@ export default async function MachineDetailPage({
   );
   const activeRental = rentals.find((rental) => rentalPhase(rental) === "active") ?? null;
   const upcomingRentals = rentals.filter((rental) => rentalPhase(rental) === "upcoming");
+  const rentalCustomerIds = Array.from(
+    new Set(
+      [activeRental?.customerId, ...upcomingRentals.map((rental) => rental.customerId)].filter(
+        Boolean
+      ) as string[]
+    )
+  );
+  const rentalCustomers = await getCustomerSummaries({ ids: rentalCustomerIds });
   const rentalCustomer = activeRental
-    ? customers.find((item) => item.id === activeRental.customerId) ?? null
+    ? rentalCustomers.find((item) => item.id === activeRental.customerId) ?? null
     : null;
   const isRentalStockMachine = isRentalStockCustomer(customer);
   const isHistoryMachine = isMachineHistoryCustomer(customer);
@@ -182,12 +193,9 @@ export default async function MachineDetailPage({
   const archiveLockedAt = getMachineArchiveLockDate(machine);
   const archiveLocked = isMachineArchiveLocked(machine);
   const isArchived = Boolean(archivedAt);
-  const assignableCustomers = customers.filter(
-    (item) =>
-      item.id !== machine.customerId &&
-      !isRentalStockCustomer(item) &&
-      !isMachineHistoryCustomer(item)
-  );
+  const assignableCustomers = canManageCustomerAssignments || isRentalStockMachine
+    ? (await getVisibleCustomers()).filter((item) => item.id !== machine.customerId)
+    : [];
   const statusBadge =
     isArchived
       ? {
@@ -490,7 +498,7 @@ export default async function MachineDetailPage({
               </div>
             ) : null}
             {upcomingRentals.map((rental) => {
-              const upcomingCustomer = customers.find((item) => item.id === rental.customerId) ?? null;
+              const upcomingCustomer = rentalCustomers.find((item) => item.id === rental.customerId) ?? null;
               return (
                 <div
                   className="list-item"
@@ -730,7 +738,7 @@ export default async function MachineDetailPage({
           {upcomingRentals.length > 0 ? (
             <div className="list" style={{ marginTop: "1rem" }}>
               {upcomingRentals.map((rental) => {
-                const upcomingCustomer = customers.find((item) => item.id === rental.customerId) ?? null;
+                const upcomingCustomer = rentalCustomers.find((item) => item.id === rental.customerId) ?? null;
                 return (
                   <div className="list-item" key={rental.id}>
                     <span>Aanstaande huur</span>

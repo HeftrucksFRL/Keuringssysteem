@@ -1,8 +1,8 @@
 import {
-  getCustomers,
-  getInspectionAttachments,
-  getInspections,
-  getMachines
+  getCustomerSummaries,
+  getInspectionAttachmentsForInspections,
+  getInspectionSummaries,
+  getMachineSummaries
 } from "@/lib/inspection-service";
 import { InspectionsTable } from "@/components/inspections-table";
 
@@ -11,11 +11,8 @@ export default async function InspectionsPage({
 }: {
   searchParams?: Promise<{ created?: string; week?: string; period?: string; status?: string }>;
 }) {
-  const allInspections = await getInspections();
-  const customers = await getCustomers();
-  const machines = await getMachines();
-  const attachments = await getInspectionAttachments();
   const params = await searchParams;
+  const allInspections = await getInspectionSummaries();
   let inspections = allInspections;
   let title = "Alle keuringen";
 
@@ -69,6 +66,14 @@ export default async function InspectionsPage({
     });
     title = "Keuringen deze week";
   }
+
+  const customerIds = Array.from(new Set(inspections.map((inspection) => inspection.customerId)));
+  const machineIds = Array.from(new Set(inspections.map((inspection) => inspection.machineId)));
+  const [customers, machines, attachments] = await Promise.all([
+    getCustomerSummaries({ ids: customerIds }),
+    getMachineSummaries({ ids: machineIds, includeArchived: true }),
+    getInspectionAttachmentsForInspections(inspections.map((inspection) => inspection.id))
+  ]);
 
   return (
     <section className="panel">

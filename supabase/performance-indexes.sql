@@ -27,3 +27,7 @@ on public.inspection_attachments(inspection_id, kind);
 
 create index if not exists idx_rentals_machine_status_dates
 on public.rentals(machine_id, status, start_date, end_date);
+
+create index if not exists idx_machines_linked_machine_id
+on public.machines((configuration->>'linked_machine_id'))
+where machine_type = 'batterij_lader';

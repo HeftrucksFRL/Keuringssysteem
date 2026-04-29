@@ -7,10 +7,12 @@ export default async function MachinesPage({
 }: {
   searchParams?: Promise<{ archived?: string }>;
 }) {
-  const machines = await getMachines({ includeArchived: true });
-  const customers = await getCustomers();
-  const rentals = await getRentals();
-  const query = await searchParams;
+  const [machines, customers, rentals, query] = await Promise.all([
+    getMachines({ includeArchived: true }),
+    getCustomers(),
+    getRentals(),
+    searchParams
+  ]);
 
   return (
     <section className="panel">

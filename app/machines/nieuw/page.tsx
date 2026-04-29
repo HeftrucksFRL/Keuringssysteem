@@ -2,7 +2,6 @@ import Link from "next/link";
 import type { MachineType } from "@/lib/types";
 import {
   getCustomerById,
-  getCustomerLocations,
   getMachineById,
   getMachines,
   getVisibleCustomers
@@ -35,7 +34,7 @@ export default async function NewMachinePage({
     ? await getCustomerById(query.customerId)
     : null;
   const preselectedLocations = preselectedCustomer
-    ? await getCustomerLocations(preselectedCustomer.id)
+    ? preselectedCustomer.locations ?? []
     : [];
   const linkedMachineCustomer =
     !preselectedCustomer && linkedMachine?.customerId

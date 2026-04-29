@@ -3,7 +3,8 @@ import {
   getCustomerContacts,
   getCustomers,
   getInspectionById,
-  getInspections,
+  getInspectionNumberSeeds,
+  getLatestInspectionForMachine,
   getMachines
 } from "@/lib/inspection-service";
 
@@ -13,20 +14,24 @@ export default async function NewInspectionPage({
   searchParams?: Promise<{ customerId?: string; machineId?: string; inspectionId?: string; saved?: string }>;
 }) {
   const params = await searchParams;
-  const [customers, customerContacts, machines, inspections, existingInspection] = await Promise.all([
+  const [customers, customerContacts, machines, inspectionNumberSeeds, existingInspection] = await Promise.all([
     getCustomers(),
     getCustomerContacts(),
     getMachines(),
-    getInspections(),
+    getInspectionNumberSeeds([new Date().getFullYear()]),
     params?.inspectionId ? getInspectionById(params.inspectionId) : Promise.resolve(null)
   ]);
+  const initialInspection =
+    existingInspection ??
+    (params?.machineId ? await getLatestInspectionForMachine(params.machineId) : null);
 
   return (
     <InspectionForm
       customers={customers}
       customerContacts={customerContacts}
       machines={machines}
-      inspections={inspections}
+      inspections={initialInspection ? [initialInspection] : []}
+      inspectionNumberSeeds={inspectionNumberSeeds}
       defaultCustomerId={params?.customerId}
       defaultMachineId={params?.machineId}
       existingInspection={existingInspection}

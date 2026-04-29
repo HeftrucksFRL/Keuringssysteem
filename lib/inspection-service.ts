@@ -2333,6 +2333,18 @@ export function getLinkedMachineId(
 }
 
 export async function getBatteryChargerMachines(options: { includeArchived?: boolean } = {}) {
+  const includeArchived = options.includeArchived ?? false;
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data } = await supabase
+      .from("machines")
+      .select("*")
+      .eq("machine_type", "batterij_lader")
+      .order("machine_number", { ascending: true });
+    const machines = (data ?? []).map((row) => mapMachineRow(row));
+    return includeArchived ? machines : machines.filter((machine) => !isMachineArchived(machine));
+  }
+
   const machines = await getMachines(options);
   return machines.filter((machine) => machine.machineType === "batterij_lader");
 }
@@ -2341,6 +2353,19 @@ export async function getLinkedBatteryChargerMachines(
   machineId: string,
   options: { includeArchived?: boolean } = {}
 ) {
+  const includeArchived = options.includeArchived ?? false;
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data } = await supabase
+      .from("machines")
+      .select("*")
+      .eq("machine_type", "batterij_lader")
+      .eq("configuration->>linked_machine_id", machineId)
+      .order("machine_number", { ascending: true });
+    const machines = (data ?? []).map((row) => mapMachineRow(row));
+    return includeArchived ? machines : machines.filter((machine) => !isMachineArchived(machine));
+  }
+
   const machines = await getBatteryChargerMachines(options);
   return machines.filter((machine) => getLinkedMachineId(machine) === machineId);
 }
@@ -2356,6 +2381,81 @@ export async function getInspections() {
   }
   const data = await listDemoData();
   return data.inspections;
+}
+
+export async function getInspectionNumberSeeds(years?: number[]) {
+  const wantedYears = new Set(years ?? []);
+
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    let query = supabase
+      .from("inspection_sequences")
+      .select("sequence_year, last_number");
+
+    if (wantedYears.size > 0) {
+      query = query.in("sequence_year", Array.from(wantedYears));
+    }
+
+    const { data } = await query;
+    return Object.fromEntries(
+      (data ?? []).map((row) => [String(row.sequence_year), Number(row.last_number)])
+    ) as Record<string, number>;
+  }
+
+  const data = await listDemoData();
+  return data.inspections.reduce<Record<string, number>>((seeds, inspection) => {
+    const year = inspection.inspectionDate.slice(0, 4);
+    if (wantedYears.size > 0 && !wantedYears.has(Number(year))) {
+      return seeds;
+    }
+    const number = Number(inspection.inspectionNumber);
+    if (!Number.isNaN(number)) {
+      seeds[year] = Math.max(seeds[year] ?? 0, number);
+    }
+    return seeds;
+  }, {});
+}
+
+export async function getInspectionSummaries() {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data } = await supabase
+      .from("inspections")
+      .select("id, customer_id, machine_id, machine_type, inspection_date, inspection_number, status, updated_at")
+      .order("inspection_date", { ascending: false });
+
+    return (data ?? []).map((row) => ({
+      id: String(row.id),
+      inspectionNumber: String(row.inspection_number ?? ""),
+      customerId: String(row.customer_id),
+      machineId: String(row.machine_id),
+      machineType: row.machine_type as CreateInspectionInput["machineType"],
+      inspectionDate: String(row.inspection_date ?? ""),
+      nextInspectionDate: "",
+      status: row.status as InspectionRecord["status"],
+      sendPdfToCustomer: false,
+      customerSnapshot: {},
+      machineSnapshot: {},
+      checklist: {},
+      findings: "",
+      recommendations: "",
+      conclusion: "",
+      resultLabels: [],
+      createdAt: "",
+      updatedAt: String(row.updated_at ?? "")
+    }));
+  }
+
+  const data = await listDemoData();
+  return data.inspections.map((inspection) => ({
+    ...inspection,
+    checklist: {},
+    customerSnapshot: {},
+    machineSnapshot: {},
+    findings: "",
+    recommendations: "",
+    conclusion: ""
+  }));
 }
 
 export async function getPlanningItems() {
@@ -2846,6 +2946,28 @@ export async function getMachineHistory(machineId: string) {
 
   const inspections = await getInspections();
   return inspections.filter((inspection) => inspection.machineId === machineId);
+}
+
+export async function getLatestInspectionForMachine(machineId: string) {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data } = await supabase
+      .from("inspections")
+      .select("*")
+      .eq("machine_id", machineId)
+      .order("inspection_date", { ascending: false })
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    return data ? mapInspectionRow(data) : null;
+  }
+
+  const inspections = await getMachineHistory(machineId);
+  return [...inspections].sort((left, right) => {
+    const leftDate = `${left.inspectionDate}|${left.updatedAt}`;
+    const rightDate = `${right.inspectionDate}|${right.updatedAt}`;
+    return rightDate.localeCompare(leftDate);
+  })[0] ?? null;
 }
 
 export async function getAttachmentsForInspection(inspectionId: string) {

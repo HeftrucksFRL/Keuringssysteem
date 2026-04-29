@@ -6,7 +6,7 @@ import { updateInspectionAction } from "@/app/keuringen/actions";
 import { formatMachineBrandTypeSerial, getMachineLocation } from "@/lib/machine-presentation";
 import {
   getAttachmentsForInspection,
-  getCustomers,
+  getCustomerById,
   getInspectionById,
   getMachineById
 } from "@/lib/inspection-service";
@@ -28,11 +28,11 @@ export default async function InspectionDetailPage({
     notFound();
   }
 
-  const customer = (await getCustomers()).find(
-    (item) => item.id === inspection.customerId
-  );
-  const machine = await getMachineById(inspection.machineId);
-  const attachments = await getAttachmentsForInspection(inspection.id);
+  const [customer, machine, attachments] = await Promise.all([
+    getCustomerById(inspection.customerId),
+    getMachineById(inspection.machineId),
+    getAttachmentsForInspection(inspection.id)
+  ]);
   const form = getFormDefinition(inspection.machineType);
   const photos = attachments.filter((attachment) => attachment.kind === "photo");
   const pdfAttachment = attachments.find((attachment) => attachment.kind === "pdf");
