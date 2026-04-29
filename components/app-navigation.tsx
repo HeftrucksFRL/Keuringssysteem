@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useEffect } from "react";
 import {
   ClipboardCheck,
   Forklift,
@@ -41,6 +42,31 @@ function isActive(pathname: string, href: string) {
 
 export function AppNavigation({ variant = "desktop" }: { variant?: "desktop" | "mobile" }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const prefetchRoute = useCallback((href: Route) => router.prefetch(href), [router]);
+
+  useEffect(() => {
+    if (variant !== "desktop") {
+      return;
+    }
+
+    const prefetchAll = () => links.forEach((link) => prefetchRoute(link.href));
+    const idleWindow = window as Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    const idleId = idleWindow.requestIdleCallback
+      ? idleWindow.requestIdleCallback(prefetchAll, { timeout: 1500 })
+      : globalThis.setTimeout(prefetchAll, 350);
+
+    return () => {
+      if (idleWindow.cancelIdleCallback && typeof idleId === "number") {
+        idleWindow.cancelIdleCallback(idleId);
+      } else {
+        globalThis.clearTimeout(idleId);
+      }
+    };
+  }, [prefetchRoute, variant]);
 
   if (variant === "mobile") {
     return (
@@ -52,6 +78,9 @@ export function AppNavigation({ variant = "desktop" }: { variant?: "desktop" | "
               key={link.href}
               className={`mobile-topnav-link ${isActive(pathname, link.href) ? "active" : ""}`}
               href={link.href}
+              onFocus={() => prefetchRoute(link.href)}
+              onPointerEnter={() => prefetchRoute(link.href)}
+              prefetch
             >
               <Icon size={16} />
               <span>{link.label}</span>
@@ -71,6 +100,9 @@ export function AppNavigation({ variant = "desktop" }: { variant?: "desktop" | "
             key={link.href}
             className={isActive(pathname, link.href) ? "active" : ""}
             href={link.href}
+            onFocus={() => prefetchRoute(link.href)}
+            onPointerEnter={() => prefetchRoute(link.href)}
+            prefetch
           >
             <Icon size={16} />
             <span>{link.label}</span>

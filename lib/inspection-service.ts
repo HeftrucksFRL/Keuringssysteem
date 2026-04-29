@@ -3278,6 +3278,28 @@ const STOCK_CUSTOMER_COMPANY = "Heftrucks.frl";
 const STOCK_CUSTOMER_EMAIL = "info@heftrucks.frl";
 const STOCK_CUSTOMER_PHONE = "0653842843";
 export async function getRentalStockMachines() {
+  if (hasSupabaseConfig()) {
+    const stockCustomers = (await getCustomerSummaries()).filter((customer) =>
+      isRentalStockCustomer(customer)
+    );
+    const stockCustomerIds = stockCustomers.map((customer) => customer.id);
+
+    if (stockCustomerIds.length === 0) {
+      return [];
+    }
+
+    const supabase = createSupabaseAdmin();
+    const { data } = await supabase
+      .from("machines")
+      .select("*")
+      .in("customer_id", stockCustomerIds)
+      .order("machine_number", { ascending: true });
+
+    return (data ?? [])
+      .map((row) => mapMachineRow(row))
+      .filter((machine) => !isMachineArchived(machine));
+  }
+
   const [machines, customers] = await Promise.all([getMachines(), getCustomers()]);
   const stockCustomerIds = new Set(
     customers.filter((customer) => isRentalStockCustomer(customer)).map((customer) => customer.id)

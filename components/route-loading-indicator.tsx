@@ -7,11 +7,24 @@ export function RouteLoadingIndicator() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
+  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    const reset = window.setTimeout(() => setLoading(false), 180);
+    setLoading(false);
+    setVisible(false);
+    const reset = window.setTimeout(() => setLoading(false), 120);
     return () => window.clearTimeout(reset);
   }, [pathname, searchParams]);
+
+  useEffect(() => {
+    if (!loading) {
+      setVisible(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => setVisible(true), 450);
+    return () => window.clearTimeout(timer);
+  }, [loading]);
 
   useEffect(() => {
     function handleInteraction(event: MouseEvent) {
@@ -43,7 +56,7 @@ export function RouteLoadingIndicator() {
     return () => window.removeEventListener("click", handleInteraction, true);
   }, []);
 
-  if (!loading) {
+  if (!visible) {
     return null;
   }
 
