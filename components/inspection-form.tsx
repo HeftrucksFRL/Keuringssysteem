@@ -262,6 +262,11 @@ export function InspectionForm({
   const [linkedBatteryQuery, setLinkedBatteryQuery] = useState("");
   const [linkedBatteryMenuOpen, setLinkedBatteryMenuOpen] = useState(false);
   const [selectedContactId, setSelectedContactId] = useState("");
+  const [loadedCustomerContacts, setLoadedCustomerContacts] =
+    useState<CustomerContactRecord[]>(customerContacts);
+  const [loadedContactCustomerIds, setLoadedContactCustomerIds] = useState<Set<string>>(
+    () => new Set(customerContacts.map((contact) => contact.customerId))
+  );
   const [contactMode, setContactMode] = useState<"existing" | "new">("existing");
   const [values, setValues] = useState<Record<string, string>>(() =>
     existingInspection
@@ -311,10 +316,12 @@ export function InspectionForm({
   const availableContacts = useMemo(
     () =>
       selectedCustomerId
-        ? customerContacts.filter((item) => item.customerId === selectedCustomerId)
+        ? loadedCustomerContacts.filter((item) => item.customerId === selectedCustomerId)
         : [],
-    [customerContacts, selectedCustomerId]
+    [loadedCustomerContacts, selectedCustomerId]
   );
+  const selectedCustomerContactsLoaded =
+    !selectedCustomerId || loadedContactCustomerIds.has(selectedCustomerId);
   const resolvedSelectedContactId = useMemo(() => {
     if (selectedContactId && availableContacts.some((item) => item.id === selectedContactId)) {
       return selectedContactId;
@@ -506,6 +513,10 @@ export function InspectionForm({
       return;
     }
 
+    if (selectedCustomerId && !selectedCustomerContactsLoaded) {
+      return;
+    }
+
     if (availableContacts.length === 0) {
       setSelectedContactId("");
       setContactMode("new");
@@ -518,7 +529,37 @@ export function InspectionForm({
         : (availableContacts.find((contact) => contact.isPrimary)?.id ?? availableContacts[0].id)
     );
     setContactMode("existing");
-  }, [availableContacts, isEditingExisting]);
+  }, [availableContacts, isEditingExisting, selectedCustomerContactsLoaded, selectedCustomerId]);
+
+  useEffect(() => {
+    if (isEditingExisting || !selectedCustomerId || selectedCustomerContactsLoaded) {
+      return;
+    }
+
+    let cancelled = false;
+    fetch(`/api/customers/${selectedCustomerId}/contacts`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: { contacts?: CustomerContactRecord[] } | null) => {
+        if (cancelled) {
+          return;
+        }
+        const nextContacts = payload?.contacts ?? [];
+        setLoadedCustomerContacts((current) => [
+          ...current.filter((contact) => contact.customerId !== selectedCustomerId),
+          ...nextContacts
+        ]);
+        setLoadedContactCustomerIds((current) => new Set(current).add(selectedCustomerId));
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLoadedContactCustomerIds((current) => new Set(current).add(selectedCustomerId));
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isEditingExisting, selectedCustomerContactsLoaded, selectedCustomerId]);
 
   useEffect(() => {
     if (isEditingExisting) {

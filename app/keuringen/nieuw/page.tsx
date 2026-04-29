@@ -1,11 +1,11 @@
 import { InspectionForm } from "@/components/inspection-form";
 import {
   getCustomerContacts,
-  getCustomers,
   getInspectionById,
   getInspectionNumberSeeds,
   getLatestInspectionForMachine,
-  getMachines
+  getMachineSummaries,
+  getVisibleCustomerSummaries
 } from "@/lib/inspection-service";
 
 export default async function NewInspectionPage({
@@ -14,16 +14,24 @@ export default async function NewInspectionPage({
   searchParams?: Promise<{ customerId?: string; machineId?: string; inspectionId?: string; saved?: string }>;
 }) {
   const params = await searchParams;
-  const [customers, customerContacts, machines, inspectionNumberSeeds, existingInspection] = await Promise.all([
-    getCustomers(),
-    getCustomerContacts(),
-    getMachines(),
+  const [customers, machines, inspectionNumberSeeds, existingInspection] = await Promise.all([
+    getVisibleCustomerSummaries(),
+    getMachineSummaries(),
     getInspectionNumberSeeds([new Date().getFullYear()]),
     params?.inspectionId ? getInspectionById(params.inspectionId) : Promise.resolve(null)
   ]);
   const initialInspection =
     existingInspection ??
     (params?.machineId ? await getLatestInspectionForMachine(params.machineId) : null);
+  const initialCustomerId =
+    params?.customerId ??
+    initialInspection?.customerId ??
+    (params?.machineId
+      ? machines.find((machine) => machine.id === params.machineId)?.customerId
+      : "");
+  const customerContacts = initialCustomerId
+    ? await getCustomerContacts(initialCustomerId)
+    : [];
 
   return (
     <InspectionForm
