@@ -11,6 +11,20 @@ export interface CustomerRecord {
   contactName: string;
   phone: string;
   email: string;
+  notes?: string;
+  locations?: CustomerLocationRecord[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CustomerLocationRecord {
+  id: string;
+  customerId: string;
+  name: string;
+  address: string;
+  city: string;
+  notes: string;
+  isPrimary: boolean;
   createdAt: string;
   updatedAt: string;
 }

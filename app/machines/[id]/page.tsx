@@ -9,6 +9,7 @@ import {
   assignMachineToStockAction,
   assignMachineToCustomerAction,
   saveBatteryChargerLinkAction,
+  setMachineCustomerLocationAction,
   unarchiveMachineAction,
   updateMachineAction
 } from "@/app/machines/actions";
@@ -16,7 +17,8 @@ import { CustomerPicker } from "@/components/customer-picker";
 import { MachinePicker } from "@/components/machine-picker";
 import { LinkedBatteryDialog } from "@/components/linked-battery-dialog";
 import {
-  getAttachmentsForInspection,
+  getCustomerLocations,
+  getInspectionAttachmentsForInspections,
   getMachineArchivedAt,
   getMachineArchiveLockDate,
   getLinkedBatteryChargerMachines,
@@ -126,6 +128,7 @@ export default async function MachineDetailPage({
   const customers = await getCustomers();
   const machines = await getMachines({ includeArchived: true });
   const customer = customers.find((item) => item.id === machine.customerId) ?? null;
+  const customerLocations = customer ? await getCustomerLocations(customer.id) : [];
   const history = await getMachineHistory(machine.id);
   const rentals = await getRentalsForMachine(machine.id);
   const linkedBatteryMachines =
@@ -158,13 +161,15 @@ export default async function MachineDetailPage({
       item.machineType !== "batterij_lader" &&
       !item.configuration.__archivedAt
   );
-  const attachmentsByInspection = await Promise.all(
-    history.map(async (inspection) => ({
-      inspectionId: inspection.id,
-      pdf: (await getAttachmentsForInspection(inspection.id)).find(
-        (attachment) => attachment.kind === "pdf"
-      )
-    }))
+  const historyAttachments = await getInspectionAttachmentsForInspections(
+    history.map((inspection) => inspection.id)
+  );
+  const attachmentsByInspection = history.map((inspection) => ({
+    inspectionId: inspection.id,
+    pdf: historyAttachments.find(
+      (attachment) => attachment.inspectionId === inspection.id && attachment.kind === "pdf"
+    )
+  })
   );
   const activeRental = rentals.find((rental) => rentalPhase(rental) === "active") ?? null;
   const upcomingRentals = rentals.filter((rental) => rentalPhase(rental) === "upcoming");
@@ -329,11 +334,20 @@ export default async function MachineDetailPage({
           />
           {(() => {
             const formValues = machineFormValues(machine) as Record<string, string>;
-            return machine.machineType === "batterij_lader"
-              ? hiddenBatteryVehicleFields.map((key) => (
-                  <input key={key} type="hidden" name={key} value={formValues[key] ?? ""} />
-                ))
-              : null;
+            return (
+              <>
+                <input
+                  type="hidden"
+                  name="customer_location_id"
+                  value={machine.configuration.customer_location_id ?? ""}
+                />
+                {machine.machineType === "batterij_lader"
+                  ? hiddenBatteryVehicleFields.map((key) => (
+                      <input key={key} type="hidden" name={key} value={formValues[key] ?? ""} />
+                    ))
+                  : null}
+              </>
+            );
           })()}
           {machine.machineType === "batterij_lader" && linkedMachine ? (
             <div className="selected-summary" style={{ marginTop: "1rem" }}>
@@ -384,6 +398,34 @@ export default async function MachineDetailPage({
                   <span>Locatie</span>
                   <strong>{getMachineLocation(machine) || "-"}</strong>
                 </div>
+                {customerLocations.length > 0 ? (
+                  <form action={setMachineCustomerLocationAction} className="list-item" style={{ display: "block" }}>
+                    <input type="hidden" name="machineId" value={machine.id} />
+                    <div className="field">
+                      <label htmlFor="customerLocationId">Locatie bij deze klant</label>
+                      <select
+                        id="customerLocationId"
+                        name="customerLocationId"
+                        defaultValue={machine.configuration.customer_location_id ?? ""}
+                        disabled={isArchived}
+                      >
+                        <option value="">Geen locatie gekozen</option>
+                        {customerLocations.map((location) => (
+                          <option key={location.id} value={location.id}>
+                            {[location.name, location.city].filter(Boolean).join(" - ")}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {!isArchived ? (
+                      <div className="actions" style={{ marginTop: "0.75rem" }}>
+                        <button className="button-secondary" type="submit">
+                          Locatie opslaan
+                        </button>
+                      </div>
+                    ) : null}
+                  </form>
+                ) : null}
                 <div className="list-item">
                   <span>Bedrijf</span>
                   <strong>{customer?.companyName ?? "-"}</strong>

@@ -1,6 +1,12 @@
 import Link from "next/link";
 import type { MachineType } from "@/lib/types";
-import { getCustomerById, getMachineById, getMachines, getVisibleCustomers } from "@/lib/inspection-service";
+import {
+  getCustomerById,
+  getCustomerLocations,
+  getMachineById,
+  getMachines,
+  getVisibleCustomers
+} from "@/lib/inspection-service";
 import { createMachineAction } from "@/app/machines/actions";
 import { CustomerPicker } from "@/components/customer-picker";
 import { MachineCreateFields } from "@/components/machine-create-fields";
@@ -8,7 +14,13 @@ import { MachineCreateFields } from "@/components/machine-create-fields";
 export default async function NewMachinePage({
   searchParams
 }: {
-  searchParams?: Promise<{ customerId?: string; stock?: string; type?: string; linkedMachineId?: string }>;
+  searchParams?: Promise<{
+    customerId?: string;
+    locationId?: string;
+    stock?: string;
+    type?: string;
+    linkedMachineId?: string;
+  }>;
 }) {
   const query = await searchParams;
   const customers = await getVisibleCustomers();
@@ -22,6 +34,9 @@ export default async function NewMachinePage({
   const preselectedCustomer = query?.customerId
     ? await getCustomerById(query.customerId)
     : null;
+  const preselectedLocations = preselectedCustomer
+    ? await getCustomerLocations(preselectedCustomer.id)
+    : [];
   const linkedMachineCustomer =
     !preselectedCustomer && linkedMachine?.customerId
       ? await getCustomerById(linkedMachine.customerId)
@@ -79,6 +94,23 @@ export default async function NewMachinePage({
                 {linkedMachine.serialNumber || "-"}
               </span>
             </div>
+          </div>
+        ) : null}
+        {!toStock && preselectedLocations.length > 0 ? (
+          <div className="field" style={{ marginTop: "1rem" }}>
+            <label htmlFor="customer_location_id">Locatie</label>
+            <select
+              id="customer_location_id"
+              name="customer_location_id"
+              defaultValue={query?.locationId ?? ""}
+            >
+              <option value="">Geen locatie gekozen</option>
+              {preselectedLocations.map((location) => (
+                <option key={location.id} value={location.id}>
+                  {[location.name, location.city].filter(Boolean).join(" - ")}
+                </option>
+              ))}
+            </select>
           </div>
         ) : null}
         <MachineCreateFields

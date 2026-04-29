@@ -21,3 +21,9 @@ on public.agenda_events(owner_id, event_date);
 
 create index if not exists idx_mail_events_status_created_at
 on public.mail_events(delivery_status, created_at desc);
+
+create index if not exists idx_inspection_attachments_inspection_kind
+on public.inspection_attachments(inspection_id, kind);
+
+create index if not exists idx_rentals_machine_status_dates
+on public.rentals(machine_id, status, start_date, end_date);

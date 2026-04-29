@@ -24,6 +24,7 @@ import type {
   AppDataSnapshot,
   CreateInspectionInput,
   CustomerContactRecord,
+  CustomerLocationRecord,
   CustomerRecord,
   InspectionRecord,
   MailAlertRecord,
@@ -429,6 +430,32 @@ function buildCustomerSnapshot(customer: {
     customer_phone: customer.phone,
     customer_email: customer.email
   };
+}
+
+function applyCustomerLocationToDetails(
+  customer: Pick<CustomerRecord, "locations"> | null | undefined,
+  details: Record<string, string>
+) {
+  const nextDetails = { ...details };
+  const locationId = String(nextDetails.customer_location_id ?? "").trim();
+  const location = customer?.locations?.find((item) => item.id === locationId) ?? null;
+
+  if (location) {
+    nextDetails.customer_location_id = location.id;
+    nextDetails.location = [location.name, location.city].filter(Boolean).join(" - ");
+  } else if (locationId) {
+    delete nextDetails.customer_location_id;
+    delete nextDetails.location;
+  }
+
+  return nextDetails;
+}
+
+function clearMachineLocationDetails(details: Record<string, string>) {
+  const nextDetails = { ...details };
+  delete nextDetails.customer_location_id;
+  delete nextDetails.location;
+  return nextDetails;
 }
 
 function mergeCustomerContactFields(
@@ -1070,7 +1097,65 @@ async function listDemoData() {
   }
 }
 
+type CustomerNotesPayload = {
+  notes: string;
+  locations: CustomerLocationRecord[];
+};
+
+function parseCustomerNotes(rawValue: unknown, customerId: string): CustomerNotesPayload {
+  const raw = String(rawValue ?? "").trim();
+  if (!raw) {
+    return { notes: "", locations: [] };
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as {
+      notes?: unknown;
+      locations?: Array<Partial<CustomerLocationRecord>>;
+    };
+    if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.locations)) {
+      return { notes: raw, locations: [] };
+    }
+
+    return {
+      notes: String(parsed.notes ?? ""),
+      locations: parsed.locations.map((location) => ({
+        id: String(location.id || randomUUID()),
+        customerId,
+        name: String(location.name ?? ""),
+        address: String(location.address ?? ""),
+        city: String(location.city ?? ""),
+        notes: String(location.notes ?? ""),
+        isPrimary: Boolean(location.isPrimary),
+        createdAt: String(location.createdAt ?? nowIso()),
+        updatedAt: String(location.updatedAt ?? "")
+      }))
+    };
+  } catch {
+    return { notes: raw, locations: [] };
+  }
+}
+
+function encodeCustomerNotes(input: CustomerNotesPayload) {
+  if (!input.notes.trim() && input.locations.length === 0) {
+    return null;
+  }
+
+  return JSON.stringify({
+    notes: input.notes.trim(),
+    locations: input.locations
+  });
+}
+
+function customerNotesPayload(customer: CustomerRecord): CustomerNotesPayload {
+  return {
+    notes: customer.notes ?? "",
+    locations: customer.locations ?? []
+  };
+}
+
 function mapCustomerRow(row: Record<string, unknown>): CustomerRecord {
+  const notesPayload = parseCustomerNotes(row.notes, String(row.id));
   return {
     id: String(row.id),
     companyName: String(row.company_name ?? ""),
@@ -1079,6 +1164,8 @@ function mapCustomerRow(row: Record<string, unknown>): CustomerRecord {
     contactName: String(row.contact_name ?? ""),
     phone: String(row.phone ?? ""),
     email: String(row.email ?? ""),
+    notes: notesPayload.notes,
+    locations: notesPayload.locations,
     createdAt: String(row.created_at ?? ""),
     updatedAt: String(row.updated_at ?? "")
   };
@@ -1218,6 +1305,7 @@ const CUSTOMER_SUMMARY_SELECT = [
   "contact_name",
   "phone",
   "email",
+  "notes",
   "created_at",
   "updated_at"
 ].join(", ");
@@ -1233,6 +1321,7 @@ const MACHINE_SUMMARY_SELECT = [
   "serial_number",
   "build_year",
   "internal_number",
+  "configuration",
   "created_at",
   "updated_at"
 ].join(", ");
@@ -2721,6 +2810,20 @@ export async function getInspectionAttachments() {
 }
 
 export async function getMachineById(id: string, options: { includeArchived?: boolean } = {}) {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data } = await supabase
+      .from("machines")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (!data) {
+      return null;
+    }
+    const machine = mapMachineRow(data);
+    return options.includeArchived || !isMachineArchived(machine) ? machine : null;
+  }
+
   const machines = await getMachines(options);
   return machines.find((machine) => machine.id === id) ?? null;
 }
@@ -2731,16 +2834,270 @@ export async function getInspectionById(id: string) {
 }
 
 export async function getMachineHistory(machineId: string) {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data } = await supabase
+      .from("inspections")
+      .select("*")
+      .eq("machine_id", machineId)
+      .order("inspection_date", { ascending: false });
+    return (data ?? []).map((row) => mapInspectionRow(row));
+  }
+
   const inspections = await getInspections();
   return inspections.filter((inspection) => inspection.machineId === machineId);
 }
 
 export async function getAttachmentsForInspection(inspectionId: string) {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data } = await supabase
+      .from("inspection_attachments")
+      .select("*")
+      .eq("inspection_id", inspectionId)
+      .order("created_at", { ascending: false });
+    return (data ?? []).map((row) => ({
+      id: String(row.id),
+      inspectionId: String(row.inspection_id),
+      kind: row.kind,
+      fileName: String(row.file_name),
+      storagePath: String(row.storage_path),
+      mimeType: String(row.mime_type),
+      createdAt: String(row.created_at)
+    }));
+  }
+
   const attachments = await getInspectionAttachments();
   return attachments.filter((attachment) => attachment.inspectionId === inspectionId);
 }
 
+export async function getInspectionAttachmentsForInspections(inspectionIds: string[]) {
+  const ids = inspectionIds.filter(Boolean);
+  if (ids.length === 0) {
+    return [];
+  }
+
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data } = await supabase
+      .from("inspection_attachments")
+      .select("*")
+      .in("inspection_id", ids)
+      .order("created_at", { ascending: false });
+    return (data ?? []).map((row) => ({
+      id: String(row.id),
+      inspectionId: String(row.inspection_id),
+      kind: row.kind,
+      fileName: String(row.file_name),
+      storagePath: String(row.storage_path),
+      mimeType: String(row.mime_type),
+      createdAt: String(row.created_at)
+    }));
+  }
+
+  const idSet = new Set(ids);
+  const attachments = await getInspectionAttachments();
+  return attachments.filter((attachment) => idSet.has(attachment.inspectionId));
+}
+
+export async function getInspectionsForCustomer(customerId: string) {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data } = await supabase
+      .from("inspections")
+      .select("*")
+      .eq("customer_id", customerId)
+      .order("inspection_date", { ascending: false });
+    return (data ?? []).map((row) => mapInspectionRow(row));
+  }
+
+  const inspections = await getInspections();
+  return inspections.filter((inspection) => inspection.customerId === customerId);
+}
+
+export async function getCustomerLocations(customerId: string) {
+  const customer = await getCustomerById(customerId);
+  return customer?.locations ?? [];
+}
+
+async function saveCustomerLocations(customer: CustomerRecord, locations: CustomerLocationRecord[]) {
+  const normalizedLocations = locations.map((location, index) => ({
+    ...location,
+    customerId: customer.id,
+    isPrimary: locations.length === 1 ? true : location.isPrimary || index === 0,
+    updatedAt: location.updatedAt || nowIso()
+  }));
+  const payload = encodeCustomerNotes({
+    ...customerNotesPayload(customer),
+    locations: normalizedLocations
+  });
+
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    await supabase
+      .from("customers")
+      .update({ notes: payload })
+      .eq("id", customer.id);
+    return normalizedLocations;
+  }
+
+  const data = await readAppData();
+  const storedCustomer = data.customers.find((item) => item.id === customer.id);
+  if (storedCustomer) {
+    storedCustomer.notes = customer.notes ?? "";
+    storedCustomer.locations = normalizedLocations;
+    storedCustomer.updatedAt = nowIso();
+  }
+  await writeAppData(data);
+  return normalizedLocations;
+}
+
+export async function addCustomerLocation(input: {
+  customerId: string;
+  name: string;
+  address?: string;
+  city?: string;
+  notes?: string;
+  makePrimary?: boolean;
+}) {
+  const customer = await getCustomerById(input.customerId);
+  if (!customer) {
+    throw new Error("Klant niet gevonden.");
+  }
+
+  const locations = customer.locations ?? [];
+  const location: CustomerLocationRecord = {
+    id: randomUUID(),
+    customerId: input.customerId,
+    name: input.name.trim() || "Locatie",
+    address: input.address?.trim() || "",
+    city: input.city?.trim() || "",
+    notes: input.notes?.trim() || "",
+    isPrimary: Boolean(input.makePrimary) || locations.length === 0,
+    createdAt: nowIso(),
+    updatedAt: nowIso()
+  };
+  const nextLocations = location.isPrimary
+    ? locations.map((item) => ({ ...item, isPrimary: false }))
+    : locations;
+
+  await saveCustomerLocations(customer, [...nextLocations, location]);
+  return location;
+}
+
+export async function updateCustomerLocation(input: {
+  customerId: string;
+  locationId: string;
+  name: string;
+  address?: string;
+  city?: string;
+  notes?: string;
+  makePrimary?: boolean;
+}) {
+  const customer = await getCustomerById(input.customerId);
+  if (!customer) {
+    throw new Error("Klant niet gevonden.");
+  }
+
+  const nextLocations = (customer.locations ?? []).map((location) => {
+    if (location.id !== input.locationId) {
+      return input.makePrimary ? { ...location, isPrimary: false } : location;
+    }
+
+    return {
+      ...location,
+      name: input.name.trim() || "Locatie",
+      address: input.address?.trim() || "",
+      city: input.city?.trim() || "",
+      notes: input.notes?.trim() || "",
+      isPrimary: Boolean(input.makePrimary) || location.isPrimary,
+      updatedAt: nowIso()
+    };
+  });
+
+  await saveCustomerLocations(customer, nextLocations);
+}
+
+export async function deleteCustomerLocation(input: {
+  customerId: string;
+  locationId: string;
+}) {
+  const customer = await getCustomerById(input.customerId);
+  if (!customer) {
+    return;
+  }
+
+  const nextLocations = (customer.locations ?? []).filter(
+    (location) => location.id !== input.locationId
+  );
+  await saveCustomerLocations(customer, nextLocations);
+
+  const machines = await getMachinesForCustomer(input.customerId, { includeArchived: true });
+  await Promise.all(
+    machines
+      .filter((machine) => machine.configuration.customer_location_id === input.locationId)
+      .map((machine) =>
+        setMachineCustomerLocation({
+          machineId: machine.id,
+          customerLocationId: ""
+        })
+      )
+  );
+}
+
+export async function setMachineCustomerLocation(input: {
+  machineId: string;
+  customerLocationId: string;
+}) {
+  const machine = await getMachineById(input.machineId, { includeArchived: true });
+  if (!machine) {
+    throw new Error("Machine niet gevonden.");
+  }
+
+  const customer = await getCustomerById(machine.customerId);
+  const location =
+    customer?.locations?.find((item) => item.id === input.customerLocationId) ?? null;
+  const nextConfiguration = sanitizeMachineConfiguration({
+    ...machine.configuration
+  });
+
+  if (location) {
+    nextConfiguration.customer_location_id = location.id;
+    nextConfiguration.location = [location.name, location.city].filter(Boolean).join(" - ");
+  } else {
+    delete nextConfiguration.customer_location_id;
+    delete nextConfiguration.location;
+  }
+
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    await supabase
+      .from("machines")
+      .update({ configuration: nextConfiguration })
+      .eq("id", input.machineId);
+    return;
+  }
+
+  const data = await readAppData();
+  const storedMachine = data.machines.find((item) => item.id === input.machineId);
+  if (storedMachine) {
+    storedMachine.configuration = nextConfiguration;
+    storedMachine.updatedAt = nowIso();
+  }
+  await writeAppData(data);
+}
+
 export async function getCustomerById(id: string) {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data } = await supabase
+      .from("customers")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    return data ? mapCustomerRow(data) : null;
+  }
+
   const customers = await getCustomers();
   return customers.find((customer) => customer.id === id) ?? null;
 }
@@ -2749,16 +3106,48 @@ export async function getMachinesForCustomer(
   customerId: string,
   options: { includeArchived?: boolean } = {}
 ) {
+  const includeArchived = options.includeArchived ?? false;
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data } = await supabase
+      .from("machines")
+      .select("*")
+      .eq("customer_id", customerId)
+      .order("machine_number", { ascending: true });
+    const machines = (data ?? []).map((row) => mapMachineRow(row));
+    return includeArchived ? machines : machines.filter((machine) => !isMachineArchived(machine));
+  }
+
   const machines = await getMachines(options);
   return machines.filter((machine) => machine.customerId === customerId);
 }
 
 export async function getRentalsForMachine(machineId: string) {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data } = await supabase
+      .from("rentals")
+      .select("*")
+      .eq("machine_id", machineId)
+      .order("start_date", { ascending: false });
+    return (data ?? []).map((row) => mapRentalRow(row));
+  }
+
   const rentals = await getRentals();
   return rentals.filter((rental) => rental.machineId === machineId);
 }
 
 export async function getRentalsForCustomer(customerId: string) {
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { data } = await supabase
+      .from("rentals")
+      .select("*")
+      .eq("customer_id", customerId)
+      .order("start_date", { ascending: false });
+    return (data ?? []).map((row) => mapRentalRow(row));
+  }
+
   const rentals = await getRentals();
   return rentals.filter((rental) => rental.customerId === customerId);
 }
@@ -3412,6 +3801,10 @@ export async function createMachine(input: {
     input.serialNumber.trim() ||
     `${input.brand.trim()}-${input.model.trim()}`.replace(/\s+/g, "-").toLowerCase() ||
     randomUUID().slice(0, 8);
+  const customer = await getCustomerById(input.customerId);
+  const configuration = sanitizeMachineConfiguration(
+    applyCustomerLocationToDetails(customer, input.details ?? {})
+  );
 
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
@@ -3428,7 +3821,7 @@ export async function createMachine(input: {
           serial_number: input.serialNumber,
           build_year: Number(input.buildYear || 0) || null,
           internal_number: input.internalNumber,
-          configuration: sanitizeMachineConfiguration(input.details ?? {})
+          configuration
         },
         { onConflict: "machine_number" }
       )
@@ -3452,7 +3845,7 @@ export async function createMachine(input: {
     existing.serialNumber = input.serialNumber;
     existing.buildYear = input.buildYear;
     existing.internalNumber = input.internalNumber;
-    existing.configuration = sanitizeMachineConfiguration(input.details ?? {});
+    existing.configuration = configuration;
     existing.updatedAt = nowIso();
     await writeAppData(data);
     return existing.id;
@@ -3469,7 +3862,7 @@ export async function createMachine(input: {
     serialNumber: input.serialNumber,
     buildYear: input.buildYear,
     internalNumber: input.internalNumber,
-    configuration: sanitizeMachineConfiguration(input.details ?? {}),
+    configuration,
     createdAt: nowIso(),
     updatedAt: nowIso()
   };
@@ -3998,6 +4391,10 @@ export async function updateMachine(input: {
     if (currentMachine) {
       assertMachineNotArchiveLocked(currentMachine, "Machine bijwerken");
     }
+    const customer = currentMachine ? await getCustomerById(currentMachine.customerId) : null;
+    const configuration = sanitizeMachineConfiguration(
+      applyCustomerLocationToDetails(customer, input.details)
+    );
     const duplicateMachines = currentMachine
       ? findDuplicateMachines(
           ((await supabase
@@ -4020,7 +4417,7 @@ export async function updateMachine(input: {
         build_year: Number(input.buildYear || 0) || null,
         internal_number: input.internalNumber,
         machine_type: input.machineType,
-        configuration: sanitizeMachineConfiguration(input.details)
+        configuration
       })
       .eq("id", input.id)
       .select("*")
@@ -4101,7 +4498,10 @@ export async function updateMachine(input: {
   machine.machineNumber = machineNumber;
   machine.machineType = input.machineType;
   machine.availabilityStatus = machine.availabilityStatus ?? "available";
-  machine.configuration = sanitizeMachineConfiguration(input.details);
+  const customer = data.customers.find((item) => item.id === machine.customerId) ?? null;
+  machine.configuration = sanitizeMachineConfiguration(
+    applyCustomerLocationToDetails(customer, input.details)
+  );
   machine.updatedAt = nowIso();
 
   for (const duplicate of duplicateMachines) {
@@ -4165,7 +4565,12 @@ export async function assignMachineToCustomer(input: {
       .maybeSingle();
     const { data: machineRow } = await supabase
       .from("machines")
-      .update({ customer_id: input.customerId })
+      .update({
+        customer_id: input.customerId,
+        configuration: sanitizeMachineConfiguration(
+          clearMachineLocationDetails(mapMachineRow(currentMachineRow ?? {}).configuration)
+        )
+      })
       .eq("id", input.machineId)
       .select("*")
       .maybeSingle();
@@ -4223,6 +4628,9 @@ export async function assignMachineToCustomer(input: {
   assertMachineNotArchiveLocked(machine, "Deze machine aan een andere klant koppelen");
 
   machine.customerId = input.customerId;
+  machine.configuration = sanitizeMachineConfiguration(
+    clearMachineLocationDetails(machine.configuration)
+  );
   machine.updatedAt = nowIso();
   data.planningItems.forEach((item) => {
     if (item.machineId === input.machineId && item.state !== "completed") {
@@ -4289,7 +4697,12 @@ export async function reassignMachineToCustomerForCleanup(input: {
 
     await supabase
       .from("machines")
-      .update({ customer_id: input.customerId })
+      .update({
+        customer_id: input.customerId,
+        configuration: sanitizeMachineConfiguration(
+          clearMachineLocationDetails(currentMachine.configuration)
+        )
+      })
       .eq("id", input.machineId);
 
     await supabase
@@ -4348,6 +4761,9 @@ export async function reassignMachineToCustomerForCleanup(input: {
   }
 
   machine.customerId = input.customerId;
+  machine.configuration = sanitizeMachineConfiguration(
+    clearMachineLocationDetails(machine.configuration)
+  );
   machine.updatedAt = nowIso();
 
   data.planningItems.forEach((item) => {

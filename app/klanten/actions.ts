@@ -6,13 +6,16 @@ import { redirect } from "next/navigation";
 import { requireActivityActor, requireCleanupManager } from "@/lib/auth";
 import {
   addActivityLog,
+  addCustomerLocation,
   addCustomerContact,
   createCustomer,
   deleteCustomer,
   deleteCustomerContact,
+  deleteCustomerLocation,
   ensureRentalStockCustomerId,
   reassignMachineToCustomerForCleanup,
   updateCustomer,
+  updateCustomerLocation,
   updateCustomerContact,
   updatePlanningItem
 } from "@/lib/inspection-service";
@@ -190,6 +193,96 @@ export async function deleteCustomerContactAction(formData: FormData) {
   revalidatePath("/keuringen/nieuw");
   revalidatePath("/");
   redirect(`/klanten/${customerId}?contactSaved=1`);
+}
+
+export async function addCustomerLocationAction(formData: FormData) {
+  const actor = await requireActivityActor();
+  const customerId = String(formData.get("customerId") || "");
+  const name = String(formData.get("name") || "");
+
+  await addCustomerLocation({
+    customerId,
+    name,
+    address: String(formData.get("address") || ""),
+    city: String(formData.get("city") || ""),
+    notes: String(formData.get("notes") || ""),
+    makePrimary: formData.get("makePrimary") === "on"
+  });
+
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "customer_location.created",
+    entityType: "customer_location",
+    targetLabel: name || `Locatie ${customerId}`,
+    details: { customerId }
+  });
+
+  revalidatePath(`/klanten/${customerId}`);
+  revalidatePath("/machines");
+  revalidatePath("/keuringen/nieuw");
+  redirect(`/klanten/${customerId}?locationSaved=1`);
+}
+
+export async function updateCustomerLocationAction(formData: FormData) {
+  const actor = await requireActivityActor();
+  const customerId = String(formData.get("customerId") || "");
+  const locationId = String(formData.get("locationId") || "");
+  const name = String(formData.get("name") || "");
+
+  await updateCustomerLocation({
+    customerId,
+    locationId,
+    name,
+    address: String(formData.get("address") || ""),
+    city: String(formData.get("city") || ""),
+    notes: String(formData.get("notes") || ""),
+    makePrimary: formData.get("makePrimary") === "on"
+  });
+
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "customer_location.updated",
+    entityType: "customer_location",
+    entityId: locationId,
+    targetLabel: name || `Locatie ${locationId}`,
+    details: { customerId }
+  });
+
+  revalidatePath(`/klanten/${customerId}`);
+  revalidatePath("/machines");
+  revalidatePath("/keuringen/nieuw");
+  redirect(`/klanten/${customerId}?locationSaved=1`);
+}
+
+export async function deleteCustomerLocationAction(formData: FormData) {
+  const actor = await requireActivityActor();
+  const customerId = String(formData.get("customerId") || "");
+  const locationId = String(formData.get("locationId") || "");
+
+  await deleteCustomerLocation({
+    customerId,
+    locationId
+  });
+
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "customer_location.deleted",
+    entityType: "customer_location",
+    entityId: locationId,
+    targetLabel: `Locatie ${locationId}`,
+    details: { customerId }
+  });
+
+  revalidatePath(`/klanten/${customerId}`);
+  revalidatePath("/machines");
+  revalidatePath("/keuringen/nieuw");
+  redirect(`/klanten/${customerId}?locationSaved=1`);
 }
 
 export async function cleanupMoveMachineAction(formData: FormData) {

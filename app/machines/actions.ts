@@ -14,6 +14,7 @@ import {
   getMachineById,
   isMachineArchived,
   reassignMachineToCustomerForCleanup,
+  setMachineCustomerLocation,
   setBatteryChargerLink,
   updateMachine
 } from "@/lib/inspection-service";
@@ -73,6 +74,10 @@ function getMachinePayload(formData: FormData, machineType: MachineType) {
   const linkedMachineId = String(formData.get("linked_machine_id") || "").trim();
   if (machineType === "batterij_lader" && linkedMachineId) {
     details.linked_machine_id = linkedMachineId;
+  }
+  const customerLocationId = String(formData.get("customer_location_id") || "").trim();
+  if (customerLocationId) {
+    details.customer_location_id = customerLocationId;
   }
 
   return {
@@ -227,6 +232,42 @@ export async function assignMachineToCustomerAction(formData: FormData) {
   });
 
   redirect(`/machines/${machineId}?assigned=1`);
+}
+
+export async function setMachineCustomerLocationAction(formData: FormData) {
+  const actor = await requireActivityActor();
+  const machineId = String(formData.get("machineId") || "");
+  const customerLocationId = String(formData.get("customerLocationId") || "");
+
+  try {
+    await setMachineCustomerLocation({
+      machineId,
+      customerLocationId
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? encodeURIComponent(error.message)
+        : encodeURIComponent("Locatie opslaan is niet gelukt.");
+    redirect(`/machines/${machineId}?error=${message}`);
+  }
+
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "machine.location_updated",
+    entityType: "machine",
+    entityId: machineId,
+    targetLabel: `Machine ${machineId}`,
+    details: { customerLocationId: customerLocationId || null }
+  });
+
+  revalidatePath("/machines");
+  revalidatePath(`/machines/${machineId}`);
+  revalidatePath("/klanten");
+  revalidatePath("/keuringen/nieuw");
+  redirect(`/machines/${machineId}?saved=1`);
 }
 
 export async function assignMachineToStockAction(formData: FormData) {

@@ -1,21 +1,25 @@
 import { fileUrl } from "@/lib/file-urls";
 import { canManageCleanup, requireUser } from "@/lib/auth";
-import { getInspectionAttachments } from "@/lib/inspection-service";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Route } from "next";
 import {
   addCustomerContactAction,
+  addCustomerLocationAction,
   cleanupMoveMachineAction,
   deleteCustomerAction,
   deleteCustomerContactAction,
+  deleteCustomerLocationAction,
   updateCustomerAction,
+  updateCustomerLocationAction,
   updateCustomerContactAction
 } from "@/app/klanten/actions";
 import {
   getCustomerById,
   getCustomerContacts,
-  getInspections,
+  getCustomerLocations,
+  getInspectionAttachmentsForInspections,
+  getInspectionsForCustomer,
   getMachineArchivedAt,
   getMachines,
   getMachinesForCustomer,
@@ -46,6 +50,7 @@ export default async function CustomerDetailPage({
     created?: string;
     contactSaved?: string;
     cleanupMoved?: string;
+    locationSaved?: string;
     error?: string;
   }>;
 }) {
@@ -60,16 +65,30 @@ export default async function CustomerDetailPage({
   }
 
   const machines = await getMachinesForCustomer(customer.id, { includeArchived: true });
+  const locations = await getCustomerLocations(customer.id);
   const contacts = await getCustomerContacts(customer.id);
   const allMachines = await getMachines({ includeArchived: true });
   const assignableCustomers = (await getVisibleCustomers()).filter(
     (item) => item.id !== customer.id
   );
   const rentals = await getRentalsForCustomer(customer.id);
-  const inspections = (await getInspections()).filter(
-    (inspection) => inspection.customerId === customer.id
+  const inspections = await getInspectionsForCustomer(customer.id);
+  const attachments = await getInspectionAttachmentsForInspections(
+    inspections.map((inspection) => inspection.id)
   );
-  const attachments = await getInspectionAttachments();
+  const machinesByLocation = new Map<string, typeof machines>();
+  for (const location of locations) {
+    machinesByLocation.set(location.id, []);
+  }
+  const machinesWithoutLocation: typeof machines = [];
+  for (const machine of machines) {
+    const locationId = machine.configuration.customer_location_id;
+    if (locationId && machinesByLocation.has(locationId)) {
+      machinesByLocation.get(locationId)!.push(machine);
+    } else {
+      machinesWithoutLocation.push(machine);
+    }
+  }
 
   return (
     <>
@@ -80,6 +99,7 @@ export default async function CustomerDetailPage({
         {query?.saved ? <p className="form-message success">Klant opgeslagen.</p> : null}
         {query?.created ? <p className="form-message success">Klant toegevoegd.</p> : null}
         {query?.contactSaved ? <p className="form-message success">Contactpersoon toegevoegd.</p> : null}
+        {query?.locationSaved ? <p className="form-message success">Locatie opgeslagen.</p> : null}
         {query?.cleanupMoved ? (
           <p className="form-message success">Machine en gekoppelde historie zijn verplaatst.</p>
         ) : null}
@@ -251,10 +271,186 @@ export default async function CustomerDetailPage({
         </section>
 
         <section className="panel">
+          <div className="eyebrow">Locaties</div>
+          <h2>Werk- en afleverlocaties</h2>
+          <div className="compact-contact-list">
+            {locations.map((location) => (
+              <details className="compact-contact-item" key={location.id}>
+                <summary className="compact-contact-summary">
+                  <div className="compact-contact-main">
+                    <strong>{location.name}</strong>
+                    <span>{[location.address, location.city].filter(Boolean).join(", ") || "-"}</span>
+                  </div>
+                  <div className="compact-contact-meta">
+                    {location.isPrimary ? <span className="badge blue">Hoofdlocatie</span> : null}
+                    <span>{machinesByLocation.get(location.id)?.length ?? 0} machines</span>
+                    <span className="compact-contact-trigger">Bewerken</span>
+                  </div>
+                </summary>
+                <div className="compact-contact-body">
+                  <form action={updateCustomerLocationAction}>
+                    <input type="hidden" name="customerId" value={customer.id} />
+                    <input type="hidden" name="locationId" value={location.id} />
+                    <div className="compact-contact-fields">
+                      <div className="field">
+                        <label htmlFor={`location-name-${location.id}`}>Locatienaam</label>
+                        <input id={`location-name-${location.id}`} name="name" defaultValue={location.name} />
+                      </div>
+                      <div className="field">
+                        <label htmlFor={`location-address-${location.id}`}>Adres</label>
+                        <input id={`location-address-${location.id}`} name="address" defaultValue={location.address} />
+                      </div>
+                      <div className="field">
+                        <label htmlFor={`location-city-${location.id}`}>Plaats</label>
+                        <input id={`location-city-${location.id}`} name="city" defaultValue={location.city} />
+                      </div>
+                      <div className="field">
+                        <label htmlFor={`location-notes-${location.id}`}>Notitie</label>
+                        <input id={`location-notes-${location.id}`} name="notes" defaultValue={location.notes} />
+                      </div>
+                    </div>
+                    <div className="compact-contact-actions">
+                      <label className="status-chip" htmlFor={`location-primary-${location.id}`}>
+                        <input
+                          id={`location-primary-${location.id}`}
+                          name="makePrimary"
+                          type="checkbox"
+                          defaultChecked={location.isPrimary}
+                        />
+                        Hoofdlocatie
+                      </label>
+                      <button className="button-secondary" type="submit">
+                        Opslaan
+                      </button>
+                    </div>
+                  </form>
+                  <form action={deleteCustomerLocationAction}>
+                    <input type="hidden" name="customerId" value={customer.id} />
+                    <input type="hidden" name="locationId" value={location.id} />
+                    <div className="compact-contact-actions">
+                      <button className="button-secondary" type="submit">
+                        Verwijderen
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </details>
+            ))}
+            <details className="compact-contact-item compact-contact-add">
+              <summary className="compact-contact-summary">
+                <div className="compact-contact-main">
+                  <strong>Locatie toevoegen</strong>
+                </div>
+                <div className="compact-contact-meta">
+                  <span className="compact-contact-trigger">Nieuw</span>
+                </div>
+              </summary>
+              <div className="compact-contact-body">
+                <form action={addCustomerLocationAction}>
+                  <input type="hidden" name="customerId" value={customer.id} />
+                  <div className="compact-contact-fields">
+                    <div className="field">
+                      <label htmlFor="location-name">Locatienaam</label>
+                      <input id="location-name" name="name" placeholder="Bijv. Werkplaats, loods 2" />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="location-address">Adres</label>
+                      <input id="location-address" name="address" />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="location-city">Plaats</label>
+                      <input id="location-city" name="city" />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="location-notes">Notitie</label>
+                      <input id="location-notes" name="notes" />
+                    </div>
+                  </div>
+                  <div className="compact-contact-actions">
+                    <label className="status-chip" htmlFor="location-make-primary">
+                      <input id="location-make-primary" name="makePrimary" type="checkbox" />
+                      Hoofdlocatie
+                    </label>
+                    <button className="button-secondary" type="submit">
+                      Toevoegen
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </details>
+          </div>
+        </section>
+
+        <section className="panel">
           <div className="eyebrow">Machines</div>
-          <h2>Bij deze klant</h2>
+          <h2>Bij deze klant per locatie</h2>
           <div className="list">
-            {machines.map((machine) => (
+            {locations.map((location) => (
+              <details className="compact-contact-item" key={`machines-${location.id}`} open>
+                <summary className="compact-contact-summary">
+                  <div className="compact-contact-main">
+                    <strong>{location.name}</strong>
+                    <span>{[location.address, location.city].filter(Boolean).join(", ") || "-"}</span>
+                  </div>
+                  <div className="compact-contact-meta">
+                    <span>{machinesByLocation.get(location.id)?.length ?? 0} machines</span>
+                    <Link
+                      className="button-secondary"
+                      href={`/machines/nieuw?customerId=${customer.id}&locationId=${location.id}` as Route}
+                    >
+                      Machine toevoegen
+                    </Link>
+                  </div>
+                </summary>
+                <div className="compact-contact-body">
+                  <div className="list">
+                    {(machinesByLocation.get(location.id) ?? []).map((machine) => (
+                      <Link
+                        className="list-item"
+                        key={machine.id}
+                        href={`/machines/${machine.id}`}
+                        style={
+                          getMachineArchivedAt(machine)
+                            ? { background: "#fef3f2", borderColor: "#fecdca" }
+                            : undefined
+                        }
+                      >
+                        <span>
+                          <strong>{formatMachineBrandTypeSerial(machine)}</strong>
+                          <br />
+                          {[machine.internalNumber || machine.machineNumber, machine.serialNumber]
+                            .filter(Boolean)
+                            .join(" | ")}
+                        </span>
+                        <strong>{getMachineArchivedAt(machine) ? "Gearchiveerd" : "Open"}</strong>
+                      </Link>
+                    ))}
+                    {(machinesByLocation.get(location.id) ?? []).length === 0 ? (
+                      <div className="list-item">
+                        <span>Geen machines op deze locatie.</span>
+                        <strong>-</strong>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </details>
+            ))}
+            <details className="compact-contact-item" open>
+              <summary className="compact-contact-summary">
+                <div className="compact-contact-main">
+                  <strong>Zonder locatie</strong>
+                  <span>Machines die nog niet aan een klantlocatie gekoppeld zijn.</span>
+                </div>
+                <div className="compact-contact-meta">
+                  <span>{machinesWithoutLocation.length} machines</span>
+                  <Link className="button-secondary" href={`/machines/nieuw?customerId=${customer.id}` as Route}>
+                    Machine toevoegen
+                  </Link>
+                </div>
+              </summary>
+              <div className="compact-contact-body">
+                <div className="list">
+            {machinesWithoutLocation.map((machine) => (
               <Link
                 className="list-item"
                 key={machine.id}
@@ -281,6 +477,15 @@ export default async function CustomerDetailPage({
                 </strong>
               </Link>
             ))}
+            {machinesWithoutLocation.length === 0 ? (
+              <div className="list-item">
+                <span>Geen machines zonder locatie.</span>
+                <strong>-</strong>
+              </div>
+            ) : null}
+                </div>
+              </div>
+            </details>
             {rentals
               .filter((rental) => rentalPhase(rental) === "active")
               .map((rental) => {
