@@ -1468,25 +1468,14 @@ export async function createInspection(input: CreateInspectionInput) {
     machineRow = data;
   }
 
-  const inspectionYear = Number(input.inspectionDate.slice(0, 4));
-  const { data: yearInspectionRows, error: sequenceError } = await supabase
-    .from("inspections")
-    .select("inspection_number")
-    .gte("inspection_date", `${inspectionYear}-01-01`)
-    .lte("inspection_date", `${inspectionYear}-12-31`);
+  const { data: generatedInspectionNumber, error: sequenceError } = await supabase.rpc(
+    "next_inspection_number",
+    { target_date: input.inspectionDate }
+  );
 
-  if (sequenceError) {
+  if (sequenceError || !generatedInspectionNumber) {
     throw new Error("Keurnummer kon niet worden aangemaakt.");
   }
-
-  const generatedInspectionNumber = (() => {
-    const base = getYearSequenceStart(inspectionYear);
-    const yearValues = (yearInspectionRows ?? [])
-      .map((row) => Number(row.inspection_number))
-      .filter((value) => !Number.isNaN(value));
-
-    return yearValues.length > 0 ? Math.max(...yearValues) + 1 : base;
-  })();
 
   const { data: inserted, error: insertError } = await supabase
     .from("inspections")
