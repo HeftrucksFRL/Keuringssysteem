@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { getCsrfHeaders } from "@/lib/client-security";
 import { getFormDefinition } from "@/lib/form-definitions";
 import { previewNextInspectionNumber } from "@/lib/inspection-number";
+import { isMachineHistoryCustomer, isRentalStockCustomer, stockOwnerLabel } from "@/lib/stock-customer";
 import { addTwelveMonths } from "@/lib/utils";
 import type {
   CustomerContactRecord,
@@ -305,8 +306,28 @@ export function InspectionForm({
   const [inspectionHistory, setInspectionHistory] = useState<InspectionRecord[]>(inspections);
 
   const form = useMemo(() => getFormDefinition(type), [type]);
+  const customerById = useMemo(
+    () => new Map(customers.map((customer) => [customer.id, customer])),
+    [customers]
+  );
+  const visibleCustomers = useMemo(
+    () =>
+      customers.filter(
+        (customer) => !isRentalStockCustomer(customer) && !isMachineHistoryCustomer(customer)
+      ),
+    [customers]
+  );
   const selectedCustomer = customers.find((item) => item.id === selectedCustomerId) ?? null;
   const selectedMachine = machines.find((item) => item.id === selectedMachineId) ?? null;
+  const selectedMachineOwner = selectedMachine
+    ? customerById.get(selectedMachine.customerId) ?? null
+    : null;
+  const selectedMachineCanSkipCustomer = Boolean(
+    selectedMachine && isRentalStockCustomer(selectedMachineOwner)
+  );
+  const selectedCustomerDisplay = selectedMachineCanSkipCustomer
+    ? stockOwnerLabel()
+    : values.customer_name || selectedCustomer?.companyName || "-";
   const selectedBatteryLinkedMachineId =
     type === "batterij_lader" ? String(selectedMachine?.configuration.linked_machine_id ?? "").trim() : "";
   const selectedBatteryLinkedMachine =
@@ -375,15 +396,18 @@ export function InspectionForm({
 
   const filteredCustomers = useMemo(() => {
     const query = customerQuery.trim().toLowerCase();
-    if (!query) return customers.slice(0, 8);
-    return customers.filter((customer) =>
+    if (!query) return visibleCustomers.slice(0, 8);
+    return visibleCustomers.filter((customer) =>
       [customer.companyName, customer.contactName, customer.email, customer.phone].join(" ").toLowerCase().includes(query)
     );
-  }, [customerQuery, customers]);
+  }, [customerQuery, visibleCustomers]);
 
   const customerMachines = useMemo(
-    () => (selectedCustomerId ? machines.filter((machine) => machine.customerId === selectedCustomerId) : []),
-    [machines, selectedCustomerId]
+    () =>
+      selectedCustomerId
+        ? machines.filter((machine) => machine.customerId === selectedCustomerId)
+        : machines.filter((machine) => isRentalStockCustomer(customerById.get(machine.customerId) ?? null)),
+    [customerById, machines, selectedCustomerId]
   );
 
   const filteredMachines = useMemo(() => {
@@ -703,6 +727,13 @@ export function InspectionForm({
   function chooseMachine(machine: MachineRecord) {
     setMachineMode("existing");
     setSelectedMachineId(machine.id);
+    const owner = customerById.get(machine.customerId) ?? null;
+    if (isRentalStockCustomer(owner)) {
+      setSelectedCustomerId("");
+      setCustomerQuery("");
+      setSelectedContactId("");
+      setValues((current) => ({ ...current, ...customerValues(null) }));
+    }
     setMachineMenuOpen(false);
     setLinkedBatteryMenuOpen(false);
     setDraftNotice("");
@@ -749,11 +780,16 @@ export function InspectionForm({
   }
 
   function validateStep(targetStep: Step) {
-    if (targetStep === 1 && customerMode === "existing" && !selectedCustomerId) {
+    if (
+      targetStep === 1 &&
+      customerMode === "existing" &&
+      !selectedCustomerId &&
+      !selectedMachineCanSkipCustomer
+    ) {
       setMessage({ type: "error", text: "Kies eerst een klant om verder te gaan." });
       return false;
     }
-    if (targetStep === 2 && !String(values.customer_name || "").trim()) {
+    if (targetStep === 2 && !selectedMachineCanSkipCustomer && !String(values.customer_name || "").trim()) {
       setMessage({ type: "error", text: "Vul eerst de klantgegevens in." });
       return false;
     }
@@ -940,6 +976,50 @@ export function InspectionForm({
                   <span>{selectedCustomer?.contactName || "Kies eerst een klant om verder te gaan."}</span>
                 </div>
               </div>
+              <div className="field autocomplete">
+                <label htmlFor="stock-machine-search">Of zoek voorraadmachine</label>
+                <input
+                  id="stock-machine-search"
+                  value={machineQuery}
+                  onChange={(event) => {
+                    setMachineQuery(event.target.value);
+                    setSelectedMachineId("");
+                    setMachineMenuOpen(true);
+                  }}
+                  onFocus={() => setMachineMenuOpen(true)}
+                  placeholder="Intern nummer, merk, type of serienummer"
+                  autoComplete="off"
+                />
+                {filteredMachines.length > 0 && machineQuery && machineMenuOpen && !selectedCustomerId ? (
+                  <div className="autocomplete-menu">
+                    {filteredMachines.map((machine) => (
+                      <button
+                        className="autocomplete-item"
+                        key={machine.id}
+                        type="button"
+                        onClick={() => {
+                          chooseMachine(machine);
+                          setStep(3);
+                        }}
+                      >
+                        <strong>{machine.internalNumber || machine.machineNumber} - {machine.brand}</strong>
+                        <span>{machine.model}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+              <div className="compact-card">
+                <div className="eyebrow">Gekozen voorraadmachine</div>
+                <div className="info-card">
+                  <strong>
+                    {selectedMachineCanSkipCustomer
+                      ? `${selectedMachine?.brand ?? ""} ${selectedMachine?.model ?? ""}`.trim()
+                      : "Nog geen voorraadmachine gekozen"}
+                  </strong>
+                  <span>{selectedMachineCanSkipCustomer ? stockOwnerLabel() : "Geen klant nodig."}</span>
+                </div>
+              </div>
             </div>
           ) : (
             <p className="muted" style={{ marginTop: "1rem" }}>
@@ -1122,7 +1202,7 @@ export function InspectionForm({
                   </div>
                 </>
               ) : null}
-              {form.machineFields
+              {!selectedMachineCanSkipCustomer ? form.machineFields
                 .filter(
                   (field) =>
                     field.key.startsWith("customer_") &&
@@ -1146,7 +1226,7 @@ export function InspectionForm({
                       onChange={(event) => setFieldValue(field.key, event.target.value)}
                     />
                   </div>
-                ))}
+                )) : null}
             </div>
           </div>
         </section>
@@ -1296,7 +1376,7 @@ export function InspectionForm({
               <div className="eyebrow">Geselecteerde gegevens</div>
               <div className="read-only-grid inspection-summary-grid">
                 <div className="info-card info-card-complete">
-                  <strong>{values.customer_name || "-"}</strong>
+                  <strong>{selectedCustomerDisplay}</strong>
                   <span>Gekozen klant</span>
                 </div>
                 <div className="info-card info-card-complete">

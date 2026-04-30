@@ -46,10 +46,6 @@ export async function submitInspectionAction(
     .getAll("photos")
     .filter((value): value is File => value instanceof File && value.size > 0);
 
-  if (!String(formData.get("customer_name") || "").trim()) {
-    return { status: "error", message: "Vul de klantnaam in." };
-  }
-
   if (!inspectionDate) {
     return { status: "error", message: "Kies een keuringsdatum." };
   }

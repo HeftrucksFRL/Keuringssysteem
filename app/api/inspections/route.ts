@@ -74,13 +74,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!String(formData.get("customer_name") || "").trim()) {
-      return NextResponse.json(
-        { ok: false, message: "Vul eerst de klant in." },
-        { status: 400 }
-      );
-    }
-
     if (!internalNumber.trim()) {
       return NextResponse.json(
         { ok: false, message: "Vul het intern nummer van de machine in." },

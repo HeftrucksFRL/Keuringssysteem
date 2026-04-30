@@ -1354,11 +1354,29 @@ export async function createInspection(input: CreateInspectionInput) {
   const supabase = createSupabaseAdmin();
   const status = statusFromResultLabels(input.resultLabels);
   const nextInspectionDate = addTwelveMonths(input.inspectionDate);
+  const { data: currentMachineRow } = input.machineId
+    ? await supabase
+        .from("machines")
+        .select("*")
+        .eq("id", input.machineId)
+        .maybeSingle()
+    : { data: null };
+  const currentMachine = currentMachineRow ? mapMachineRow(currentMachineRow) : null;
+  const currentMachineOwner = currentMachine
+    ? await getCustomerById(currentMachine.customerId)
+    : null;
+  const stockInspectionWithoutCustomer =
+    Boolean(currentMachine && isRentalStockCustomer(currentMachineOwner)) &&
+    !String(input.customer.companyName ?? "").trim() &&
+    (!input.customerId || input.customerId === currentMachine?.customerId);
 
   let customerRow: Record<string, unknown> | null = null;
+  const resolvedCustomerId = stockInspectionWithoutCustomer
+    ? currentMachine?.customerId
+    : input.customerId;
   const existingCustomer =
-    input.customerId
-      ? await getCustomerById(input.customerId)
+    resolvedCustomerId
+      ? await getCustomerById(resolvedCustomerId)
       : null;
   const mergedCustomer = mergeCustomerContactFields(
     existingCustomer ?? {
@@ -1370,7 +1388,21 @@ export async function createInspection(input: CreateInspectionInput) {
     },
     input.customer
   );
-  if (input.customerId) {
+
+  if (!stockInspectionWithoutCustomer && !mergedCustomer.companyName.trim()) {
+    throw new Error("Vul eerst de klant in.");
+  }
+
+  if (stockInspectionWithoutCustomer && existingCustomer) {
+    customerRow = {
+      id: existingCustomer.id,
+      company_name: existingCustomer.companyName,
+      address_line_1: existingCustomer.address,
+      contact_name: existingCustomer.contactName,
+      phone: existingCustomer.phone,
+      email: existingCustomer.email
+    };
+  } else if (resolvedCustomerId) {
     const { data } = await supabase
       .from("customers")
       .update({
@@ -1380,7 +1412,7 @@ export async function createInspection(input: CreateInspectionInput) {
         phone: mergedCustomer.phone || null,
         email: mergedCustomer.email || null
       })
-      .eq("id", input.customerId)
+      .eq("id", resolvedCustomerId)
       .select()
       .single();
     customerRow = data;
@@ -1406,22 +1438,18 @@ export async function createInspection(input: CreateInspectionInput) {
     throw new Error("Klant kon niet worden opgeslagen.");
   }
 
-  await upsertSupabaseCustomerContact(supabase, String(customerRow.id), {
-    ...input.customer,
-    companyName: mergedCustomer.companyName,
-    address: mergedCustomer.address,
-    phone: trimContactValue(input.customer.phone),
-    email: trimContactValue(input.customer.email)
-  });
+  if (!stockInspectionWithoutCustomer) {
+    await upsertSupabaseCustomerContact(supabase, String(customerRow.id), {
+      ...input.customer,
+      companyName: mergedCustomer.companyName,
+      address: mergedCustomer.address,
+      phone: trimContactValue(input.customer.phone),
+      email: trimContactValue(input.customer.email)
+    });
+  }
 
   let machineRow: Record<string, unknown> | null = null;
   if (input.machineId) {
-    const { data: currentMachineRow } = await supabase
-      .from("machines")
-      .select("*")
-      .eq("id", input.machineId)
-      .maybeSingle();
-
     if (currentMachineRow) {
       assertMachineNotArchiveLocked(
         mapMachineRow(currentMachineRow),
