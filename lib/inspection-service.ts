@@ -2410,7 +2410,7 @@ export async function getInspectionSummaries() {
     const supabase = createSupabaseAdmin();
     const { data } = await supabase
       .from("inspections")
-      .select("id, customer_id, machine_id, machine_type, inspection_date, inspection_number, status, updated_at")
+      .select("id, customer_id, machine_id, machine_type, inspection_date, inspection_number, status, machine_snapshot, updated_at")
       .order("inspection_date", { ascending: false });
 
     return (data ?? []).map((row) => ({
@@ -2424,7 +2424,7 @@ export async function getInspectionSummaries() {
       status: row.status as InspectionRecord["status"],
       sendPdfToCustomer: false,
       customerSnapshot: {},
-      machineSnapshot: {},
+      machineSnapshot: (row.machine_snapshot as Record<string, string>) ?? {},
       checklist: {},
       findings: "",
       recommendations: "",
