@@ -7,6 +7,7 @@ import { getCsrfHeaders } from "@/lib/client-security";
 import { fileUrl } from "@/lib/file-urls";
 import {
   formatMachineBrandTypeSerial,
+  formatMachineKindBrandType,
   getMachineDisplaySerial,
   getMachineDisplayTitle
 } from "@/lib/machine-presentation";
@@ -135,7 +136,12 @@ export function InspectionsTable({
       machines
         .map((machine) => ({
           id: machine.id,
-          label: [formatMachineBrandTypeSerial(machine), machine.internalNumber || machine.machineNumber]
+          label: [
+            machine.machineType === "batterij_lader" || machine.machineType === "stellingmateriaal"
+              ? formatMachineKindBrandType(machine)
+              : formatMachineBrandTypeSerial(machine),
+            machine.machineType === "batterij_lader" ? "" : machine.internalNumber || machine.machineNumber
+          ]
             .filter(Boolean)
             .join(" | ")
         }))
@@ -253,8 +259,11 @@ export function InspectionsTable({
       serial_number: inspection.machineSnapshot.serial_number,
       configuration: inspection.machineSnapshot
     };
-    const machineTitle = getMachineDisplayTitle(machineSource);
-    const serialNumber = getMachineDisplaySerial(machineSource);
+    const isBatteryCharger = machineSource.machineType === "batterij_lader";
+    const isRacking = machineSource.machineType === "stellingmateriaal";
+    const machineTitle =
+      isBatteryCharger || isRacking ? formatMachineKindBrandType(machineSource) : getMachineDisplayTitle(machineSource);
+    const serialNumber = isBatteryCharger ? "" : getMachineDisplaySerial(machineSource);
     const machineLabel = machineTitle || "-";
     const pdfAttachment = pdfAttachmentByInspectionId.get(inspection.id);
     const statusClass =
@@ -271,7 +280,8 @@ export function InspectionsTable({
           {inspection.inspectionNumber}
         </strong>
         <span className="compact-overview-detail">
-          {inspection.inspectionDate} | {customer?.companyName ?? "-"} | Machine: {machineLabel} | Serienummer: {serialNumber || "-"}
+          {inspection.inspectionDate} | {customer?.companyName ?? "-"} | Machine: {machineLabel}
+          {serialNumber ? ` | Serienummer: ${serialNumber}` : ""}
         </span>
         <span className="compact-overview-actions">
           {pdfAttachment ? (

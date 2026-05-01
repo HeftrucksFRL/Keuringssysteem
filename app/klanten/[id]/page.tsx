@@ -25,7 +25,11 @@ import {
   getRentalsForCustomer,
   getVisibleCustomers
 } from "@/lib/inspection-service";
-import { formatMachineBrandTypeSerial, getMachineLocation } from "@/lib/machine-presentation";
+import {
+  formatMachineBrandTypeSerial,
+  formatMachineKindBrandType,
+  getMachineLocation
+} from "@/lib/machine-presentation";
 import { CustomerPicker } from "@/components/customer-picker";
 
 function rentalPhase(rental: { startDate: string; endDate: string; status: "active" | "completed" }) {
@@ -419,9 +423,18 @@ export default async function CustomerDetailPage({
                         }
                       >
                         <span>
-                          <strong>{formatMachineBrandTypeSerial(machine)}</strong>
+                          <strong>
+                            {machine.machineType === "batterij_lader" || machine.machineType === "stellingmateriaal"
+                              ? formatMachineKindBrandType(machine)
+                              : formatMachineBrandTypeSerial(machine)}
+                          </strong>
                           <br />
-                          {[machine.internalNumber || machine.machineNumber, machine.serialNumber]
+                          {[
+                            machine.machineType === "batterij_lader"
+                              ? ""
+                              : machine.internalNumber || machine.machineNumber,
+                            machine.machineType === "batterij_lader" ? "" : machine.serialNumber
+                          ]
                             .filter(Boolean)
                             .join(" | ")}
                         </span>
@@ -465,9 +478,16 @@ export default async function CustomerDetailPage({
                 }
               >
                     <span>
-                      <strong>{formatMachineBrandTypeSerial(machine)}</strong>
+                      <strong>
+                        {machine.machineType === "batterij_lader" || machine.machineType === "stellingmateriaal"
+                          ? formatMachineKindBrandType(machine)
+                          : formatMachineBrandTypeSerial(machine)}
+                      </strong>
                       <br />
-                      {[`Locatie: ${getMachineLocation(machine) || "-"}`, machine.internalNumber || machine.machineNumber]
+                      {[
+                        `Locatie: ${getMachineLocation(machine) || "-"}`,
+                        machine.machineType === "batterij_lader" ? "" : machine.internalNumber || machine.machineNumber
+                      ]
                         .filter(Boolean)
                         .join(" | ")}
                     </span>
@@ -503,7 +523,9 @@ export default async function CustomerDetailPage({
                     <span>
                       <strong>
                         {machine
-                          ? formatMachineBrandTypeSerial(machine)
+                          ? machine.machineType === "batterij_lader" || machine.machineType === "stellingmateriaal"
+                            ? formatMachineKindBrandType(machine)
+                            : formatMachineBrandTypeSerial(machine)
                           : "Verhuurde machine"}
                       </strong>
                       <br />
@@ -529,7 +551,9 @@ export default async function CustomerDetailPage({
                     <span>
                       <strong>
                         {machine
-                          ? formatMachineBrandTypeSerial(machine)
+                          ? machine.machineType === "batterij_lader" || machine.machineType === "stellingmateriaal"
+                            ? formatMachineKindBrandType(machine)
+                            : formatMachineBrandTypeSerial(machine)
                           : "Aanstaande huur"}
                       </strong>
                       <br />
@@ -573,9 +597,15 @@ export default async function CustomerDetailPage({
                   }}
                 >
                   <span>
-                    <strong>{machine.internalNumber || machine.machineNumber}</strong>
+                    <strong>
+                      {machine.machineType === "batterij_lader" || machine.machineType === "stellingmateriaal"
+                        ? formatMachineKindBrandType(machine)
+                        : machine.internalNumber || machine.machineNumber}
+                    </strong>
                     <br />
-                    {machine.brand} {machine.model}
+                    {machine.machineType === "batterij_lader" || machine.machineType === "stellingmateriaal"
+                      ? ""
+                      : `${machine.brand} ${machine.model}`}
                   </span>
                   <Link className="button-secondary" href={`/machines/${machine.id}`}>
                     Open machinekaart
@@ -667,13 +697,20 @@ export default async function CustomerDetailPage({
           <div className="table-row" key={inspection.id}>
             <span>{inspection.inspectionNumber}</span>
             <span>
-              {formatMachineBrandTypeSerial({
-                machineType: inspection.machineType,
-                brand: inspection.machineSnapshot.brand,
-                model: inspection.machineSnapshot.model,
-                serial_number: inspection.machineSnapshot.serial_number,
-                configuration: inspection.machineSnapshot
-              })}
+              {inspection.machineType === "batterij_lader" || inspection.machineType === "stellingmateriaal"
+                ? formatMachineKindBrandType({
+                    machineType: inspection.machineType,
+                    brand: inspection.machineSnapshot.brand,
+                    model: inspection.machineSnapshot.model,
+                    configuration: inspection.machineSnapshot
+                  })
+                : formatMachineBrandTypeSerial({
+                    machineType: inspection.machineType,
+                    brand: inspection.machineSnapshot.brand,
+                    model: inspection.machineSnapshot.model,
+                    serial_number: inspection.machineSnapshot.serial_number,
+                    configuration: inspection.machineSnapshot
+                  })}
             </span>
             <span>{inspection.inspectionDate}</span>
             <span>

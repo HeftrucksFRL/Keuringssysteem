@@ -17,6 +17,7 @@ import {
   getRecentMachineSummaries,
   getTodoItems
 } from "@/lib/inspection-service";
+import { formatMachineKindBrandType } from "@/lib/machine-presentation";
 import { getPlanningDisplayLabel, getPlanningDisplayState } from "@/lib/planning";
 
 function buildTodoNote(title: string, description?: string | null) {
@@ -304,9 +305,15 @@ export default async function HomePage({
             {recentMachines.map((machine) => (
               <Link className="list-item" key={machine.id} href={`/machines/${machine.id}`}>
                 <span>
-                  <strong>{machine.internalNumber || machine.machineNumber}</strong>
+                  <strong>
+                    {machine.machineType === "batterij_lader" || machine.machineType === "stellingmateriaal"
+                      ? formatMachineKindBrandType(machine)
+                      : machine.internalNumber || machine.machineNumber}
+                  </strong>
                   <br />
-                  {machine.brand} {machine.model}
+                  {machine.machineType === "batterij_lader" || machine.machineType === "stellingmateriaal"
+                    ? ""
+                    : `${machine.brand} ${machine.model}`}
                 </span>
                 <span className="badge blue">
                   {getCustomerDisplayName(customerById.get(machine.customerId) ?? null)}

@@ -777,10 +777,8 @@ export const formDefinitions: FormDefinition[] = [
     ]),
     checklistOptions: ["goed", "slecht", "nvt"],
     conclusionLabels: [
-      "Batterij goedgekeurd",
-      "Batterij afgekeurd",
-      "Lader goedgekeurd",
-      "Lader afgekeurd",
+      "Batterij/lader goedgekeurd",
+      "Batterij/lader afgekeurd",
       "In behandeling"
     ],
     sections: [

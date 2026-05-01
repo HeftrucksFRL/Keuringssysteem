@@ -23,6 +23,7 @@ import {
   getPlanningDisplayState,
   type PlanningDisplayState
 } from "@/lib/planning";
+import { formatMachineKindBrandType } from "@/lib/machine-presentation";
 import { getCustomerDisplayName, isRentalStockCustomer } from "@/lib/stock-customer";
 import { formatLocalDateInput, parseLocalDateInput, todayLocalIso } from "@/lib/utils";
 
@@ -177,6 +178,18 @@ function rentalMomentLabel(moment: "start" | "end") {
   return moment === "start" ? "Start verhuur" : "Einde verhuur";
 }
 
+function planningMachineLabel(machine?: MachineRecord) {
+  if (!machine) {
+    return "Machine";
+  }
+
+  if (machine.machineType === "batterij_lader" || machine.machineType === "stellingmateriaal") {
+    return formatMachineKindBrandType(machine);
+  }
+
+  return machine.internalNumber || machine.machineNumber || "Machine";
+}
+
 function eventMatchesFilter(event: AgendaEvent, filter: ViewFilter) {
   if (filter === "all") {
     return true;
@@ -246,7 +259,7 @@ function dayPopupSubtitle(event: AgendaEvent) {
   }
 
   if (event.kind === "rental") {
-    return `${rentalMomentLabel(event.rentalMoment)} | ${event.machineList[0]?.internalNumber || event.machineList[0]?.machineNumber || "Machine"}`;
+    return `${rentalMomentLabel(event.rentalMoment)} | ${planningMachineLabel(event.machineList[0])}`;
   }
 
   return `${event.place} | ${event.machineList.length} machine${event.machineList.length === 1 ? "" : "s"}`;
@@ -417,7 +430,19 @@ export function PlanningCalendar({
           event.kind === "appointment" ? event.appointment.description : "",
           event.kind === "rental" ? rentalMomentLabel(event.rentalMoment) : "",
           ...event.machineList.map((machine) =>
-            [machine.internalNumber, machine.machineNumber, machine.brand, machine.model, machine.serialNumber]
+            [
+              planningMachineLabel(machine),
+              machine.internalNumber,
+              machine.machineNumber,
+              machine.brand,
+              machine.model,
+              machine.serialNumber,
+              machine.configuration.battery_brand,
+              machine.configuration.battery_type,
+              machine.configuration.charger_brand,
+              machine.configuration.charger_type,
+              machine.configuration.racking_type
+            ]
               .filter(Boolean)
               .join(" ")
           )
@@ -629,7 +654,7 @@ export function PlanningCalendar({
                 >
                   <div className="agenda-time">
                     {event.kind === "rental"
-                      ? event.machineList[0]?.internalNumber || event.machineList[0]?.machineNumber || "Machine"
+                      ? planningMachineLabel(event.machineList[0])
                       : event.kind === "appointment"
                         ? "Afspraak"
                         : event.place}
@@ -698,7 +723,7 @@ export function PlanningCalendar({
                     >
                       <strong>
                         {event.kind === "rental"
-                          ? event.machineList[0]?.internalNumber || event.machineList[0]?.machineNumber || "Machine"
+                          ? planningMachineLabel(event.machineList[0])
                           : event.kind === "appointment"
                             ? event.appointment.title
                             : `${customerDisplayName(event.customer)} - ${event.machineList.length}`}
@@ -889,12 +914,16 @@ export function PlanningCalendar({
                     <Link className="list-item" href={`/machines/${machine.id}`} key={machine.id}>
                       <span>
                         <strong>
-                          {machine.brand} {machine.model}
+                          {planningMachineLabel(machine)}
                         </strong>
-                        <br />
-                        Serienr: {machine.serialNumber || "-"}
+                        {machine.machineType !== "batterij_lader" ? (
+                          <>
+                            <br />
+                            Serienr: {machine.serialNumber || "-"}
+                          </>
+                        ) : null}
                       </span>
-                      <strong>{machine.internalNumber || machine.machineNumber || "-"}</strong>
+                      <strong>{machine.machineType === "batterij_lader" ? "Batterij/lader" : machine.internalNumber || machine.machineNumber || "-"}</strong>
                     </Link>
                   ))}
                 </div>

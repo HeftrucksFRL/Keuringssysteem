@@ -3,7 +3,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Route } from "next";
 import { updateInspectionAction } from "@/app/keuringen/actions";
-import { formatMachineBrandTypeSerial, getMachineLocation } from "@/lib/machine-presentation";
+import {
+  formatMachineBrandTypeSerial,
+  formatMachineKindBrandType,
+  getMachineLocation
+} from "@/lib/machine-presentation";
 import {
   getAttachmentsForInspection,
   getCustomerById,
@@ -46,18 +50,23 @@ export default async function InspectionDetailPage({
         <p>
           {customer?.companyName ?? "-"} |{" "}
           {machine
-            ? formatMachineBrandTypeSerial(machine, {
-                includeSerial: machine.machineType !== "batterij_lader"
-              })
-            : formatMachineBrandTypeSerial({
-                machineType: inspection.machineType,
-                brand: inspection.machineSnapshot.brand,
-                model: inspection.machineSnapshot.model,
-                serial_number: inspection.machineSnapshot.serial_number,
-                configuration: inspection.machineSnapshot
-              }, {
-                includeSerial: inspection.machineType !== "batterij_lader"
-              })}
+            ? machine.machineType === "batterij_lader" || machine.machineType === "stellingmateriaal"
+              ? formatMachineKindBrandType(machine)
+              : formatMachineBrandTypeSerial(machine)
+            : inspection.machineType === "batterij_lader" || inspection.machineType === "stellingmateriaal"
+              ? formatMachineKindBrandType({
+                  machineType: inspection.machineType,
+                  brand: inspection.machineSnapshot.brand,
+                  model: inspection.machineSnapshot.model,
+                  configuration: inspection.machineSnapshot
+                })
+              : formatMachineBrandTypeSerial({
+                  machineType: inspection.machineType,
+                  brand: inspection.machineSnapshot.brand,
+                  model: inspection.machineSnapshot.model,
+                  serial_number: inspection.machineSnapshot.serial_number,
+                  configuration: inspection.machineSnapshot
+                })}
         </p>
         {query?.saved ? <p className="form-message success">Keuring opgeslagen.</p> : null}
         <div className="actions">
@@ -124,18 +133,23 @@ export default async function InspectionDetailPage({
               <span>Machine</span>
               <strong>
                 {machine
-                  ? formatMachineBrandTypeSerial(machine, {
-                      includeSerial: machine.machineType !== "batterij_lader"
-                    })
-                  : formatMachineBrandTypeSerial({
-                      machineType: inspection.machineType,
-                      brand: inspection.machineSnapshot.brand,
-                      model: inspection.machineSnapshot.model,
-                      serial_number: inspection.machineSnapshot.serial_number,
-                      configuration: inspection.machineSnapshot
-                    }, {
-                      includeSerial: inspection.machineType !== "batterij_lader"
-                    })}
+                  ? machine.machineType === "batterij_lader" || machine.machineType === "stellingmateriaal"
+                    ? formatMachineKindBrandType(machine)
+                    : formatMachineBrandTypeSerial(machine)
+                  : inspection.machineType === "batterij_lader" || inspection.machineType === "stellingmateriaal"
+                    ? formatMachineKindBrandType({
+                        machineType: inspection.machineType,
+                        brand: inspection.machineSnapshot.brand,
+                        model: inspection.machineSnapshot.model,
+                        configuration: inspection.machineSnapshot
+                      })
+                    : formatMachineBrandTypeSerial({
+                        machineType: inspection.machineType,
+                        brand: inspection.machineSnapshot.brand,
+                        model: inspection.machineSnapshot.model,
+                        serial_number: inspection.machineSnapshot.serial_number,
+                        configuration: inspection.machineSnapshot
+                      })}
               </strong>
             </div>
             <div className="list-item">

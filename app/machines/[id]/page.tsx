@@ -35,6 +35,7 @@ import {
 } from "@/lib/inspection-service";
 import { fileUrl } from "@/lib/file-urls";
 import {
+  formatMachineKindBrandType,
   formatMachineBrandTypeSerial,
   getMachineLocation
 } from "@/lib/machine-presentation";
@@ -66,15 +67,7 @@ function machineTitle(machine: MachineRecord | null) {
   }
 
   if (machine.machineType === "batterij_lader") {
-    const batteryBrand = machine.configuration.battery_brand || machine.brand;
-    const batteryType = machine.configuration.battery_type || machine.model;
-    const chargerBrand = machine.configuration.charger_brand || "";
-    const chargerType = machine.configuration.charger_type || "";
-    return (
-      [batteryBrand, batteryType].filter(Boolean).join(" ") ||
-      [chargerBrand, chargerType].filter(Boolean).join(" ") ||
-      "Batterij / lader"
-    );
+    return formatMachineKindBrandType(machine);
   }
 
   return [machine.brand, machine.model].filter(Boolean).join(" ") || "Machine";
@@ -226,14 +219,20 @@ export default async function MachineDetailPage({
           {isArchived
             ? `Deze machine is gearchiveerd. Controleer hieronder de archiefstatus en open alleen nog het dossier als naslag.`
             : isHistoryMachine
-            ? `Intern nummer ${machine.internalNumber || "-"} staat in de Historiebak. Koppel deze machine aan een klant zodra hij weer in de werkgang terugkomt.`
+            ? machine.machineType === "batterij_lader"
+              ? `${machineTitle(machine)} staat in de Historiebak. Koppel deze batterij/lader aan een klant zodra hij weer in de werkgang terugkomt.`
+              : `Intern nummer ${machine.internalNumber || "-"} staat in de Historiebak. Koppel deze machine aan een klant zodra hij weer in de werkgang terugkomt.`
             : isRentalStockMachine
-            ? `Intern nummer ${machine.internalNumber || "-"} uit de eigen voorraad. Vanuit dit dossier kun je keuringen en verhuur voorbereiden.`
-            : `Intern nummer ${machine.internalNumber || "-"} bij ${customer?.companyName ?? "onbekende klant"}. Vanuit dit dossier kun je eerdere keuringen openen en de volgende inspectie voorbereiden.`}
+            ? machine.machineType === "batterij_lader"
+              ? `${machineTitle(machine)} uit de eigen voorraad. Vanuit dit dossier kun je keuringen voorbereiden.`
+              : `Intern nummer ${machine.internalNumber || "-"} uit de eigen voorraad. Vanuit dit dossier kun je keuringen en verhuur voorbereiden.`
+            : machine.machineType === "batterij_lader"
+              ? `${machineTitle(machine)} bij ${customer?.companyName ?? "onbekende klant"}. Vanuit dit dossier kun je eerdere keuringen openen.`
+              : `Intern nummer ${machine.internalNumber || "-"} bij ${customer?.companyName ?? "onbekende klant"}. Vanuit dit dossier kun je eerdere keuringen openen en de volgende inspectie voorbereiden.`}
         </p>
         <p>
           {machine.machineType === "batterij_lader"
-            ? machineTitle(machine)
+            ? formatMachineKindBrandType(machine)
             : formatMachineBrandTypeSerial(machine)}{" "}
           | Locatie: {getMachineLocation(machine) || "-"}
         </p>
@@ -555,17 +554,6 @@ export default async function MachineDetailPage({
                       [item.configuration.battery_brand || item.brand, item.configuration.battery_type || item.model]
                         .filter(Boolean)
                         .join(" ") || "Batterij / lader",
-                    internalNumber:
-                      item.configuration.vehicle_internal_number ||
-                      item.internalNumber ||
-                      item.machineNumber ||
-                      "-",
-                    serialNumber:
-                      item.configuration.vehicle_serial_number ||
-                      item.configuration.battery_serial_number ||
-                      item.configuration.charger_serial_number ||
-                      item.serialNumber ||
-                      "-",
                     batteryLabel:
                       [item.configuration.battery_brand, item.configuration.battery_type]
                         .filter(Boolean)

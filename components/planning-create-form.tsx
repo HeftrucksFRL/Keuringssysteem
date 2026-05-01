@@ -5,6 +5,7 @@ import { useFormStatus } from "react-dom";
 import { CalendarPlus, ClipboardPlus } from "lucide-react";
 import { createAgendaEventAction, createManualPlanningAction } from "@/app/planning/actions";
 import type { CustomerRecord, MachineRecord } from "@/lib/domain";
+import { formatMachineKindBrandType } from "@/lib/machine-presentation";
 import { todayLocalIso } from "@/lib/utils";
 
 function buildDefaultDate(initialMonth?: string) {
@@ -138,9 +139,11 @@ export function PlanningCreateForm({
                         ) : (
                           filteredMachines.map((machine) => (
                             <option key={machine.id} value={machine.id}>
-                              {[machine.internalNumber || machine.machineNumber, machine.brand, machine.model]
-                                .filter(Boolean)
-                                .join(" ")}
+                              {machine.machineType === "batterij_lader" || machine.machineType === "stellingmateriaal"
+                                ? formatMachineKindBrandType(machine)
+                                : [machine.internalNumber || machine.machineNumber, machine.brand, machine.model]
+                                    .filter(Boolean)
+                                    .join(" ")}
                             </option>
                           ))
                         )}

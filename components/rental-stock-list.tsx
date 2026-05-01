@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { CustomerRecord, MachineRecord, RentalRecord } from "@/lib/domain";
+import { formatMachineKindBrandType } from "@/lib/machine-presentation";
 import { todayLocalIso } from "@/lib/utils";
 
 interface RentalStockListProps {
@@ -105,6 +106,10 @@ export function RentalStockList({
             filteredMachines.map((machine) => {
               const rental = rentalByMachine.get(machine.id);
               const rentalCustomer = rental ? customerById.get(rental.customerId) ?? null : null;
+              const specialMachineLabel =
+                machine.machineType === "batterij_lader" || machine.machineType === "stellingmateriaal"
+                  ? formatMachineKindBrandType(machine)
+                  : "";
 
               return (
                 <Link
@@ -113,9 +118,13 @@ export function RentalStockList({
                   key={machine.id}
                 >
                   <strong>
+                    {specialMachineLabel || (
+                      <>
                     {machine.internalNumber || machine.machineNumber} · {[machine.brand, machine.model]
                       .filter(Boolean)
                       .join(" ")}
+                      </>
+                    )}
                   </strong>
                   <span>{stockOwnerLabel}</span>
                   <span>

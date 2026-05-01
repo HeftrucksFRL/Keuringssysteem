@@ -7,8 +7,6 @@ interface LinkedBatterySummary {
   id: string;
   customerId: string;
   title: string;
-  internalNumber: string;
-  serialNumber: string;
   batteryLabel: string;
   chargerLabel: string;
 }
@@ -65,9 +63,7 @@ export function LinkedBatteryDialog({
             <div className="dataset-list">
               {items.map((item) => (
                 <div className="dataset-row" key={item.id}>
-                  <strong>{item.title}</strong>
-                  <span>Intern nummer: {item.internalNumber || "-"}</span>
-                  <span>Serienummer: {item.serialNumber || "-"}</span>
+                  <strong>Batterij/lader: {item.title}</strong>
                   <span>{item.batteryLabel || "Batterij: -"}</span>
                   <span>{item.chargerLabel || "Lader: -"}</span>
                   <div className="actions">

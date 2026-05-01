@@ -37,6 +37,22 @@ export function isBatteryChargerMachine(machine: MachineLike) {
   return machineTypeValue(machine) === "batterij_lader";
 }
 
+export function isRackingMachine(machine: MachineLike) {
+  return machineTypeValue(machine) === "stellingmateriaal";
+}
+
+export function getMachineKindLabel(machine: MachineLike) {
+  if (isBatteryChargerMachine(machine)) {
+    return "Batterij/lader";
+  }
+
+  if (isRackingMachine(machine)) {
+    return "Stelling";
+  }
+
+  return "Machine";
+}
+
 export function getMachineDisplayTitle(machine: MachineLike) {
   const configuration = machineConfiguration(machine);
 
@@ -48,6 +64,16 @@ export function getMachineDisplayTitle(machine: MachineLike) {
       [configuration.charger_brand, configuration.charger_type].filter(Boolean).join(" ") ||
       [readValue(machine, "brand"), readValue(machine, "model")].filter(Boolean).join(" ") ||
       "Batterij / lader"
+    );
+  }
+
+  if (isRackingMachine(machine)) {
+    return (
+      [readValue(machine, "brand"), readValue(machine, "model") || configuration.racking_type]
+        .filter(Boolean)
+        .join(" ") ||
+      configuration.racking_type ||
+      "Stelling"
     );
   }
 
@@ -77,6 +103,16 @@ export function formatMachineBrandTypeSerial(
   const serial = includeSerial ? getMachineDisplaySerial(machine) : "";
 
   return [title, serial].filter(Boolean).join(" ") || title || "-";
+}
+
+export function formatMachineKindBrandType(machine: MachineLike) {
+  const title = getMachineDisplayTitle(machine);
+
+  if (isBatteryChargerMachine(machine) || isRackingMachine(machine)) {
+    return `${getMachineKindLabel(machine)}: ${title}`;
+  }
+
+  return title;
 }
 
 export function getMachineLocation(machine: MachineLike) {

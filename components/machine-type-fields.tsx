@@ -19,6 +19,15 @@ type MachineTypeFieldsProps = {
   hiddenKeys?: string[];
 };
 
+export const batteryChargerHiddenIdentityKeys = [
+  "vehicle_internal_number",
+  "vehicle_serial_number",
+  "battery_serial_number",
+  "battery_internal_number",
+  "charger_serial_number",
+  "charger_internal_number"
+];
+
 function editableFields(machineType: MachineType) {
   return getFormDefinition(machineType).machineFields.filter(
     (field) =>
@@ -43,6 +52,7 @@ function groupedFieldKeys(machineType: MachineType) {
   const lookup = new Map(fields.map((field) => [field.key, field]));
   const pick = (keys: string[]) =>
     keys
+      .filter((key) => !batteryChargerHiddenIdentityKeys.includes(key))
       .map((key) => lookup.get(key))
       .filter((field): field is MachineFieldDefinition => Boolean(field));
 
@@ -53,9 +63,7 @@ function groupedFieldKeys(machineType: MachineType) {
       fields: pick([
         "vehicle_brand",
         "vehicle_type",
-        "vehicle_build_year",
-        "vehicle_internal_number",
-        "vehicle_serial_number"
+        "vehicle_build_year"
       ])
     },
     {
@@ -64,8 +72,6 @@ function groupedFieldKeys(machineType: MachineType) {
       fields: pick([
         "battery_type",
         "battery_brand",
-        "battery_serial_number",
-        "battery_internal_number",
         "drawing_number"
       ])
     },
@@ -75,8 +81,6 @@ function groupedFieldKeys(machineType: MachineType) {
       fields: pick([
         "charger_type",
         "charger_brand",
-        "charger_serial_number",
-        "charger_internal_number",
         "charger_voltage",
         "double_insulated"
       ])

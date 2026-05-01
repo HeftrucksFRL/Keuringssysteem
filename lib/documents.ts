@@ -6,6 +6,7 @@ import { getFormDefinition } from "@/lib/form-definitions";
 import type { InspectionRecord } from "@/lib/domain";
 import {
   formatMachineBrandTypeSerial,
+  formatMachineKindBrandType,
   getMachineLocation
 } from "@/lib/machine-presentation";
 
@@ -248,6 +249,15 @@ function inspectionStatusLabel(inspection: InspectionRecord) {
 }
 
 function inspectionMachineLabel(inspection: InspectionRecord) {
+  if (inspection.machineType === "batterij_lader" || inspection.machineType === "stellingmateriaal") {
+    return formatMachineKindBrandType({
+      machineType: inspection.machineType,
+      brand: inspection.machineSnapshot.brand,
+      model: inspection.machineSnapshot.model,
+      configuration: inspection.machineSnapshot
+    });
+  }
+
   return formatMachineBrandTypeSerial(
     {
       machineType: inspection.machineType,
@@ -255,8 +265,7 @@ function inspectionMachineLabel(inspection: InspectionRecord) {
       model: inspection.machineSnapshot.model,
       serial_number: inspection.machineSnapshot.serial_number,
       configuration: inspection.machineSnapshot
-    },
-    { includeSerial: inspection.machineType !== "batterij_lader" }
+    }
   );
 }
 

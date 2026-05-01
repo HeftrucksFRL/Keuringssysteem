@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { getCsrfHeaders } from "@/lib/client-security";
 import { getFormDefinition } from "@/lib/form-definitions";
 import { previewNextInspectionNumber } from "@/lib/inspection-number";
+import { formatMachineKindBrandType } from "@/lib/machine-presentation";
 import { isMachineHistoryCustomer, isRentalStockCustomer, stockOwnerLabel } from "@/lib/stock-customer";
 import { addTwelveMonths } from "@/lib/utils";
 import type {
@@ -51,6 +52,14 @@ type SavedDraft = {
 };
 
 const draftStorageKey = "inspection-form-draft";
+const batteryChargerHiddenIdentityKeys = [
+  "vehicle_internal_number",
+  "vehicle_serial_number",
+  "battery_serial_number",
+  "battery_internal_number",
+  "charger_serial_number",
+  "charger_internal_number"
+];
 
 const machineTypeOptions: { value: MachineType; label: string }[] = [
   { value: "heftruck_reachtruck", label: "Heftruck / reachtruck" },
@@ -158,17 +167,13 @@ function machineSnapshotOverrides(snapshot: Record<string, string>) {
 
 function batteryChargerSearchText(machine: MachineRecord) {
   return [
-    machine.internalNumber,
     machine.machineNumber,
-    machine.serialNumber,
     machine.brand,
     machine.model,
-    machine.configuration.vehicle_internal_number,
-    machine.configuration.vehicle_serial_number,
-    machine.configuration.battery_internal_number,
-    machine.configuration.battery_serial_number,
-    machine.configuration.charger_internal_number,
-    machine.configuration.charger_serial_number
+    machine.configuration.battery_brand,
+    machine.configuration.battery_type,
+    machine.configuration.charger_brand,
+    machine.configuration.charger_type
   ]
     .filter(Boolean)
     .join(" ")
@@ -180,28 +185,24 @@ function batteryChargerLabel(machine?: MachineRecord | null) {
     return "Nog geen batterij / lader gekoppeld";
   }
 
-  const vehicle = [
-    machine.configuration.vehicle_brand || machine.brand,
-    machine.configuration.vehicle_type || machine.model
-  ]
-    .filter(Boolean)
-    .join(" ");
-  const internal =
-    machine.configuration.vehicle_internal_number ||
-    machine.internalNumber ||
-    machine.machineNumber ||
-    "-";
-
-  return `${vehicle || "Batterij / lader"} - ${internal}`;
+  return formatMachineKindBrandType(machine);
 }
 
-function resultLabelsFromStatus(status?: InspectionRecord["status"]) {
+function resultLabelsFromStatus(status?: InspectionRecord["status"], machineType?: MachineType) {
   if (status === "rejected") {
+    if (machineType === "batterij_lader") {
+      return ["Batterij/lader afgekeurd"];
+    }
+
     return ["Afgekeurd"];
   }
 
   if (status === "draft") {
     return ["In behandeling"];
+  }
+
+  if (machineType === "batterij_lader") {
+    return ["Batterij/lader goedgekeurd"];
   }
 
   return ["Goedgekeurd"];
@@ -300,7 +301,7 @@ export function InspectionForm({
       : buildDefaultChecklist(defaultType)
   );
   const [selectedResultLabels, setSelectedResultLabels] = useState<string[]>(
-    existingInspection ? resultLabelsFromStatus(existingInspection.status) : []
+    existingInspection ? resultLabelsFromStatus(existingInspection.status, existingInspection.machineType) : []
   );
   const [draftNotice, setDraftNotice] = useState("");
   const [inspectionHistory, setInspectionHistory] = useState<InspectionRecord[]>(inspections);
@@ -606,7 +607,11 @@ export function InspectionForm({
       ...machineValues(selectedMachine),
       ...machineConfigurationValues(selectedMachine.configuration)
     }));
-    setMachineQuery([selectedMachine.internalNumber || selectedMachine.machineNumber, selectedMachine.brand, selectedMachine.model].filter(Boolean).join(" "));
+    setMachineQuery(
+      selectedMachine.machineType === "batterij_lader"
+        ? formatMachineKindBrandType(selectedMachine)
+        : [selectedMachine.internalNumber || selectedMachine.machineNumber, selectedMachine.brand, selectedMachine.model].filter(Boolean).join(" ")
+    );
     const previousInspection = latestInspectionForMachine(inspectionHistory, selectedMachine.id);
     if (!previousInspection) {
       setChecklist(buildDefaultChecklist(selectedMachine.machineType));
@@ -903,6 +908,11 @@ export function InspectionForm({
       {Object.entries(values).filter(([key]) => key.startsWith("customer_")).map(([key, value]) => (
         <input key={key} type="hidden" name={key} value={value} />
       ))}
+      {type === "batterij_lader"
+        ? batteryChargerHiddenIdentityKeys.map((key) => (
+            <input key={key} type="hidden" name={key} value={values[key] ?? ""} />
+          ))
+        : null}
       <input type="hidden" name="existing_customer_id" value={selectedCustomerId} />
       <input type="hidden" name="existing_machine_id" value={selectedMachineId} />
       <input type="hidden" name="linked_battery_machine_id" value={linkedBatteryMachineId} />
@@ -983,7 +993,7 @@ export function InspectionForm({
                     setMachineMenuOpen(true);
                   }}
                   onFocus={() => setMachineMenuOpen(true)}
-                  placeholder="Intern nummer, merk, type of serienummer"
+                  placeholder="Merk, type of serienummer"
                   autoComplete="off"
                 />
                 {filteredMachines.length > 0 && machineQuery && machineMenuOpen && !selectedCustomerId ? (
@@ -998,8 +1008,8 @@ export function InspectionForm({
                           setStep(3);
                         }}
                       >
-                        <strong>{machine.internalNumber || machine.machineNumber} - {machine.brand}</strong>
-                        <span>{machine.model}</span>
+                        <strong>{formatMachineKindBrandType(machine)}</strong>
+                        <span>{machine.machineType === "batterij_lader" ? "Batterij/lader" : machine.model}</span>
                       </button>
                     ))}
                   </div>
@@ -1266,15 +1276,15 @@ export function InspectionForm({
                       setMachineMenuOpen(true);
                     }}
                     onFocus={() => setMachineMenuOpen(true)}
-                    placeholder="Zoek op intern nummer, merk of type"
+                    placeholder="Zoek op merk of type"
                     autoComplete="off"
                   />
                   {filteredMachines.length > 0 && machineQuery && machineMenuOpen ? (
                     <div className="autocomplete-menu">
                       {filteredMachines.map((machine) => (
                         <button className="autocomplete-item" key={machine.id} type="button" onClick={() => chooseMachine(machine)}>
-                          <strong>{machine.internalNumber || machine.machineNumber} - {machine.brand}</strong>
-                          <span>{machine.model}</span>
+                          <strong>{formatMachineKindBrandType(machine)}</strong>
+                          <span>{machine.machineType === "batterij_lader" ? "Batterij/lader" : machine.model}</span>
                         </button>
                       ))}
                     </div>
@@ -1286,17 +1296,21 @@ export function InspectionForm({
                 <div className="eyebrow">Gekozen machine</div>
                 <div className="read-only-grid compact-machine-summary">
                   <div className={`info-card ${selectedMachine ? "info-card-complete" : "info-card-muted"}`}>
-                    <strong>{selectedMachine ? `${selectedMachine.brand} ${selectedMachine.model}`.trim() : "Nog geen machine gekozen"}</strong>
-                    <span>Machine</span>
+                    <strong>{selectedMachine ? formatMachineKindBrandType(selectedMachine) : "Nog geen machine gekozen"}</strong>
+                    <span>{selectedMachine?.machineType === "batterij_lader" ? "Batterij/lader" : "Machine"}</span>
                   </div>
-                  <div className={`info-card ${selectedMachine ? "info-card-complete" : "info-card-muted"}`}>
-                    <strong>{selectedMachine?.internalNumber || selectedMachine?.machineNumber || "-"}</strong>
-                    <span>Intern nummer</span>
-                  </div>
-                  <div className={`info-card ${selectedMachine ? "info-card-complete" : "info-card-muted"}`}>
-                    <strong>{selectedMachine?.serialNumber || "-"}</strong>
-                    <span>Serienummer</span>
-                  </div>
+                  {selectedMachine?.machineType !== "batterij_lader" ? (
+                    <>
+                      <div className={`info-card ${selectedMachine ? "info-card-complete" : "info-card-muted"}`}>
+                        <strong>{selectedMachine?.internalNumber || selectedMachine?.machineNumber || "-"}</strong>
+                        <span>Intern nummer</span>
+                      </div>
+                      <div className={`info-card ${selectedMachine ? "info-card-complete" : "info-card-muted"}`}>
+                        <strong>{selectedMachine?.serialNumber || "-"}</strong>
+                        <span>Serienummer</span>
+                      </div>
+                    </>
+                  ) : null}
                 </div>
               </div>
             </>
@@ -1331,15 +1345,14 @@ export function InspectionForm({
                       !field.key.startsWith("customer_") &&
                       visibleField(field.key) &&
                       field.key !== "inspection_date" &&
+                      !(type === "batterij_lader" && batteryChargerHiddenIdentityKeys.includes(field.key)) &&
                       !(
                         type === "batterij_lader" &&
                         selectedBatteryLinkedMachine &&
                         [
                           "vehicle_brand",
                           "vehicle_type",
-                          "vehicle_build_year",
-                          "vehicle_internal_number",
-                          "vehicle_serial_number"
+                          "vehicle_build_year"
                         ].includes(field.key)
                       )
                   )
@@ -1376,17 +1389,30 @@ export function InspectionForm({
                   <span>Gekozen klant</span>
                 </div>
                 <div className="info-card info-card-complete">
-                  <strong>{[values.brand, values.model].filter(Boolean).join(" ") || "-"}</strong>
-                  <span>Gekozen machine</span>
+                  <strong>
+                    {type === "batterij_lader"
+                      ? formatMachineKindBrandType({
+                          machineType: type,
+                          brand: values.brand,
+                          model: values.model,
+                          configuration: values
+                        })
+                      : [values.brand, values.model].filter(Boolean).join(" ") || "-"}
+                  </strong>
+                  <span>{type === "batterij_lader" ? "Batterij/lader" : "Gekozen machine"}</span>
                 </div>
-                <div className="info-card info-card-complete">
-                  <strong>{values.internal_number || "-"}</strong>
-                  <span>Intern nummer</span>
-                </div>
-                <div className="info-card info-card-complete">
-                  <strong>{values.serial_number || "-"}</strong>
-                  <span>Serienummer</span>
-                </div>
+                {type !== "batterij_lader" ? (
+                  <>
+                    <div className="info-card info-card-complete">
+                      <strong>{values.internal_number || "-"}</strong>
+                      <span>Intern nummer</span>
+                    </div>
+                    <div className="info-card info-card-complete">
+                      <strong>{values.serial_number || "-"}</strong>
+                      <span>Serienummer</span>
+                    </div>
+                  </>
+                ) : null}
               </div>
             </div>
             <div className="form-block form-block-active">
@@ -1475,7 +1501,7 @@ export function InspectionForm({
                           setLinkedBatteryMenuOpen(true);
                         }}
                         onFocus={() => setLinkedBatteryMenuOpen(true)}
-                        placeholder="Zoek op intern nummer of serienummer"
+                        placeholder="Zoek op merk of type"
                         autoComplete="off"
                       />
                       {filteredBatteryChargerMachines.length > 0 &&
@@ -1494,12 +1520,7 @@ export function InspectionForm({
                               }}
                             >
                               <strong>{batteryChargerLabel(machine)}</strong>
-                              <span>
-                                {machine.configuration.battery_serial_number ||
-                                  machine.configuration.charger_serial_number ||
-                                  machine.serialNumber ||
-                                  "-"}
-                              </span>
+                              <span>Batterij/lader</span>
                             </button>
                           ))}
                         </div>
@@ -1546,15 +1567,14 @@ export function InspectionForm({
                       visibleField(field.key) &&
                       !field.key.startsWith("customer_") &&
                       field.key !== "inspection_date" &&
+                      !(type === "batterij_lader" && batteryChargerHiddenIdentityKeys.includes(field.key)) &&
                       !(
                         type === "batterij_lader" &&
                         selectedBatteryLinkedMachine &&
                         [
                           "vehicle_brand",
                           "vehicle_type",
-                          "vehicle_build_year",
-                          "vehicle_internal_number",
-                          "vehicle_serial_number"
+                          "vehicle_build_year"
                         ].includes(field.key)
                       )
                   )

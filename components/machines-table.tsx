@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { CustomerRecord, MachineRecord, RentalRecord } from "@/lib/domain";
 import {
   formatMachineBrandTypeSerial,
+  formatMachineKindBrandType,
   getMachineLocation
 } from "@/lib/machine-presentation";
 import {
@@ -71,19 +72,16 @@ function statusLabel(
 }
 
 function machineDisplayTitle(machine: MachineRecord) {
-  return formatMachineBrandTypeSerial(machine, {
-    includeSerial: machine.machineType !== "batterij_lader"
-  });
+  if (machine.machineType === "batterij_lader" || machine.machineType === "stellingmateriaal") {
+    return formatMachineKindBrandType(machine);
+  }
+
+  return formatMachineBrandTypeSerial(machine);
 }
 
 function machineDisplayInternal(machine: MachineRecord) {
   if (machine.machineType === "batterij_lader") {
-    return (
-      machine.configuration.battery_internal_number ||
-      machine.configuration.charger_internal_number ||
-      machine.internalNumber ||
-      machine.machineNumber
-    );
+    return "";
   }
 
   return machine.internalNumber || machine.machineNumber;
@@ -388,7 +386,7 @@ export function MachinesTable({
                         style={rowStyle}
                       >
                         <strong>
-                          {machineDisplayTitle(machine)} - {machineDisplayInternal(machine) || "-"}
+                          {[machineDisplayTitle(machine), machineDisplayInternal(machine)].filter(Boolean).join(" - ")}
                         </strong>
                         <span>
                           {[

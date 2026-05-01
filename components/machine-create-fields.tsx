@@ -2,7 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { MachinePicker } from "@/components/machine-picker";
-import { MachineTypeFields, machineTypeOptions } from "@/components/machine-type-fields";
+import {
+  batteryChargerHiddenIdentityKeys,
+  MachineTypeFields,
+  machineTypeOptions
+} from "@/components/machine-type-fields";
 import type { MachineRecord } from "@/lib/domain";
 import type { MachineType } from "@/lib/types";
 
@@ -32,8 +36,7 @@ export function MachineCreateFields({
           "vehicle_brand",
           "vehicle_type",
           "vehicle_build_year",
-          "vehicle_internal_number",
-          "vehicle_serial_number"
+          ...batteryChargerHiddenIdentityKeys
         ]
       : [];
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { formatMachineKindBrandType, getMachineKindLabel } from "@/lib/machine-presentation";
 import type { MachineRecord } from "@/lib/domain";
 
 interface MachinePickerProps {
@@ -33,16 +34,8 @@ function machineSearchText(machine: MachineRecord) {
 }
 
 function machineLabel(machine: MachineRecord) {
-  if (machine.machineType === "batterij_lader") {
-    const vehicle = [machine.configuration.vehicle_brand || machine.brand, machine.configuration.vehicle_type || machine.model]
-      .filter(Boolean)
-      .join(" ");
-    const internal =
-      machine.configuration.vehicle_internal_number ||
-      machine.internalNumber ||
-      machine.machineNumber ||
-      "-";
-    return `${vehicle || "Batterij / lader"} - ${internal}`;
+  if (machine.machineType === "batterij_lader" || machine.machineType === "stellingmateriaal") {
+    return formatMachineKindBrandType(machine);
   }
 
   return `${[machine.brand, machine.model].filter(Boolean).join(" ") || "Machine"} - ${
@@ -52,13 +45,7 @@ function machineLabel(machine: MachineRecord) {
 
 function machineHint(machine: MachineRecord) {
   if (machine.machineType === "batterij_lader") {
-    return (
-      machine.configuration.vehicle_serial_number ||
-      machine.configuration.battery_serial_number ||
-      machine.configuration.charger_serial_number ||
-      machine.serialNumber ||
-      "-"
-    );
+    return getMachineKindLabel(machine);
   }
 
   return machine.serialNumber || "-";
