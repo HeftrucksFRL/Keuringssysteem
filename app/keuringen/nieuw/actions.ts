@@ -11,6 +11,46 @@ export interface InspectionActionState {
   message?: string;
 }
 
+function buildMachineDossier(
+  machineType: MachineType,
+  inspectionDate: string,
+  fieldValues: Record<string, string>
+) {
+  const identifier = [
+    fieldValues.machine_number,
+    fieldValues.internal_number,
+    fieldValues.serial_number,
+    fieldValues.vehicle_internal_number,
+    fieldValues.vehicle_serial_number,
+    fieldValues.battery_internal_number,
+    fieldValues.battery_serial_number,
+    fieldValues.charger_internal_number,
+    fieldValues.charger_serial_number,
+    fieldValues.dossier_number,
+    fieldValues.sticker_number,
+    fieldValues.battery_sticker_number,
+    fieldValues.charger_sticker_number
+  ]
+    .map((value) => String(value ?? "").trim())
+    .find(Boolean);
+
+  if (identifier) {
+    return identifier;
+  }
+
+  const descriptiveIdentifier = [
+    fieldValues.brand || fieldValues.vehicle_brand,
+    fieldValues.model || fieldValues.vehicle_type || fieldValues.racking_type,
+    fieldValues.zone,
+    inspectionDate
+  ]
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean)
+    .join("-");
+
+  return descriptiveIdentifier || `${machineType}-${inspectionDate || Date.now()}`;
+}
+
 function parseChecklist(
   rawChecklist: string,
   machineType: MachineType
@@ -41,7 +81,6 @@ export async function submitInspectionAction(
 
   const resultLabels = formData.getAll("result_labels").map(String);
   const inspectionDate = String(formData.get("inspection_date") || "");
-  const machineNumber = String(formData.get("machine_number") || formData.get("internal_number") || "");
   const photos = formData
     .getAll("photos")
     .filter((value): value is File => value instanceof File && value.size > 0);
@@ -50,16 +89,13 @@ export async function submitInspectionAction(
     return { status: "error", message: "Kies een keuringsdatum." };
   }
 
-  if (!machineNumber.trim()) {
-    return { status: "error", message: "Vul een uniek machinenummer in." };
-  }
-
   const definition = getFormDefinition(machineType as MachineType);
   const machineDetails = Object.fromEntries(
     definition.machineFields
       .map((field) => [field.key, String(formData.get(field.key) || "")])
       .filter(([key]) => !key.startsWith("customer_"))
   );
+  const machineNumber = buildMachineDossier(machineType as MachineType, inspectionDate, machineDetails);
 
   const inspection = await createInspection({
     machineType: machineType as MachineType,
@@ -80,7 +116,7 @@ export async function submitInspectionAction(
       buildYear: String(
         formData.get("build_year") || formData.get("vehicle_build_year") || ""
       ),
-      internalNumber: String(formData.get("internal_number") || machineNumber),
+      internalNumber: String(formData.get("internal_number") || ""),
       details: machineDetails
     },
     inspectionDate,

@@ -5,7 +5,53 @@ import { addActivityLog, createInspection, updateInspectionFromForm } from "@/li
 import { applyRateLimit, validateCsrf, validateOrigin } from "@/lib/security";
 import type { ChecklistOption, MachineType } from "@/lib/types";
 
-function buildMachineDossier(serialNumber: string, internalNumber: string) {
+function buildMachineDossier(input: {
+  machineType: MachineType;
+  inspectionDate: string;
+  serialNumber: string;
+  internalNumber: string;
+  machineDetails: Record<string, string>;
+}) {
+  const machineNumber = String(input.machineDetails.machine_number ?? "").trim();
+  if (machineNumber) {
+    return machineNumber;
+  }
+
+  const detailIdentifier = [
+    input.internalNumber,
+    input.serialNumber,
+    input.machineDetails.vehicle_internal_number,
+    input.machineDetails.vehicle_serial_number,
+    input.machineDetails.battery_internal_number,
+    input.machineDetails.battery_serial_number,
+    input.machineDetails.charger_internal_number,
+    input.machineDetails.charger_serial_number,
+    input.machineDetails.dossier_number,
+    input.machineDetails.sticker_number,
+    input.machineDetails.battery_sticker_number,
+    input.machineDetails.charger_sticker_number
+  ]
+    .map((value) => String(value ?? "").trim())
+    .find(Boolean);
+
+  if (detailIdentifier) {
+    return detailIdentifier;
+  }
+
+  const descriptiveIdentifier = [
+    input.machineDetails.brand || input.machineDetails.vehicle_brand,
+    input.machineDetails.model || input.machineDetails.vehicle_type || input.machineDetails.racking_type,
+    input.machineDetails.zone,
+    input.inspectionDate
+  ]
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean)
+    .join("-");
+
+  return descriptiveIdentifier || `${input.machineType}-${input.inspectionDate || Date.now()}`;
+}
+
+function buildLegacyMachineDossier(serialNumber: string, internalNumber: string) {
   const serial = serialNumber.trim();
   const internal = internalNumber.trim();
 
@@ -74,13 +120,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!internalNumber.trim()) {
-      return NextResponse.json(
-        { ok: false, message: "Vul het intern nummer van de machine in." },
-        { status: 400 }
-      );
-    }
-
     const photos = formData
       .getAll("photos")
       .filter((value): value is File => value instanceof File && value.size > 0);
@@ -108,7 +147,14 @@ export async function POST(request: NextRequest) {
         saveAsNewContact: String(formData.get("save_as_new_contact") || "").trim() === "1"
       },
       machine: {
-        machineNumber: buildMachineDossier(serialNumber, internalNumber),
+        machineNumber:
+          buildMachineDossier({
+            machineType,
+            inspectionDate,
+            serialNumber,
+            internalNumber,
+            machineDetails
+          }) || buildLegacyMachineDossier(serialNumber, internalNumber),
         brand: String(formData.get("brand") || formData.get("vehicle_brand") || ""),
         model: String(formData.get("model") || formData.get("vehicle_type") || ""),
         serialNumber,

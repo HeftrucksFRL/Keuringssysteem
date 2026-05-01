@@ -797,10 +797,6 @@ export function InspectionForm({
       setMessage({ type: "error", text: "Kies eerst een machine of maak een nieuwe aan." });
       return false;
     }
-    if (targetStep === 3 && !String(values.internal_number || "").trim()) {
-      setMessage({ type: "error", text: "Vul eerst het interne nummer van de machine in." });
-      return false;
-    }
     return true;
   }
 
