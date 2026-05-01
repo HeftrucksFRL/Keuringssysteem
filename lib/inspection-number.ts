@@ -1,10 +1,9 @@
 export function getYearSequenceStart(year: number) {
-  const yearSuffix = Number(String(year).slice(-2));
-  return yearSuffix * 1000 + 1;
+  return year * 10000 + 1;
 }
 
 export function formatInspectionNumber(sequence: number) {
-  return String(sequence).padStart(5, "0");
+  return String(sequence).padStart(8, "0");
 }
 
 export function previewNextInspectionNumber(

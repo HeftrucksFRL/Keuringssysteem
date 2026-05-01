@@ -3310,6 +3310,7 @@ export async function getRentalsForCustomer(customerId: string) {
 }
 
 const STOCK_CUSTOMER_COMPANY = "Heftrucks.frl";
+const STOCK_CUSTOMER_ADDRESS = "Gersikkers 3 9073 KA Marrum";
 const STOCK_CUSTOMER_EMAIL = "info@heftrucks.frl";
 const STOCK_CUSTOMER_PHONE = "0653842843";
 export async function getRentalStockMachines() {
@@ -3452,6 +3453,13 @@ export async function ensureRentalStockCustomerId() {
     );
 
     if (existingRow) {
+      await supabase
+        .from("customers")
+        .update({
+          address_line_1: STOCK_CUSTOMER_ADDRESS,
+          city: "Marrum"
+        })
+        .eq("id", existingRow.id);
       return String(existingRow.id);
     }
 
@@ -3459,8 +3467,8 @@ export async function ensureRentalStockCustomerId() {
       .from("customers")
       .insert({
         company_name: STOCK_CUSTOMER_COMPANY,
-        address_line_1: "",
-        city: "",
+        address_line_1: STOCK_CUSTOMER_ADDRESS,
+        city: "Marrum",
         contact_name: "Eigen voorraad",
         phone: STOCK_CUSTOMER_PHONE,
         email: STOCK_CUSTOMER_EMAIL
@@ -3478,14 +3486,18 @@ export async function ensureRentalStockCustomerId() {
   const data = await readAppData();
   const existingCustomer = data.customers.find((customer) => isRentalStockCustomer(customer));
   if (existingCustomer) {
+    existingCustomer.address = STOCK_CUSTOMER_ADDRESS;
+    existingCustomer.city = "Marrum";
+    existingCustomer.updatedAt = nowIso();
+    await writeAppData(data);
     return existingCustomer.id;
   }
 
   const customer: CustomerRecord = {
     id: randomUUID(),
     companyName: STOCK_CUSTOMER_COMPANY,
-    address: "",
-    city: "",
+    address: STOCK_CUSTOMER_ADDRESS,
+    city: "Marrum",
     contactName: "Eigen voorraad",
     phone: STOCK_CUSTOMER_PHONE,
     email: STOCK_CUSTOMER_EMAIL,

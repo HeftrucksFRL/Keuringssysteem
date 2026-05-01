@@ -1,16 +1,33 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
+import {
+  buildLegacyInspectionNumber,
+  findLegacyNumber,
+  loadImportNumberMap
+} from "./import-number-map.mjs";
 
 const STOCK_CUSTOMER_COMPANY = "Heftrucks.frl";
 const STOCK_CUSTOMER_EMAIL = "info@heftrucks.frl";
 const STOCK_CUSTOMER_PHONE = "0653842843";
+const STOCK_CUSTOMER_ALIASES = [
+  "heftrucks.frl",
+  "heftrucks friesland",
+  "heftrucks friesland b.v",
+  "heftrucks friesland bv",
+  "terpstra trading",
+  "terpstra trading b.v",
+  "terpstra trading bv"
+];
 
 function parseArgs(argv) {
-  const args = { source: "" };
+  const args = { source: "", numberMap: "" };
   for (let index = 0; index < argv.length; index += 1) {
     if (argv[index] === "--source") {
       args.source = argv[index + 1] ?? "";
+      index += 1;
+    } else if (argv[index] === "--number-map") {
+      args.numberMap = argv[index + 1] ?? "";
       index += 1;
     }
   }
@@ -149,15 +166,39 @@ function normalizeDate(value) {
   return `${year}-${month}-${day}`;
 }
 
+function normalizeSubmissionDate(value) {
+  const raw = clean(value);
+  const match = raw.match(/^([A-Za-zÀ-ÿ]{3})\s+(\d{1,2}),\s*(\d{4})/);
+  if (!match) return "";
+
+  const monthMap = {
+    jan: "01",
+    feb: "02",
+    mrt: "03",
+    mar: "03",
+    apr: "04",
+    mei: "05",
+    may: "05",
+    jun: "06",
+    jul: "07",
+    aug: "08",
+    sep: "09",
+    okt: "10",
+    oct: "10",
+    nov: "11",
+    dec: "12"
+  };
+
+  const [, rawMonth, rawDay, year] = match;
+  const month = monthMap[rawMonth.toLowerCase()];
+  if (!month) return "";
+  return `${year}-${month}-${rawDay.padStart(2, "0")}`;
+}
+
 function addTwelveMonths(dateString) {
-  const date = new Date(`${dateString}T00:00:00`);
-  const targetMonth = date.getMonth() + 12;
-  const day = date.getDate();
-  date.setMonth(targetMonth);
-  while (date.getDate() !== day) {
-    date.setDate(date.getDate() - 1);
-  }
-  return date.toISOString().slice(0, 10);
+  const [year, month, day] = dateString.split("-").map(Number);
+  if (!year || !month || !day) return "";
+  return `${year + 1}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 function todayIso() {
@@ -193,6 +234,15 @@ function deriveStatus(conclusion) {
   if (normalized.includes("afgekeurd")) return "rejected";
   if (normalized.includes("behandeling")) return "draft";
   return "approved";
+}
+
+function normalizeImportedConclusion(value) {
+  return clean(value) || "Conclusie ontbreekt in bronimport";
+}
+
+function deriveImportedStatus(value) {
+  const conclusion = clean(value);
+  return conclusion ? deriveStatus(conclusion) : "approved";
 }
 
 function compactConfig(config) {
@@ -296,9 +346,13 @@ function parseCustomerBlock(value) {
   return { companyName, city, contactName };
 }
 
+function parsePrimaryCustomer(row) {
+  return parseCustomerBlock(row["Bedrijfsgegevens gebruiker"] || row["Textarea"]);
+}
+
 function isStockCustomerName(companyName) {
   const normalized = normalizeKey(companyName);
-  return normalized.includes("heftrucks") || normalized.includes("friesland");
+  return STOCK_CUSTOMER_ALIASES.some((alias) => normalized.includes(alias));
 }
 
 const checklistMap = {
@@ -444,13 +498,13 @@ function chooseMachineNumber(row, customer) {
 }
 
 function mapRow(row) {
-  const customer = parseCustomerBlock(row["Bedrijfsgegevens gebruiker"]);
-  const companyName = customer.companyName || "Onbekende klant";
+  const customer = parsePrimaryCustomer(row);
+  const companyName = customer.companyName;
   const brand = clean(row["Merk"]);
   const model = clean(row["Type"]);
   const serialNumber = clean(row["Serienummer"]);
   const buildYear = extractYear(row["Bouwjaar"]);
-  const inspectionDate = normalizeDate(row["Keuringsdatum"]);
+  const inspectionDate = normalizeDate(row["Keuringsdatum"]) || normalizeSubmissionDate(row["Inzendingstijd"]);
   const configuration = compactConfig({
     undercarriage: clean(row["Onderwagen"]),
     setup: clean(row["Opstelling"]),
@@ -475,8 +529,8 @@ function mapRow(row) {
     inspectionDate,
     findings: clean(row["Bevindingen"]),
     recommendations: clean(row["Aanbevelingen"]),
-    conclusion: clean(row["Conclusie"]),
-    status: deriveStatus(row["Conclusie"]),
+    conclusion: normalizeImportedConclusion(row["Conclusie"]),
+    status: deriveImportedStatus(row["Conclusie"]),
     machine: {
       machineNumber: chooseMachineNumber(row, customer),
       brand,
@@ -507,7 +561,10 @@ async function ensureStockCustomer(supabase, customersByName) {
   const preferredKeys = [
     normalizeKey(STOCK_CUSTOMER_COMPANY),
     normalizeKey("Heftrucks Friesland B.V"),
-    normalizeKey("Heftrucks Friesland BV")
+    normalizeKey("Heftrucks Friesland BV"),
+    normalizeKey("Terpstra Trading B.V"),
+    normalizeKey("Terpstra Trading BV"),
+    normalizeKey("Terpstra Trading")
   ];
 
   for (const key of preferredKeys) {
@@ -548,6 +605,9 @@ async function ensureStockCustomer(supabase, customersByName) {
   customersByName.set(normalizeKey(STOCK_CUSTOMER_COMPANY), customer);
   customersByName.set(normalizeKey("Heftrucks Friesland B.V"), customer);
   customersByName.set(normalizeKey("Heftrucks Friesland BV"), customer);
+  customersByName.set(normalizeKey("Terpstra Trading B.V"), customer);
+  customersByName.set(normalizeKey("Terpstra Trading BV"), customer);
+  customersByName.set(normalizeKey("Terpstra Trading"), customer);
   return customer;
 }
 
@@ -642,7 +702,7 @@ async function syncPlanningItem(supabase, planningByMachineId, input) {
 }
 
 async function main() {
-  const { source } = parseArgs(process.argv.slice(2));
+  const { source, numberMap } = parseArgs(process.argv.slice(2));
   if (!source) {
     throw new Error("Gebruik --source met het pad naar het hoogwerker bronbestand.");
   }
@@ -661,19 +721,30 @@ async function main() {
   });
 
   const supportsContactDepartment = await hasColumn(supabase, "customer_contacts", "department");
+  const importNumberMap = await loadImportNumberMap(numberMap);
+  const sourceFileName = path.basename(source);
 
   const raw = await fs.readFile(path.resolve(source), "utf8");
   const parsedRows = sortRowsChronologically(
     parseCsv(raw)
-      .map(mapRow)
-      .filter((row) => row.customerName && row.machine.machineNumber && row.inspectionDate)
+      .map((row, index) => {
+        const mapped = mapRow(row);
+        mapped.sourceRowNumber = String(index + 2);
+        mapped.legacyInspectionNumber = findLegacyNumber(
+          importNumberMap,
+          sourceFileName,
+          mapped.sourceRowNumber
+        );
+        return mapped;
+      })
+      .filter((row) => row.machine.machineNumber && row.inspectionDate)
   );
 
   const [customerRows, contactRows, machineRows, inspectionRows, planningRows] = await Promise.all([
     supabase.from("customers").select("*"),
     supabase.from("customer_contacts").select("*"),
     supabase.from("machines").select("*"),
-    supabase.from("inspections").select("id, machine_id, inspection_date"),
+    supabase.from("inspections").select("id, inspection_number"),
     supabase.from("planning_items").select("*").neq("state", "completed")
   ]);
 
@@ -725,9 +796,9 @@ async function main() {
     if (serialKey && !machinesBySerial.has(serialKey)) machinesBySerial.set(serialKey, machine);
   }
 
-  const inspectionByKey = new Map(
+  const inspectionByNumber = new Map(
     (inspectionRows.data ?? []).map((row) => [
-      `${String(row.machine_id)}|${String(row.inspection_date)}`,
+      String(row.inspection_number ?? ""),
       String(row.id)
     ])
   );
@@ -747,6 +818,8 @@ async function main() {
   const stockCustomer = await ensureStockCustomer(supabase, customersByName);
 
   const summary = {
+    rowsParsed: parsedRows.length,
+    rowsWithLegacyNumber: parsedRows.filter((row) => row.legacyInspectionNumber).length,
     customersCreated: 0,
     customersUpdated: 0,
     contactsCreated: 0,
@@ -759,7 +832,9 @@ async function main() {
   };
 
   for (const row of parsedRows) {
-    const customerKey = normalizeKey(row.isStockCustomer ? STOCK_CUSTOMER_COMPANY : row.customerName);
+    const customerKey = normalizeKey(
+      row.isStockCustomer || !row.customerName ? STOCK_CUSTOMER_COMPANY : row.customerName
+    );
     let customer = customersByName.get(customerKey) ?? null;
 
     if (!customer) {
@@ -941,7 +1016,13 @@ async function main() {
       summary.machinesUpdated += 1;
     }
 
-    const inspectionKey = `${machine.id}|${row.inspectionDate}`;
+    const resolvedInspectionNumber =
+      buildLegacyInspectionNumber(row.inspectionDate, row.legacyInspectionNumber) ??
+      (() => {
+        throw new Error(
+          `Geen oud keurnummer gevonden voor ${sourceFileName} rij ${row.sourceRowNumber}.`
+        );
+      })();
     const nextInspectionDate = addTwelveMonths(row.inspectionDate);
     const machineSnapshot = buildMachineSnapshot({
       machineNumber: machine.machineNumber,
@@ -953,24 +1034,13 @@ async function main() {
       configuration: mergeConfiguration(machine.configuration, row.machine.snapshotConfiguration)
     });
 
-    let inspectionId = inspectionByKey.get(inspectionKey) ?? "";
+    let inspectionId = inspectionByNumber.get(String(resolvedInspectionNumber)) ?? "";
 
     if (inspectionId) {
       summary.inspectionsSkipped += 1;
     } else {
-      const { data: inspectionNumber, error: inspectionNumberError } = await supabase.rpc(
-        "next_inspection_number",
-        { target_date: row.inspectionDate }
-      );
-
-      if (inspectionNumberError || inspectionNumber == null) {
-        throw new Error(
-          `Keurnummer genereren mislukt voor ${row.customerName} / ${row.machine.machineNumber}: ${inspectionNumberError?.message ?? "onbekende fout"}`
-        );
-      }
-
       const inspectionPayload = {
-        inspection_number: Number(inspectionNumber),
+        inspection_number: resolvedInspectionNumber,
         customer_id: customer.id,
         machine_id: machine.id,
         machine_type: "hoogwerker",
@@ -1005,7 +1075,7 @@ async function main() {
       }
 
       inspectionId = String(inspectionData.id);
-      inspectionByKey.set(inspectionKey, inspectionId);
+      inspectionByNumber.set(String(resolvedInspectionNumber), inspectionId);
       summary.inspectionsCreated += 1;
     }
 

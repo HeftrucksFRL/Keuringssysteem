@@ -214,8 +214,7 @@ set search_path = public
 as $$
 declare
   target_year integer := extract(year from target_date);
-  suffix integer := (target_year % 100);
-  base_number integer := suffix * 1000 + 1;
+  base_number integer := target_year * 10000 + 1;
   next_number integer;
 begin
   insert into public.inspection_sequences (sequence_year, last_number)

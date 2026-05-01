@@ -187,7 +187,9 @@ function planningMachineLabel(machine?: MachineRecord) {
     return formatMachineKindBrandType(machine);
   }
 
-  return machine.internalNumber || machine.machineNumber || "Machine";
+  return [machine.internalNumber || machine.machineNumber, machine.brand, machine.model]
+    .filter(Boolean)
+    .join(" ") || "Machine";
 }
 
 function eventMatchesFilter(event: AgendaEvent, filter: ViewFilter) {
