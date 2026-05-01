@@ -2478,11 +2478,29 @@ export async function getInspectionSummaries() {
 export async function getPlanningItems() {
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
-    const { data } = await supabase
-      .from("planning_items")
-      .select("*")
-      .order("due_date", { ascending: true });
-    return (data ?? []).map((row) => mapPlanningRow(row));
+    const pageSize = 1000;
+    const rows: Record<string, unknown>[] = [];
+
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabase
+        .from("planning_items")
+        .select("*")
+        .order("due_date", { ascending: true })
+        .range(from, from + pageSize - 1);
+
+      if (error) {
+        throw new Error(`Planning kon niet worden opgehaald: ${error.message}`);
+      }
+
+      const page = (data ?? []) as unknown as Record<string, unknown>[];
+      rows.push(...page);
+
+      if (page.length < pageSize) {
+        break;
+      }
+    }
+
+    return rows.map((row) => mapPlanningRow(row));
   }
   const data = await listDemoData();
   return data.planningItems;
