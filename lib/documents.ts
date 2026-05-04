@@ -14,6 +14,14 @@ interface GenerateDocumentsOptions {
   persistToDisk?: boolean;
 }
 
+interface WordTemplateLayout {
+  tableWidthDxa: number;
+  summaryLabelWidthDxa: number;
+  summaryValueWidthDxa: number;
+  checklistLabelWidthDxa: number;
+  checklistValueWidthDxa: number;
+}
+
 async function firstExistingPath(paths: string[]) {
   for (const candidate of paths) {
     try {
@@ -88,7 +96,32 @@ function buildWordSectionTitle(text: string) {
   )}</w:t></w:r></w:p>`;
 }
 
-function buildWordBodyTable(rows: Array<[string, string]>) {
+function readDxaAttribute(xml: string, attributeName: string, fallback: number) {
+  const match = xml.match(new RegExp(`w:${attributeName}="(\\d+)"`));
+  return match ? Number(match[1]) : fallback;
+}
+
+function wordTemplateLayout(sectionXml: string): WordTemplateLayout {
+  const pageWidth = readDxaAttribute(sectionXml, "w", 11906);
+  const leftMargin = readDxaAttribute(sectionXml, "left", 1417);
+  const rightMargin = readDxaAttribute(sectionXml, "right", 1417);
+  const contentWidth =
+    pageWidth > leftMargin + rightMargin ? pageWidth - leftMargin - rightMargin : 9072;
+  const tableWidthDxa = Math.min(contentWidth, 10000);
+  const summaryLabelWidthDxa = Math.round(tableWidthDxa * 0.28);
+  const summaryValueWidthDxa = tableWidthDxa - summaryLabelWidthDxa;
+  const checklistValueWidthDxa = Math.max(1500, Math.round(tableWidthDxa * 0.18));
+
+  return {
+    tableWidthDxa,
+    summaryLabelWidthDxa,
+    summaryValueWidthDxa,
+    checklistLabelWidthDxa: tableWidthDxa - checklistValueWidthDxa,
+    checklistValueWidthDxa
+  };
+}
+
+function buildWordBodyTable(rows: Array<[string, string]>, layout: WordTemplateLayout) {
   const borderXml =
     '<w:tblBorders><w:top w:val="single" w:sz="4" w:color="D9E6F2"/><w:left w:val="single" w:sz="4" w:color="D9E6F2"/><w:bottom w:val="single" w:sz="4" w:color="D9E6F2"/><w:right w:val="single" w:sz="4" w:color="D9E6F2"/><w:insideH w:val="single" w:sz="4" w:color="D9E6F2"/><w:insideV w:val="single" w:sz="4" w:color="D9E6F2"/></w:tblBorders>';
 
@@ -96,11 +129,11 @@ function buildWordBodyTable(rows: Array<[string, string]>) {
     .map(
       ([label, value]) => `<w:tr>
         <w:tc>
-          <w:tcPr><w:tcW w:w="2600" w:type="dxa"/></w:tcPr>
+          <w:tcPr><w:tcW w:w="${layout.summaryLabelWidthDxa}" w:type="dxa"/></w:tcPr>
           <w:p><w:r><w:rPr><w:b/><w:bCs/></w:rPr><w:t>${escapeXml(label)}</w:t></w:r></w:p>
         </w:tc>
         <w:tc>
-          <w:tcPr><w:tcW w:w="6800" w:type="dxa"/></w:tcPr>
+          <w:tcPr><w:tcW w:w="${layout.summaryValueWidthDxa}" w:type="dxa"/></w:tcPr>
           <w:p><w:r><w:t xml:space="preserve">${escapeXml(value || "-")}</w:t></w:r></w:p>
         </w:tc>
       </w:tr>`
@@ -109,7 +142,7 @@ function buildWordBodyTable(rows: Array<[string, string]>) {
 
   return `<w:tbl>
     <w:tblPr>
-      <w:tblW w:w="10000" w:type="dxa"/>
+      <w:tblW w:w="${layout.tableWidthDxa}" w:type="dxa"/>
       ${borderXml}
       <w:tblCellMar>
         <w:top w:w="100" w:type="dxa"/>
@@ -119,8 +152,8 @@ function buildWordBodyTable(rows: Array<[string, string]>) {
       </w:tblCellMar>
     </w:tblPr>
     <w:tblGrid>
-      <w:gridCol w:w="2600"/>
-      <w:gridCol w:w="6800"/>
+      <w:gridCol w:w="${layout.summaryLabelWidthDxa}"/>
+      <w:gridCol w:w="${layout.summaryValueWidthDxa}"/>
     </w:tblGrid>
     ${rowXml}
   </w:tbl>`;
@@ -135,7 +168,7 @@ function buildWordMultilineContent(text: string) {
   return lines.map((line) => buildWordParagraph(line)).join("");
 }
 
-function buildWordChecklistTable(inspection: InspectionRecord) {
+function buildWordChecklistTable(inspection: InspectionRecord, layout: WordTemplateLayout) {
   const form = getFormDefinition(inspection.machineType);
   const rows: Array<[string, string]> = form.sections.flatMap((section) => [
     [section.title, ""] as [string, string],
@@ -162,11 +195,11 @@ function buildWordChecklistTable(inspection: InspectionRecord) {
 
       return `<w:tr>
         <w:tc>
-          <w:tcPr><w:tcW w:w="7600" w:type="dxa"/></w:tcPr>
+          <w:tcPr><w:tcW w:w="${layout.checklistLabelWidthDxa}" w:type="dxa"/></w:tcPr>
           <w:p><w:r><w:t xml:space="preserve">${escapeXml(label)}</w:t></w:r></w:p>
         </w:tc>
         <w:tc>
-          <w:tcPr><w:tcW w:w="1800" w:type="dxa"/></w:tcPr>
+          <w:tcPr><w:tcW w:w="${layout.checklistValueWidthDxa}" w:type="dxa"/></w:tcPr>
           <w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:b/><w:bCs/></w:rPr><w:t>${escapeXml(
             value
           )}</w:t></w:r></w:p>
@@ -177,7 +210,7 @@ function buildWordChecklistTable(inspection: InspectionRecord) {
 
   return `<w:tbl>
     <w:tblPr>
-      <w:tblW w:w="10000" w:type="dxa"/>
+      <w:tblW w:w="${layout.tableWidthDxa}" w:type="dxa"/>
       ${borderXml}
       <w:tblCellMar>
         <w:top w:w="100" w:type="dxa"/>
@@ -187,8 +220,8 @@ function buildWordChecklistTable(inspection: InspectionRecord) {
       </w:tblCellMar>
     </w:tblPr>
     <w:tblGrid>
-      <w:gridCol w:w="7600"/>
-      <w:gridCol w:w="1800"/>
+      <w:gridCol w:w="${layout.checklistLabelWidthDxa}"/>
+      <w:gridCol w:w="${layout.checklistValueWidthDxa}"/>
     </w:tblGrid>
     ${rowXml}
   </w:tbl>`;
@@ -212,13 +245,14 @@ async function generateWordFromTemplate(inspection: InspectionRecord) {
     throw new Error("Het Word-sjabloon bevat geen sectiegegevens.");
   }
 
+  const layout = wordTemplateLayout(sectionMatch[0]);
   const bodyXml = [
     buildWordSectionTitle("Keuringsrapport"),
     buildWordParagraph(getFormDefinition(inspection.machineType).title, { size: 24 }),
     buildWordParagraph(""),
-    buildWordBodyTable(summaryRows(inspection)),
+    buildWordBodyTable(summaryRows(inspection), layout),
     buildWordSectionTitle("Checklist"),
-    buildWordChecklistTable(inspection),
+    buildWordChecklistTable(inspection, layout),
     buildWordSectionTitle("Opmerkingen"),
     buildWordMultilineContent(inspection.findings)
   ].join("");
