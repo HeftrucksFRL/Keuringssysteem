@@ -3036,20 +3036,34 @@ export async function getInspectionAttachmentsForInspections(inspectionIds: stri
 
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
-    const { data } = await supabase
-      .from("inspection_attachments")
-      .select("*")
-      .in("inspection_id", ids)
-      .order("created_at", { ascending: false });
-    return (data ?? []).map((row) => ({
-      id: String(row.id),
-      inspectionId: String(row.inspection_id),
-      kind: row.kind,
-      fileName: String(row.file_name),
-      storagePath: String(row.storage_path),
-      mimeType: String(row.mime_type),
-      createdAt: String(row.created_at)
-    }));
+    const rows: any[] = [];
+    const batchSize = 100;
+
+    for (let index = 0; index < ids.length; index += batchSize) {
+      const { data, error } = await supabase
+        .from("inspection_attachments")
+        .select("*")
+        .in("inspection_id", ids.slice(index, index + batchSize))
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        throw new Error(`Bijlagen ophalen mislukt: ${error.message}`);
+      }
+
+      rows.push(...(data ?? []));
+    }
+
+    return rows
+      .sort((left, right) => String(right.created_at).localeCompare(String(left.created_at)))
+      .map((row) => ({
+        id: String(row.id),
+        inspectionId: String(row.inspection_id),
+        kind: row.kind,
+        fileName: String(row.file_name),
+        storagePath: String(row.storage_path),
+        mimeType: String(row.mime_type),
+        createdAt: String(row.created_at)
+      }));
   }
 
   const idSet = new Set(ids);
