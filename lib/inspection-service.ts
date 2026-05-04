@@ -1326,6 +1326,33 @@ const MACHINE_SUMMARY_SELECT = [
   "updated_at"
 ].join(", ");
 
+async function fetchAllSupabaseRows(
+  fetchPage: (from: number, to: number) => PromiseLike<{
+    data: Record<string, unknown>[] | null;
+    error: { message: string } | null;
+  }>
+) {
+  const pageSize = 1000;
+  const rows: Record<string, unknown>[] = [];
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await fetchPage(from, from + pageSize - 1);
+
+    if (error) {
+      throw new Error(`Gegevens ophalen mislukt: ${error.message}`);
+    }
+
+    const page = (data ?? []) as Record<string, unknown>[];
+    rows.push(...page);
+
+    if (page.length < pageSize) {
+      break;
+    }
+  }
+
+  return rows;
+}
+
 function compareTodoItems(left: TodoItemRecord, right: TodoItemRecord) {
   if (left.completed !== right.completed) {
     return left.completed ? 1 : -1;
@@ -2150,11 +2177,14 @@ export async function getRecentActivityLogs(limit = 12): Promise<ActivityLogReco
 export async function getCustomers() {
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
-    const { data } = await supabase
-      .from("customers")
-      .select("*")
-      .order("company_name", { ascending: true });
-    return (data ?? []).map((row) => mapCustomerRow(row));
+    const rows = await fetchAllSupabaseRows((from, to) =>
+      supabase
+        .from("customers")
+        .select("*")
+        .order("company_name", { ascending: true })
+        .range(from, to)
+    );
+    return rows.map((row) => mapCustomerRow(row));
   }
   const data = await listDemoData();
   return data.customers;
@@ -2170,18 +2200,34 @@ export async function getCustomerSummaries(options: {
 
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
-    let query = supabase
-      .from("customers")
-      .select(CUSTOMER_SUMMARY_SELECT)
-      .order("company_name", { ascending: true });
+    const orderedCustomerSummaries = (query: ReturnType<typeof supabase.from>) =>
+      query.select(CUSTOMER_SUMMARY_SELECT).order("company_name", { ascending: true });
+    let query = orderedCustomerSummaries(supabase.from("customers"));
+    const filterLocally = Boolean(options.ids && options.ids.length > 100);
 
-    if (options.ids?.length) {
+    if (options.ids?.length && !filterLocally) {
       query = query.in("id", options.ids);
     }
 
-    const { data } = await query;
-    const rows = ((data ?? []) as unknown as Record<string, unknown>[]);
-    const customers = rows.map((row) => mapCustomerRow(row));
+    let rows: Record<string, unknown>[];
+    if (filterLocally || !options.ids?.length) {
+      rows = await fetchAllSupabaseRows(async (from, to) => {
+        const { data, error } = await orderedCustomerSummaries(supabase.from("customers")).range(from, to);
+        return { data: data as unknown as Record<string, unknown>[] | null, error };
+      });
+    } else {
+      const { data, error } = await query;
+      if (error) {
+        throw new Error(`Klanten ophalen mislukt: ${error.message}`);
+      }
+      rows = ((data ?? []) as unknown as Record<string, unknown>[]);
+    }
+    let customers = rows.map((row) => mapCustomerRow(row));
+    if (options.ids?.length && filterLocally) {
+      const wantedIds = new Set(options.ids);
+      customers = customers.filter((customer) => wantedIds.has(customer.id));
+    }
+
     return options.visibleOnly
       ? customers.filter(
           (customer) => !isRentalStockCustomer(customer) && !isMachineHistoryCustomer(customer)
@@ -2261,11 +2307,14 @@ export async function getMachines(options: { includeArchived?: boolean } = {}) {
 
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
-    const { data } = await supabase
-      .from("machines")
-      .select("*")
-      .order("machine_number", { ascending: true });
-    const machines = (data ?? []).map((row) => mapMachineRow(row));
+    const rows = await fetchAllSupabaseRows((from, to) =>
+      supabase
+        .from("machines")
+        .select("*")
+        .order("machine_number", { ascending: true })
+        .range(from, to)
+    );
+    const machines = rows.map((row) => mapMachineRow(row));
     return includeArchived ? machines : machines.filter((machine) => !isMachineArchived(machine));
   }
   const data = await listDemoData();
@@ -2291,26 +2340,54 @@ export async function getMachineSummaries(options: {
 
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
-    let query = supabase
-      .from("machines")
-      .select(MACHINE_SUMMARY_SELECT);
-
-    query =
+    const orderedMachineSummaries = (query: ReturnType<typeof supabase.from>) => {
+      const selected = query.select(MACHINE_SUMMARY_SELECT);
+      return (
       options.orderBy === "updated_at_desc"
-        ? query.order("updated_at", { ascending: false })
-        : query.order("machine_number", { ascending: true });
+        ? selected.order("updated_at", { ascending: false })
+        : selected.order("machine_number", { ascending: true })
+      );
+    };
 
-    if (options.ids?.length) {
+    let query = orderedMachineSummaries(supabase.from("machines"));
+    const filterLocally = Boolean(options.ids && options.ids.length > 100);
+
+    if (options.ids?.length && !filterLocally) {
       query = query.in("id", options.ids);
     }
 
-    if (options.limit) {
+    if (options.limit && !filterLocally) {
       query = query.limit(options.limit);
     }
 
-    const { data } = await query;
-    const rows = ((data ?? []) as unknown as Record<string, unknown>[]);
-    const machines = rows.map((row) => mapMachineRow(row));
+    let rows: Record<string, unknown>[];
+    if (filterLocally || (!options.ids?.length && !options.limit)) {
+      rows = await fetchAllSupabaseRows(async (from, to) => {
+        const { data, error } = await orderedMachineSummaries(supabase.from("machines")).range(from, to);
+        return { data: data as unknown as Record<string, unknown>[] | null, error };
+      });
+    } else {
+      const { data, error } = await query;
+      if (error) {
+        throw new Error(`Machines ophalen mislukt: ${error.message}`);
+      }
+      rows = ((data ?? []) as unknown as Record<string, unknown>[]);
+    }
+    let machines = rows
+      .map((row) => mapMachineRow(row))
+      .sort((left, right) =>
+        options.orderBy === "updated_at_desc"
+          ? right.updatedAt.localeCompare(left.updatedAt)
+          : left.machineNumber.localeCompare(right.machineNumber, "nl")
+      );
+    if (options.ids?.length && filterLocally) {
+      const wantedIds = new Set(options.ids);
+      machines = machines.filter((machine) => wantedIds.has(machine.id));
+    }
+    if (options.limit && filterLocally) {
+      machines = machines.slice(0, options.limit);
+    }
+
     return includeArchived ? machines : machines.filter((machine) => !isMachineArchived(machine));
   }
 
@@ -2390,11 +2467,14 @@ export async function getLinkedBatteryChargerMachines(
 export async function getInspections() {
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
-    const { data } = await supabase
-      .from("inspections")
-      .select("*")
-      .order("inspection_date", { ascending: false });
-    return (data ?? []).map((row) => mapInspectionRow(row));
+    const rows = await fetchAllSupabaseRows((from, to) =>
+      supabase
+        .from("inspections")
+        .select("*")
+        .order("inspection_date", { ascending: false })
+        .range(from, to)
+    );
+    return rows.map((row) => mapInspectionRow(row));
   }
   const data = await listDemoData();
   return data.inspections;
@@ -2436,12 +2516,15 @@ export async function getInspectionNumberSeeds(years?: number[]) {
 export async function getInspectionSummaries() {
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
-    const { data } = await supabase
-      .from("inspections")
-      .select("id, customer_id, machine_id, machine_type, inspection_date, inspection_number, status, machine_snapshot, updated_at")
-      .order("inspection_date", { ascending: false });
+    const rows = await fetchAllSupabaseRows((from, to) =>
+      supabase
+        .from("inspections")
+        .select("id, customer_id, machine_id, machine_type, inspection_date, inspection_number, status, machine_snapshot, updated_at")
+        .order("inspection_date", { ascending: false })
+        .range(from, to)
+    );
 
-    return (data ?? []).map((row) => ({
+    return rows.map((row) => ({
       id: String(row.id),
       inspectionNumber: String(row.inspection_number ?? ""),
       customerId: String(row.customer_id),
@@ -3036,16 +3119,25 @@ export async function getInspectionAttachmentsForInspections(inspectionIds: stri
 
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
-    const rows: any[] = [];
     const batchSize = 100;
+    const batches: string[][] = [];
 
     for (let index = 0; index < ids.length; index += batchSize) {
-      const { data, error } = await supabase
-        .from("inspection_attachments")
-        .select("*")
-        .in("inspection_id", ids.slice(index, index + batchSize))
-        .order("created_at", { ascending: false });
+      batches.push(ids.slice(index, index + batchSize));
+    }
 
+    const results = await Promise.all(
+      batches.map((batchIds) =>
+        supabase
+          .from("inspection_attachments")
+          .select("*")
+          .in("inspection_id", batchIds)
+          .order("created_at", { ascending: false })
+      )
+    );
+
+    const rows: any[] = [];
+    for (const { data, error } of results) {
       if (error) {
         throw new Error(`Bijlagen ophalen mislukt: ${error.message}`);
       }
