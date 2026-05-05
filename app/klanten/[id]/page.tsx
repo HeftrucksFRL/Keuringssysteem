@@ -1,4 +1,3 @@
-import { fileUrl } from "@/lib/file-urls";
 import { canManageCleanup, requireUser } from "@/lib/auth";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -31,6 +30,7 @@ import {
   getMachineLocation
 } from "@/lib/machine-presentation";
 import { CustomerPicker } from "@/components/customer-picker";
+import { CustomerInspectionHistory } from "@/components/customer-inspection-history";
 
 function rentalPhase(rental: { startDate: string; endDate: string; status: "active" | "completed" }) {
   const today = new Date().toISOString().slice(0, 10);
@@ -686,82 +686,7 @@ export default async function CustomerDetailPage({
       <section className="panel" style={{ marginTop: "1rem" }}>
         <div className="eyebrow">Historie</div>
         <h2>Recente keuringen</h2>
-        <div className="table-like">
-        <div className="table-row table-head">
-          <span>Keurnummer</span>
-          <span>Machine</span>
-          <span>Datum</span>
-          <span>Actie</span>
-        </div>
-        {inspections.map((inspection) => (
-          <div className="table-row" key={inspection.id}>
-            <span>{inspection.inspectionNumber}</span>
-            <span>
-              {inspection.machineType === "batterij_lader" || inspection.machineType === "stellingmateriaal"
-                ? formatMachineKindBrandType({
-                    machineType: inspection.machineType,
-                    brand: inspection.machineSnapshot.brand,
-                    model: inspection.machineSnapshot.model,
-                    configuration: inspection.machineSnapshot
-                  })
-                : formatMachineBrandTypeSerial({
-                    machineType: inspection.machineType,
-                    brand: inspection.machineSnapshot.brand,
-                    model: inspection.machineSnapshot.model,
-                    serial_number: inspection.machineSnapshot.serial_number,
-                    configuration: inspection.machineSnapshot
-                  })}
-            </span>
-            <span>{inspection.inspectionDate}</span>
-            <span>
-                  {attachments.find(
-                (attachment) =>
-                  attachment.inspectionId === inspection.id && attachment.kind === "pdf"
-              ) ? (
-                <a
-                  className="button-secondary"
-                  href={fileUrl(
-                    attachments.find(
-                      (attachment) =>
-                        attachment.inspectionId === inspection.id && attachment.kind === "pdf"
-                    )!.storagePath
-                  )}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Rapport openen
-                </a>
-              ) : (
-                <span
-                  className={`badge ${
-                    inspection.status === "rejected"
-                      ? "orange"
-                      : inspection.status === "draft"
-                        ? "orange"
-                        : "green"
-                  }`}
-                >
-                  {inspection.status === "rejected"
-                    ? "Afgekeurd"
-                    : inspection.status === "draft"
-                      ? "In behandeling"
-                      : "Goedgekeurd"}
-                </span>
-              )}
-              <Link
-                className="button-secondary"
-                href={
-                  (inspection.status === "draft"
-                    ? `/keuringen/nieuw?inspectionId=${inspection.id}`
-                    : `/keuringen/${inspection.id}`) as Route
-                }
-              >
-                Keuring openen
-              </Link>
-            </span>
-          </div>
-        ))}
-      </div>
+        <CustomerInspectionHistory inspections={inspections} attachments={attachments} />
       </section>
     </>
   );
