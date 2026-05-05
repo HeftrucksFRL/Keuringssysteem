@@ -68,54 +68,65 @@ export function CustomerInspectionHistory({
     <>
       {feedback ? <p className="form-message success">{feedback}</p> : null}
       {resendInspectionId ? (
-        <div className="panel" style={{ marginBottom: "1rem" }}>
-          <div className="eyebrow">Opnieuw mailen</div>
-          <h2>Kies eerst waar de PDF heen moet</h2>
-          <div className="form-block">
-            <label className="status-chip">
-              <input
-                checked={sendToCustomer}
-                onChange={() => setSendToCustomer(true)}
-                type="radio"
-              />
-              Mail naar klant
-            </label>
-            <label className="status-chip">
-              <input
-                checked={!sendToCustomer}
-                onChange={() => setSendToCustomer(false)}
-                type="radio"
-              />
-              Mail naar ander adres
-            </label>
-            {!sendToCustomer ? (
-              <div className="field">
-                <label htmlFor="customerCardCustomRecipient">Ander e-mailadres</label>
+        <div
+          className="modal-backdrop"
+          onClick={() => {
+            if (!isPending) {
+              setResendInspectionId("");
+            }
+          }}
+        >
+          <div className="modal-card" onClick={(event) => event.stopPropagation()}>
+            <div className="eyebrow">Opnieuw mailen</div>
+            <h2>Kies eerst waar de PDF heen moet</h2>
+            <div className="form-block">
+              <label className="status-chip">
                 <input
-                  id="customerCardCustomRecipient"
-                  type="email"
-                  value={customRecipient}
-                  onChange={(event) => setCustomRecipient(event.target.value)}
-                  placeholder="naam@bedrijf.nl"
+                  checked={sendToCustomer}
+                  onChange={() => setSendToCustomer(true)}
+                  type="radio"
                 />
+                Mail naar klant
+              </label>
+              <label className="status-chip">
+                <input
+                  checked={!sendToCustomer}
+                  onChange={() => setSendToCustomer(false)}
+                  type="radio"
+                />
+                Mail naar ander adres
+              </label>
+              {!sendToCustomer ? (
+                <div className="field">
+                  <label htmlFor="customerCardCustomRecipient">Ander e-mailadres</label>
+                  <input
+                    id="customerCardCustomRecipient"
+                    type="email"
+                    value={customRecipient}
+                    onChange={(event) => setCustomRecipient(event.target.value)}
+                    placeholder="naam@bedrijf.nl"
+                    autoFocus
+                  />
+                </div>
+              ) : null}
+              <div className="actions">
+                <button
+                  className="button"
+                  type="button"
+                  disabled={isPending}
+                  onClick={() => resendMail(resendInspectionId)}
+                >
+                  {isPending ? "Bezig..." : "Verzenden"}
+                </button>
+                <button
+                  className="button-secondary"
+                  type="button"
+                  disabled={isPending}
+                  onClick={() => setResendInspectionId("")}
+                >
+                  Annuleren
+                </button>
               </div>
-            ) : null}
-            <div className="actions">
-              <button
-                className="button"
-                type="button"
-                disabled={isPending}
-                onClick={() => resendMail(resendInspectionId)}
-              >
-                {isPending ? "Bezig..." : "Verzenden"}
-              </button>
-              <button
-                className="button-secondary"
-                type="button"
-                onClick={() => setResendInspectionId("")}
-              >
-                Annuleren
-              </button>
             </div>
           </div>
         </div>
