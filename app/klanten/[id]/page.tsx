@@ -29,6 +29,7 @@ import {
   formatMachineKindBrandType,
   getMachineLocation
 } from "@/lib/machine-presentation";
+import { formatDisplayDate } from "@/lib/utils";
 import { CustomerPicker } from "@/components/customer-picker";
 import { CustomerInspectionHistory } from "@/components/customer-inspection-history";
 
@@ -529,7 +530,7 @@ export default async function CustomerDetailPage({
                           : "Verhuurde machine"}
                       </strong>
                       <br />
-                      {[`Locatie: ${machine ? getMachineLocation(machine) || "-" : "-"}`, `${rental.startDate} t/m ${rental.endDate}`]
+                      {[`Locatie: ${machine ? getMachineLocation(machine) || "-" : "-"}`, `${formatDisplayDate(rental.startDate)} t/m ${formatDisplayDate(rental.endDate)}`]
                         .filter(Boolean)
                         .join(" | ")}
                     </span>
@@ -557,7 +558,7 @@ export default async function CustomerDetailPage({
                           : "Aanstaande huur"}
                       </strong>
                       <br />
-                      {[`Locatie: ${machine ? getMachineLocation(machine) || "-" : "-"}`, `${rental.startDate} t/m ${rental.endDate}`]
+                      {[`Locatie: ${machine ? getMachineLocation(machine) || "-" : "-"}`, `${formatDisplayDate(rental.startDate)} t/m ${formatDisplayDate(rental.endDate)}`]
                         .filter(Boolean)
                         .join(" | ")}
                     </span>

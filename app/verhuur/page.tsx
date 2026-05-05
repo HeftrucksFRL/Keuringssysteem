@@ -9,6 +9,7 @@ import {
   getVisibleCustomers,
   stockOwnerLabel
 } from "@/lib/inspection-service";
+import { formatDisplayDate } from "@/lib/utils";
 
 function rentalPhase(rental: { startDate: string; endDate: string; status: "active" | "completed" }) {
   const today = new Date().toISOString().slice(0, 10);
@@ -270,7 +271,7 @@ export default async function RentalsPage({
                                 const detailLine = [
                                   getCustomerDisplayName(customer),
                                   machineNumber,
-                                  `${rental.startDate} t/m ${rental.endDate}`,
+                                  `${formatDisplayDate(rental.startDate)} t/m ${formatDisplayDate(rental.endDate)}`,
                                   rental.price || ""
                                 ]
                                   .filter(Boolean)

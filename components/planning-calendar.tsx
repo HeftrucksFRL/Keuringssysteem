@@ -25,7 +25,7 @@ import {
 } from "@/lib/planning";
 import { formatMachineKindBrandType } from "@/lib/machine-presentation";
 import { getCustomerDisplayName, isRentalStockCustomer } from "@/lib/stock-customer";
-import { formatLocalDateInput, parseLocalDateInput, todayLocalIso } from "@/lib/utils";
+import { formatDisplayDate, formatLocalDateInput, parseLocalDateInput, todayLocalIso } from "@/lib/utils";
 
 interface PlanningCalendarProps {
   items: PlanningRecord[];
@@ -800,7 +800,7 @@ export function PlanningCalendar({
             <div className="eyebrow">Dagoverzicht</div>
             <h2>{dayLabel(selectedDayDate)}</h2>
             <p className="muted" style={{ marginTop: "-0.35rem", marginBottom: "1rem" }}>
-              {selectedDayKey} | {selectedDayEvents.length}{" "}
+              {formatDisplayDate(selectedDayKey)} | {selectedDayEvents.length}{" "}
               {selectedDayEvents.length === 1 ? "afspraak" : "afspraken"}
             </p>
             <div className="list compact-list">
@@ -862,7 +862,7 @@ export function PlanningCalendar({
                 <>
                   <div className="list-item static-list-item">
                     <span>Datum</span>
-                    <strong>{selectedEvent.dueDate}</strong>
+                    <strong>{formatDisplayDate(selectedEvent.dueDate)}</strong>
                   </div>
                   <div className="list-item static-list-item">
                     <span>Type</span>
@@ -877,11 +877,11 @@ export function PlanningCalendar({
                   </div>
                   <div className="list-item static-list-item">
                     <span>{selectedEvent.rentalMoment === "start" ? "Verhuur start" : "Verhuur eindigt"}</span>
-                    <strong>{selectedEvent.dueDate}</strong>
+                    <strong>{formatDisplayDate(selectedEvent.dueDate)}</strong>
                   </div>
                   <div className="list-item static-list-item">
                     <span>Periode</span>
-                    <strong>{selectedEvent.rental.startDate} t/m {selectedEvent.rental.endDate}</strong>
+                    <strong>{formatDisplayDate(selectedEvent.rental.startDate)} t/m {formatDisplayDate(selectedEvent.rental.endDate)}</strong>
                   </div>
                 </>
               ) : (
@@ -892,7 +892,7 @@ export function PlanningCalendar({
                   </div>
                   <div className="list-item static-list-item">
                     <span>Datum</span>
-                    <strong>{selectedEvent.dueDate}</strong>
+                    <strong>{formatDisplayDate(selectedEvent.dueDate)}</strong>
                   </div>
                 </>
               )}

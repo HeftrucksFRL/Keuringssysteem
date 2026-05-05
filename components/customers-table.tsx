@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { CustomerRecord, InspectionRecord, MachineRecord } from "@/lib/domain";
+import { formatDisplayDate } from "@/lib/utils";
 
 interface CustomersTableProps {
   customers: CustomerRecord[];
@@ -145,7 +146,7 @@ export function CustomersTable({
                       <span>{customer.contactName || customer.email || "-"}</span>
                       <span>
                         {machineCountByCustomerId.get(customer.id) ?? 0} machines | Laatste keuring{" "}
-                        {lastInspectionByCustomerId.get(customer.id) ?? "-"}
+                        {formatDisplayDate(lastInspectionByCustomerId.get(customer.id))}
                       </span>
                     </Link>
                   ))}

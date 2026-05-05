@@ -16,6 +16,7 @@ import {
 } from "@/lib/inspection-service";
 import { getFormDefinition } from "@/lib/form-definitions";
 import { downloadUrl, fileUrl } from "@/lib/file-urls";
+import { formatDisplayDate } from "@/lib/utils";
 
 export default async function InspectionDetailPage({
   params,
@@ -107,11 +108,11 @@ export default async function InspectionDetailPage({
           <div className="list">
             <div className="list-item">
               <span>Datum</span>
-              <strong>{inspection.inspectionDate}</strong>
+              <strong>{formatDisplayDate(inspection.inspectionDate)}</strong>
             </div>
             <div className="list-item">
               <span>Vervolgdatum</span>
-              <strong>{inspection.nextInspectionDate}</strong>
+              <strong>{formatDisplayDate(inspection.nextInspectionDate)}</strong>
             </div>
             <div className="list-item">
               <span>Status</span>

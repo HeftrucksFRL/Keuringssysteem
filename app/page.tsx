@@ -19,6 +19,7 @@ import {
 } from "@/lib/inspection-service";
 import { formatMachineKindBrandType } from "@/lib/machine-presentation";
 import { getPlanningDisplayLabel, getPlanningDisplayState } from "@/lib/planning";
+import { formatDisplayDate, formatDisplayDateTime } from "@/lib/utils";
 
 function buildTodoNote(title: string, description?: string | null) {
   const trimmedTitle = title.trim();
@@ -73,12 +74,7 @@ function formatActivityMoment(value: string) {
     return "";
   }
 
-  return new Intl.DateTimeFormat("nl-NL", {
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit"
-  }).format(new Date(value));
+  return formatDisplayDateTime(value);
 }
 
 export default async function HomePage({
@@ -349,7 +345,7 @@ export default async function HomePage({
                   <br />
                   {machine?.brand ?? "Machine"} {machine?.model ?? ""}
                 </span>
-                <span>{item.dueDate}</span>
+                <span>{formatDisplayDate(item.dueDate)}</span>
                 <span
                   className={`badge ${
                     getPlanningDisplayState(item) === "overdue"

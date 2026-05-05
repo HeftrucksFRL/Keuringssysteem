@@ -21,6 +21,32 @@ export function parseLocalDateInput(value: string) {
   return new Date(year, month - 1, day);
 }
 
+export function formatDisplayDate(value?: string | null) {
+  const date = String(value ?? "").trim();
+  if (!date) {
+    return "-";
+  }
+
+  const isoDate = date.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) {
+    return date;
+  }
+
+  const [year, month, day] = isoDate.split("-");
+  return `${day}-${month}-${year}`;
+}
+
+export function formatDisplayDateTime(value?: string | null) {
+  const raw = String(value ?? "").trim();
+  if (!raw) {
+    return "-";
+  }
+
+  const datePart = formatDisplayDate(raw);
+  const timeMatch = raw.match(/(?:T|\s)(\d{2}:\d{2})/);
+  return timeMatch ? `${datePart} ${timeMatch[1]}` : datePart;
+}
+
 export function todayLocalIso() {
   return formatLocalDateInput(new Date());
 }

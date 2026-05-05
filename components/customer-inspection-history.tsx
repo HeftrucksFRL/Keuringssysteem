@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import type { Route } from "next";
 import { getCsrfHeaders } from "@/lib/client-security";
 import { fileUrl } from "@/lib/file-urls";
+import { formatDisplayDate } from "@/lib/utils";
 import type { InspectionAttachmentRecord, InspectionRecord } from "@/lib/domain";
 import {
   formatMachineBrandTypeSerial,
@@ -161,7 +162,7 @@ export function CustomerInspectionHistory({
                       configuration: inspection.machineSnapshot
                     })}
               </span>
-              <span>{inspection.inspectionDate}</span>
+              <span>{formatDisplayDate(inspection.inspectionDate)}</span>
               <span>
                 {pdfAttachment ? (
                   <>

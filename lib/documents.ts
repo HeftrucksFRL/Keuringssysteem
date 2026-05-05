@@ -9,6 +9,7 @@ import {
   formatMachineKindBrandType,
   getMachineLocation
 } from "@/lib/machine-presentation";
+import { formatDisplayDate } from "@/lib/utils";
 
 interface GenerateDocumentsOptions {
   persistToDisk?: boolean;
@@ -330,7 +331,7 @@ function customerMachineRows(inspection: InspectionRecord): Array<[string, strin
 function summaryRows(inspection: InspectionRecord): Array<[string, string]> {
   return [
     ["Keurnummer", inspection.inspectionNumber],
-    ["Datum", inspection.inspectionDate],
+    ["Datum", formatDisplayDate(inspection.inspectionDate)],
     ["Status", inspectionStatusLabel(inspection)],
     ...customerMachineRows(inspection)
   ];
@@ -531,7 +532,7 @@ export async function generateInspectionDocuments(
 
     const metaItems = [
       ["Keurnummer", inspection.inspectionNumber],
-      ["Datum", inspection.inspectionDate],
+      ["Datum", formatDisplayDate(inspection.inspectionDate)],
       ["Status", inspectionStatusLabel(inspection)]
     ] as const;
     const columnWidth = 112;

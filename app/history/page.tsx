@@ -1,4 +1,5 @@
 import { generationHistory } from "@/lib/content-platform";
+import { formatDisplayDateTime } from "@/lib/utils";
 
 export default function HistoryPage() {
   return (
@@ -20,7 +21,7 @@ export default function HistoryPage() {
             <div className="dataset-row" key={item.id}>
               <strong>{item.title}</strong>
               <span>
-                {item.mode} · {item.createdAt}
+                {item.mode} - {formatDisplayDateTime(item.createdAt)}
               </span>
               <span>{item.summary}</span>
               <span className="badge green">{item.status}</span>

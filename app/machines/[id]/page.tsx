@@ -39,7 +39,7 @@ import {
   formatMachineBrandTypeSerial,
   getMachineLocation
 } from "@/lib/machine-presentation";
-import { titleCase } from "@/lib/utils";
+import { formatDisplayDate, titleCase } from "@/lib/utils";
 import { MachineTypeFields } from "@/components/machine-type-fields";
 
 function rentalPhase(rental: { startDate: string; endDate: string; status: "active" | "completed" }) {
@@ -492,7 +492,7 @@ export default async function MachineDetailPage({
               >
                 <span>Verhuurd aan</span>
                 <strong>
-                  {rentalCustomer?.companyName ?? "-"} - {activeRental.startDate} t/m {activeRental.endDate}
+                  {rentalCustomer?.companyName ?? "-"} - {formatDisplayDate(activeRental.startDate)} t/m {formatDisplayDate(activeRental.endDate)}
                 </strong>
               </div>
             ) : null}
@@ -511,7 +511,7 @@ export default async function MachineDetailPage({
                 >
                   <span>Aanstaande huur</span>
                   <strong>
-                    {upcomingCustomer?.companyName ?? "-"} - {rental.startDate} t/m {rental.endDate}
+                    {upcomingCustomer?.companyName ?? "-"} - {formatDisplayDate(rental.startDate)} t/m {formatDisplayDate(rental.endDate)}
                   </strong>
                 </div>
               );
@@ -702,7 +702,7 @@ export default async function MachineDetailPage({
                 <div className="list-item">
                   <span>Periode</span>
                   <strong>
-                    {activeRental.startDate} t/m {activeRental.endDate}
+                    {formatDisplayDate(activeRental.startDate)} t/m {formatDisplayDate(activeRental.endDate)}
                   </strong>
                 </div>
                 <div className="list-item">
@@ -731,7 +731,7 @@ export default async function MachineDetailPage({
                   <div className="list-item" key={rental.id}>
                     <span>Aanstaande huur</span>
                     <strong>
-                      {upcomingCustomer?.companyName ?? "-"} - {rental.startDate} t/m {rental.endDate}
+                      {upcomingCustomer?.companyName ?? "-"} - {formatDisplayDate(rental.startDate)} t/m {formatDisplayDate(rental.endDate)}
                     </strong>
                   </div>
                 );
@@ -755,7 +755,7 @@ export default async function MachineDetailPage({
           {history.map((inspection) => (
             <div className="table-row" key={inspection.id}>
               <span>{inspection.inspectionNumber}</span>
-              <span>{inspection.inspectionDate}</span>
+              <span>{formatDisplayDate(inspection.inspectionDate)}</span>
               <span
                 className={`badge ${
                   inspection.status === "rejected"

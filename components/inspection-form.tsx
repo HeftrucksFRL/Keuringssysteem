@@ -7,7 +7,7 @@ import { getFormDefinition } from "@/lib/form-definitions";
 import { previewNextInspectionNumber } from "@/lib/inspection-number";
 import { formatMachineKindBrandType } from "@/lib/machine-presentation";
 import { isMachineHistoryCustomer, isRentalStockCustomer, stockOwnerLabel } from "@/lib/stock-customer";
-import { addTwelveMonths } from "@/lib/utils";
+import { addTwelveMonths, formatDisplayDate } from "@/lib/utils";
 import type {
   CustomerContactRecord,
   CustomerRecord,
@@ -1713,7 +1713,7 @@ export function InspectionForm({
               <div className="list compact-list">
                 <div className="list-item">
                   <span>Volgende keurdatum</span>
-                  <strong>{nextInspectionDate || "Kies eerst een keuringsdatum"}</strong>
+                  <strong>{nextInspectionDate ? formatDisplayDate(nextInspectionDate) : "Kies eerst een keuringsdatum"}</strong>
                 </div>
               </div>
             </div>

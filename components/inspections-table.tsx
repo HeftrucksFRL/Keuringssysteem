@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getCsrfHeaders } from "@/lib/client-security";
+import { formatDisplayDate } from "@/lib/utils";
 import { fileUrl } from "@/lib/file-urls";
 import {
   formatMachineBrandTypeSerial,
@@ -280,7 +281,7 @@ export function InspectionsTable({
           {inspection.inspectionNumber}
         </strong>
         <span className="compact-overview-detail">
-          {inspection.inspectionDate} | {customer?.companyName ?? "-"} | Machine: {machineLabel}
+          {formatDisplayDate(inspection.inspectionDate)} | {customer?.companyName ?? "-"} | Machine: {machineLabel}
           {serialNumber ? ` | Serienummer: ${serialNumber}` : ""}
         </span>
         <span className="compact-overview-actions">

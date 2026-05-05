@@ -8,7 +8,7 @@ import { storeInspectionPhoto } from "@/lib/attachments";
 import { appConfig, hasSupabaseConfig } from "@/lib/env";
 import { demoData } from "@/lib/demo-data";
 import { readAppData, writeAppData } from "@/lib/file-store";
-import { addTwelveMonths, formatLocalDateInput, parseLocalDateInput, todayLocalIso } from "@/lib/utils";
+import { addTwelveMonths, formatDisplayDate, formatLocalDateInput, parseLocalDateInput, todayLocalIso } from "@/lib/utils";
 import { generateInspectionDocuments } from "@/lib/documents";
 import { getYearSequenceStart } from "@/lib/inspection-number";
 import {
@@ -296,7 +296,7 @@ function ensureRentalPeriodIsFree(
 
   if (conflictingRental) {
     throw new Error(
-      `Deze machine is al verhuurd van ${conflictingRental.startDate} t/m ${conflictingRental.endDate}.`
+      `Deze machine is al verhuurd van ${formatDisplayDate(conflictingRental.startDate)} t/m ${formatDisplayDate(conflictingRental.endDate)}.`
     );
   }
 }
