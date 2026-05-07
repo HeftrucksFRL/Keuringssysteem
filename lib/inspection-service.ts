@@ -1389,6 +1389,15 @@ export async function createInspection(input: CreateInspectionInput) {
         .maybeSingle()
     : { data: null };
   const currentMachine = currentMachineRow ? mapMachineRow(currentMachineRow) : null;
+
+  if (input.machineId && !currentMachine) {
+    throw new Error("De gekozen machine bestaat niet meer. Kies opnieuw een machine.");
+  }
+
+  if (currentMachine && currentMachine.machineType !== input.machineType) {
+    throw new Error("De gekozen machine past niet bij dit keuringstype. Kies opnieuw een machine.");
+  }
+
   const currentMachineOwner = currentMachine
     ? await getCustomerById(currentMachine.customerId)
     : null;
@@ -1521,6 +1530,10 @@ export async function createInspection(input: CreateInspectionInput) {
       .select()
       .single();
     machineRow = data;
+  }
+
+  if (!machineRow?.id) {
+    throw new Error("Machine kon niet worden opgeslagen. Kies opnieuw een machine.");
   }
 
   const { data: generatedInspectionNumber, error: sequenceError } = await supabase.rpc(

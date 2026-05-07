@@ -465,10 +465,13 @@ export function InspectionForm({
 
     try {
       const draft = JSON.parse(raw) as SavedDraft;
+      const hasRouteDefaults = Boolean(defaultCustomerId || defaultMachineId);
+      const customerMatchesRoute =
+        !defaultCustomerId || draft.selectedCustomerId === defaultCustomerId;
+      const machineMatchesRoute =
+        !defaultMachineId || draft.selectedMachineId === defaultMachineId;
       const canRestore =
-        (!defaultCustomerId && !defaultMachineId) ||
-        draft.selectedCustomerId === defaultCustomerId ||
-        draft.selectedMachineId === defaultMachineId;
+        !hasRouteDefaults || (customerMatchesRoute && machineMatchesRoute);
 
       if (!canRestore) {
         return;
@@ -840,6 +843,14 @@ export function InspectionForm({
   async function submitForm(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!validateStep(3)) return;
+    if (machineMode === "existing" && selectedMachineId && !selectedMachine) {
+      setMessage({ type: "error", text: "De gekozen machine bestaat niet meer. Kies opnieuw een machine." });
+      return;
+    }
+    if (selectedMachine && selectedMachine.machineType !== type) {
+      setMessage({ type: "error", text: "De gekozen machine past niet bij dit keuringstype. Kies opnieuw een machine." });
+      return;
+    }
 
     const formData = new FormData(event.currentTarget);
     formData.set("machine_type", type);
