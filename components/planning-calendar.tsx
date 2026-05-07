@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { CheckCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import {
   deletePlanningItemAction,
@@ -46,6 +46,13 @@ type AgendaEvent =
       dueDate: string;
       customer?: CustomerRecord;
       machineList: MachineRecord[];
+      planningEntries: Array<{
+        customer?: CustomerRecord;
+        machine?: MachineRecord;
+        item: PlanningRecord;
+        state: PlanningDisplayState;
+      }>;
+      routeName?: string;
       state: PlanningDisplayState;
       place: string;
       inspectionId?: string;
@@ -163,6 +170,23 @@ function stateLabel(state: PlanningDisplayState) {
   return "Niet ingepland";
 }
 
+function routeNameFromPlanningItem(item: Pick<PlanningRecord, "notes">) {
+  const note = item.notes?.trim() ?? "";
+  return note.startsWith("Route: ") ? note.replace(/^Route:\s*/, "").trim() : "";
+}
+
+function combinePlanningState(
+  current: PlanningDisplayState,
+  next: PlanningDisplayState
+): PlanningDisplayState {
+  if (current === "overdue" || next === "overdue") return "overdue";
+  if (current === "scheduled" || next === "scheduled") return "scheduled";
+  if (current === "completed" && next === "completed") return "completed";
+  if (current === "completed") return next;
+  if (next === "completed") return current;
+  return "upcoming";
+}
+
 function rentalPhaseLabel(rental: RentalRecord) {
   const today = todayLocalIso();
   if (rental.status === "completed" || rental.endDate < today) {
@@ -249,6 +273,9 @@ function dayPopupTitle(event: AgendaEvent) {
   }
 
   if (event.kind === "inspection") {
+    if (event.routeName) {
+      return event.routeName;
+    }
     return `${customerDisplayName(event.customer)} - ${event.machineList.length}`;
   }
 
@@ -262,6 +289,10 @@ function dayPopupSubtitle(event: AgendaEvent) {
 
   if (event.kind === "rental") {
     return `${rentalMomentLabel(event.rentalMoment)} | ${planningMachineLabel(event.machineList[0])}`;
+  }
+
+  if (event.routeName) {
+    return `Route | ${event.machineList.length} keuringen`;
   }
 
   return `${event.place} | ${event.machineList.length} machine${event.machineList.length === 1 ? "" : "s"}`;
@@ -311,7 +342,10 @@ export function PlanningCalendar({
   const planningItemIdsByEventKey = useMemo(() => {
     const map = new Map<string, string[]>();
     for (const item of items) {
-      const key = `inspection-${item.customerId}-${item.dueDate}`;
+      const routeName = routeNameFromPlanningItem(item);
+      const key = routeName
+        ? `route-${item.dueDate}-${routeName}`
+        : `inspection-${item.customerId}-${item.dueDate}`;
       const current = map.get(key) ?? [];
       current.push(item.id);
       map.set(key, current);
@@ -331,8 +365,12 @@ export function PlanningCalendar({
       .forEach((item) => {
         const customer = customerById.get(item.customerId);
         const machine = machineById.get(item.machineId);
-        const key = `inspection-${item.customerId}-${item.dueDate}`;
-        const place = placeLabel(customer);
+        const routeName = routeNameFromPlanningItem(item);
+        const key = routeName
+          ? `route-${item.dueDate}-${routeName}`
+          : `inspection-${item.customerId}-${item.dueDate}`;
+        const place = routeName || placeLabel(customer);
+        const state = getPlanningDisplayState(item);
 
         if (!groupedPlanning.has(key)) {
           groupedPlanning.set(key, {
@@ -341,7 +379,9 @@ export function PlanningCalendar({
             dueDate: item.dueDate,
             customer,
             machineList: machine ? [machine] : [],
-            state: getPlanningDisplayState(item),
+            planningEntries: [{ customer, machine, item, state }],
+            routeName: routeName || undefined,
+            state,
             place,
             inspectionId: item.inspectionId || undefined
           });
@@ -356,17 +396,11 @@ export function PlanningCalendar({
         if (machine && !current.machineList.some((entry) => entry.id === machine.id)) {
           current.machineList.push(machine);
         }
+        current.planningEntries.push({ customer, machine, item, state: getPlanningDisplayState(item) });
         if (!current.inspectionId && item.inspectionId) {
           current.inspectionId = item.inspectionId;
         }
-        const nextState = getPlanningDisplayState(item);
-        if (nextState === "overdue" || current.state === "overdue") {
-          current.state = "overdue";
-        } else if (nextState === "scheduled" || current.state === "scheduled") {
-          current.state = "scheduled";
-        } else {
-          current.state = "upcoming";
-        }
+        current.state = combinePlanningState(current.state, getPlanningDisplayState(item));
       });
 
     const rentalEvents: AgendaEvent[] = rentals.flatMap((rental) => {
@@ -528,12 +562,14 @@ export function PlanningCalendar({
     selectedEvent?.kind === "appointment"
       ? selectedEvent.appointment.title
       : selectedEvent?.kind === "inspection"
-        ? `${customerDisplayName(selectedEvent.customer)} - ${selectedEvent.machineList.length}`
+        ? selectedEvent.routeName || `${customerDisplayName(selectedEvent.customer)} - ${selectedEvent.machineList.length}`
         : customerDisplayName(selectedEvent?.customer);
   const selectedSubtitle =
     selectedEvent?.kind === "appointment"
       ? selectedEvent.appointment.description || "Losse agenda-afspraak"
-      : [
+      : selectedEvent?.kind === "inspection" && selectedEvent.routeName
+        ? `${formatDisplayDate(selectedEvent.dueDate)} | ${selectedEvent.machineList.length} keuringen`
+        : [
           selectedEvent?.customer?.address,
           selectedEvent?.customer?.city
         ]
@@ -659,6 +695,8 @@ export function PlanningCalendar({
                       ? planningMachineLabel(event.machineList[0])
                       : event.kind === "appointment"
                         ? "Afspraak"
+                        : event.routeName
+                          ? "Route"
                         : event.place}
                   </div>
                   <div className="agenda-main">
@@ -666,7 +704,7 @@ export function PlanningCalendar({
                       {event.kind === "appointment"
                         ? event.appointment.title
                         : event.kind === "inspection"
-                          ? `${customerDisplayName(event.customer)} - ${event.machineList.length}`
+                          ? event.routeName || `${customerDisplayName(event.customer)} - ${event.machineList.length}`
                           : customerDisplayName(event.customer)}
                     </strong>
                     {event.kind === "appointment" ? (
@@ -728,7 +766,7 @@ export function PlanningCalendar({
                           ? planningMachineLabel(event.machineList[0])
                           : event.kind === "appointment"
                             ? event.appointment.title
-                            : `${customerDisplayName(event.customer)} - ${event.machineList.length}`}
+                            : event.routeName || `${customerDisplayName(event.customer)} - ${event.machineList.length}`}
                       </strong>
                       <span>
                         {event.kind === "rental"
@@ -742,7 +780,9 @@ export function PlanningCalendar({
                           ? customerDisplayName(event.customer)
                           : event.kind === "appointment"
                             ? event.appointment.description || "Eigen agenda"
-                            : `${event.machineList.length} machine${event.machineList.length === 1 ? "" : "s"}`}
+                            : event.routeName
+                              ? `${event.machineList.length} keuringen`
+                              : `${event.machineList.length} machine${event.machineList.length === 1 ? "" : "s"}`}
                       </span>
                     </button>
                   ))}
@@ -846,6 +886,8 @@ export function PlanningCalendar({
                 ? "Verhuur"
                 : selectedEvent.kind === "appointment"
                   ? "Afspraak"
+                  : selectedEvent.routeName
+                    ? "Route"
                   : selectedInspectionTone === "Gepland"
                     ? "Ingeplande keuring"
                     : "Verwachte keuring"}
@@ -887,8 +929,8 @@ export function PlanningCalendar({
               ) : (
                 <>
                   <div className="list-item static-list-item">
-                    <span>Plaats</span>
-                    <strong>{selectedEvent.place}</strong>
+                    <span>{selectedEvent.routeName ? "Route" : "Plaats"}</span>
+                    <strong>{selectedEvent.routeName || selectedEvent.place}</strong>
                   </div>
                   <div className="list-item static-list-item">
                     <span>Datum</span>
@@ -910,24 +952,51 @@ export function PlanningCalendar({
 
             {selectedEvent.kind === "appointment" ? null : (
               <div className="form-block" style={{ marginTop: "1rem" }}>
-                <div className="eyebrow">Machines</div>
+                <div className="eyebrow">{selectedEvent.kind === "inspection" && selectedEvent.routeName ? "Routeplanning" : "Machines"}</div>
                 <div className="list compact-list">
-                  {selectedEvent.machineList.map((machine) => (
-                    <Link className="list-item" href={`/machines/${machine.id}`} key={machine.id}>
-                      <span>
-                        <strong>
-                          {planningMachineLabel(machine)}
-                        </strong>
-                        {machine.machineType !== "batterij_lader" ? (
-                          <>
+                  {selectedEvent.kind === "inspection" && selectedEvent.routeName
+                    ? selectedEvent.planningEntries.map((entry) => (
+                        <Link
+                          className="list-item"
+                          href={entry.machine ? `/machines/${entry.machine.id}` : "#"}
+                          key={entry.item.id}
+                        >
+                          <span>
+                            <strong>
+                              {entry.customer ? customerDisplayName(entry.customer) : "Onbekende klant"}
+                            </strong>
                             <br />
-                            Serienr: {machine.serialNumber || "-"}
-                          </>
-                        ) : null}
-                      </span>
-                      <strong>{machine.machineType === "batterij_lader" ? "Batterij/lader" : machine.internalNumber || machine.machineNumber || "-"}</strong>
-                    </Link>
-                  ))}
+                            {planningMachineLabel(entry.machine)}
+                            {entry.machine?.serialNumber ? ` | Serienr: ${entry.machine.serialNumber}` : ""}
+                          </span>
+                          <strong className={entry.state === "completed" ? "route-done-badge" : undefined}>
+                            {entry.state === "completed" ? (
+                              <>
+                                <CheckCircle size={16} />
+                                Gedaan
+                              </>
+                            ) : (
+                              stateLabel(entry.state)
+                            )}
+                          </strong>
+                        </Link>
+                      ))
+                    : selectedEvent.machineList.map((machine) => (
+                        <Link className="list-item" href={`/machines/${machine.id}`} key={machine.id}>
+                          <span>
+                            <strong>
+                              {planningMachineLabel(machine)}
+                            </strong>
+                            {machine.machineType !== "batterij_lader" ? (
+                              <>
+                                <br />
+                                Serienr: {machine.serialNumber || "-"}
+                              </>
+                            ) : null}
+                          </span>
+                          <strong>{machine.machineType === "batterij_lader" ? "Batterij/lader" : machine.internalNumber || machine.machineNumber || "-"}</strong>
+                        </Link>
+                      ))}
                 </div>
               </div>
             )}

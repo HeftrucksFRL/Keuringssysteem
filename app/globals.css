@@ -1270,6 +1270,122 @@ textarea {
   align-items: end;
 }
 
+.new-agenda-workspace {
+  display: grid;
+  gap: 1rem;
+}
+
+.new-agenda-head,
+.new-agenda-results-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.new-agenda-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+  align-items: end;
+}
+
+.new-agenda-search-field {
+  grid-column: span 2;
+}
+
+.new-agenda-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.34fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.new-agenda-list {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.new-agenda-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.new-agenda-row:hover {
+  border-color: #9cc8ea;
+  background: #f8fbfd;
+}
+
+.new-agenda-row.overdue {
+  border-left: 4px solid #d92d20;
+}
+
+.new-agenda-row.scheduled {
+  border-left: 4px solid #1570ef;
+}
+
+.new-agenda-row.completed {
+  opacity: 0.7;
+}
+
+.new-agenda-row span {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.new-agenda-route-check {
+  display: flex;
+  align-items: center;
+}
+
+.new-agenda-route-check input {
+  width: 18px;
+  height: 18px;
+}
+
+.new-agenda-row-link {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.new-agenda-row-link:hover {
+  color: var(--brand);
+}
+
+.new-agenda-row small {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.new-agenda-row em {
+  flex: 0 0 auto;
+  font-style: normal;
+  font-weight: 900;
+  color: var(--muted);
+}
+
+.new-agenda-results-modal {
+  width: min(760px, 100%);
+}
+
 .dashboard-summary-grid {
   align-items: start;
 }
@@ -2137,6 +2253,13 @@ textarea {
   font-size: 0.88rem;
 }
 
+.route-done-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #087443;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -2146,6 +2269,24 @@ textarea {
 @media (max-width: 480px) {
   .brand span {
     display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .new-agenda-filters,
+  .new-agenda-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .new-agenda-search-field {
+    grid-column: auto;
+  }
+
+  .new-agenda-head,
+  .new-agenda-results-head,
+  .new-agenda-row {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 

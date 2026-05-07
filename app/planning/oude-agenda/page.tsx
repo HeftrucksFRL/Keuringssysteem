@@ -1,0 +1,77 @@
+import { PlanningCreateForm } from "@/components/planning-create-form";
+import { PlanningCalendar } from "@/components/planning-calendar";
+import { requireUser } from "@/lib/auth";
+import {
+  getAgendaEvents,
+  getCustomerSummaries,
+  getMachineSummaries,
+  getPlanningItems,
+  getRentals
+} from "@/lib/inspection-service";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+export default async function OldPlanningPage({
+  searchParams
+}: {
+  searchParams?: Promise<{
+    month?: string;
+    planned?: string;
+    scheduled?: string;
+    moved?: string;
+    appointment?: string;
+    updated?: string;
+    deleted?: string;
+    error?: string;
+  }>;
+}) {
+  const user = await requireUser();
+  const [rows, customers, machines, rentals, agendaEvents] = await Promise.all([
+    getPlanningItems(),
+    getCustomerSummaries(),
+    getMachineSummaries(),
+    getRentals(),
+    getAgendaEvents(String(user?.id ?? "demo-user"))
+  ]);
+  const params = await searchParams;
+
+  return (
+    <>
+      {params?.planned ? (
+        <p className="form-message success">Keuring is toegevoegd aan de agenda.</p>
+      ) : null}
+      {params?.scheduled ? (
+        <p className="form-message success">Keuring is ingepland.</p>
+      ) : null}
+      {params?.moved ? (
+        <p className="form-message success">Verwachte keuring is verplaatst.</p>
+      ) : null}
+      {params?.appointment ? (
+        <p className="form-message success">Afspraak is toegevoegd aan de agenda.</p>
+      ) : null}
+      {params?.updated ? (
+        <p className="form-message success">Planning is bijgewerkt.</p>
+      ) : null}
+      {params?.deleted ? (
+        <p className="form-message success">Afspraak of planning is verwijderd.</p>
+      ) : null}
+      {params?.error ? <p className="form-message error">{params.error}</p> : null}
+
+      <PlanningCalendar
+        items={rows}
+        rentals={rentals}
+        agendaEventItems={agendaEvents}
+        customers={customers}
+        machines={machines}
+        initialMonth={params?.month}
+      >
+        <PlanningCreateForm
+          customers={customers}
+          machines={machines}
+          initialMonth={params?.month}
+        />
+      </PlanningCalendar>
+    </>
+  );
+}

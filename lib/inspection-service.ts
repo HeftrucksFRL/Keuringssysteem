@@ -4432,6 +4432,7 @@ export async function updatePlanningItem(input: {
   id: string;
   dueDate: string;
   mode?: "move" | "schedule";
+  notes?: string;
 }) {
   const mode = input.mode === "move" ? "move" : "schedule";
   const baseState =
@@ -4440,7 +4441,7 @@ export async function updatePlanningItem(input: {
       : mode === "move"
         ? ("upcoming" as const)
         : ("scheduled" as const);
-  const notes = mode === "move" ? "Automatische vervolgkeuring" : "Handmatig gepland";
+  const notes = input.notes?.trim() || (mode === "move" ? "Automatische vervolgkeuring" : "Handmatig gepland");
 
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
