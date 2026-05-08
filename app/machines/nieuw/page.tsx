@@ -19,6 +19,7 @@ export default async function NewMachinePage({
     stock?: string;
     type?: string;
     linkedMachineId?: string;
+    error?: string;
   }>;
 }) {
   const query = await searchParams;
@@ -60,6 +61,7 @@ export default async function NewMachinePage({
             ? "Voeg een machine direct toe aan de eigen voorraad van Heftrucks Friesland."
             : "Voeg een machine los toe aan een klant, ook als de keuring later pas volgt."}
         </p>
+        {query?.error ? <p className="form-message error">{decodeURIComponent(query.error)}</p> : null}
       </section>
 
       <form action={createMachineAction} className="panel" style={{ marginTop: "1rem" }}>

@@ -63,6 +63,34 @@ function sanitizeMachineConfiguration(configuration: Record<string, string>) {
 }
 
 const MACHINE_ARCHIVE_LOCK_DAYS = 7;
+const BATTERY_CHARGER_MACHINE_NUMBER_COLLISION_MESSAGE =
+  "Deze batterij/lader probeert hetzelfde technische nummer te gebruiken als een bestaande machine.";
+
+function isBatteryChargerType(machineType: CreateInspectionInput["machineType"]) {
+  return machineType === "batterij_lader";
+}
+
+function batteryChargerTechnicalMachineNumber(dateValue?: string) {
+  const datePart = (dateValue && /^\d{4}-\d{2}-\d{2}$/.test(dateValue)
+    ? dateValue
+    : todayLocalIso()
+  ).replaceAll("-", "");
+  return `bl-${datePart}-${randomUUID().replaceAll("-", "").slice(0, 6)}`;
+}
+
+function isUniqueMachineNumberError(error: unknown) {
+  const candidate = error as { code?: string; message?: string; details?: string } | null;
+  return (
+    candidate?.code === "23505" &&
+    [candidate.message, candidate.details].some((value) =>
+      String(value ?? "").toLowerCase().includes("machine_number")
+    )
+  );
+}
+
+function batteryChargerMachineNumberCollisionError() {
+  return new Error(BATTERY_CHARGER_MACHINE_NUMBER_COLLISION_MESSAGE);
+}
 
 export function getMachineArchivedAt(machine: { configuration: Record<string, string> }) {
   const archivedAt = machine.configuration.__archivedAt;
@@ -720,7 +748,9 @@ function findOrCreateMachine(
   input: CreateInspectionInput["machine"],
   machineType: CreateInspectionInput["machineType"]
 ) {
-  const identifier = input.machineNumber || input.internalNumber;
+  const identifier = isBatteryChargerType(machineType)
+    ? uniqueDemoBatteryChargerMachineNumber(data)
+    : input.machineNumber || input.internalNumber;
   const match = data.machines.find(
     (machine) =>
       machine.machineNumber.toLowerCase() === identifier.toLowerCase()
@@ -759,6 +789,17 @@ function findOrCreateMachine(
   return machine;
 }
 
+function uniqueDemoBatteryChargerMachineNumber(data: Pick<AppDataSnapshot, "machines">, dateValue?: string) {
+  const existingNumbers = new Set(
+    data.machines.map((machine) => machine.machineNumber.toLowerCase())
+  );
+  let machineNumber = batteryChargerTechnicalMachineNumber(dateValue);
+  while (existingNumbers.has(machineNumber.toLowerCase())) {
+    machineNumber = batteryChargerTechnicalMachineNumber(dateValue);
+  }
+  return machineNumber;
+}
+
 async function createDemoInspection(input: CreateInspectionInput) {
   const data = await readAppData();
   const customer =
@@ -776,7 +817,11 @@ async function createDemoInspection(input: CreateInspectionInput) {
     assertMachineNotArchiveLocked(machine, "Deze machine kan niet meer worden gebruikt voor een nieuwe keuring");
   }
   machine.customerId = customer.id;
-  machine.machineNumber = input.machine.machineNumber;
+  const machineNumber =
+    input.machineId && isBatteryChargerType(input.machineType)
+      ? machine.machineNumber
+      : machine.machineNumber || input.machine.machineNumber;
+  machine.machineNumber = machineNumber;
   machine.machineType = input.machineType;
   machine.availabilityStatus = machine.availabilityStatus ?? "available";
   machine.brand = input.machine.brand;
@@ -1485,6 +1530,12 @@ export async function createInspection(input: CreateInspectionInput) {
   }
 
   let machineRow: Record<string, unknown> | null = null;
+  const resolvedMachineNumber =
+    currentMachine && isBatteryChargerType(input.machineType)
+      ? currentMachine.machineNumber
+      : !input.machineId && isBatteryChargerType(input.machineType)
+        ? batteryChargerTechnicalMachineNumber(input.inspectionDate)
+        : input.machine.machineNumber;
   if (input.machineId) {
     if (currentMachineRow) {
       assertMachineNotArchiveLocked(
@@ -1493,11 +1544,11 @@ export async function createInspection(input: CreateInspectionInput) {
       );
     }
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("machines")
       .update({
         customer_id: customerRow?.id,
-        machine_number: input.machine.machineNumber,
+        machine_number: resolvedMachineNumber,
         machine_type: input.machineType,
         brand: input.machine.brand,
         model: input.machine.model,
@@ -1509,14 +1560,54 @@ export async function createInspection(input: CreateInspectionInput) {
       .eq("id", input.machineId)
       .select()
       .single();
+    if (error) {
+      if (isBatteryChargerType(input.machineType) && isUniqueMachineNumberError(error)) {
+        throw batteryChargerMachineNumberCollisionError();
+      }
+      throw new Error(error.message || "Machine kon niet worden opgeslagen. Kies opnieuw een machine.");
+    }
     machineRow = data;
+  } else if (isBatteryChargerType(input.machineType)) {
+    let insertError: unknown = null;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const machineNumber =
+        attempt === 0 ? resolvedMachineNumber : batteryChargerTechnicalMachineNumber(input.inspectionDate);
+      const { data, error } = await supabase
+        .from("machines")
+        .insert({
+          customer_id: customerRow?.id,
+          machine_number: machineNumber,
+          machine_type: input.machineType,
+          brand: input.machine.brand,
+          model: input.machine.model,
+          serial_number: input.machine.serialNumber,
+          build_year: Number(input.machine.buildYear || 0) || null,
+          internal_number: input.machine.internalNumber,
+          configuration: sanitizeMachineConfiguration(input.machine.details)
+        })
+        .select()
+        .single();
+
+      if (!error) {
+        machineRow = data;
+        break;
+      }
+      insertError = error;
+      if (!isUniqueMachineNumberError(error)) {
+        throw new Error(error.message || "Machine kon niet worden opgeslagen. Kies opnieuw een machine.");
+      }
+    }
+
+    if (!machineRow && insertError) {
+      throw batteryChargerMachineNumberCollisionError();
+    }
   } else {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("machines")
       .upsert(
         {
           customer_id: customerRow?.id,
-          machine_number: input.machine.machineNumber,
+          machine_number: resolvedMachineNumber,
           machine_type: input.machineType,
           brand: input.machine.brand,
           model: input.machine.model,
@@ -1529,6 +1620,9 @@ export async function createInspection(input: CreateInspectionInput) {
       )
       .select()
       .single();
+    if (error) {
+      throw new Error(error.message || "Machine kon niet worden opgeslagen. Kies opnieuw een machine.");
+    }
     machineRow = data;
   }
 
@@ -1559,7 +1653,7 @@ export async function createInspection(input: CreateInspectionInput) {
       checklist: input.checklist,
       customer_snapshot: buildCustomerSnapshot(mergedCustomer),
       machine_snapshot: buildMachineSnapshot({
-        machineNumber: input.machine.machineNumber,
+        machineNumber: String(machineRow.machine_number ?? resolvedMachineNumber),
         brand: input.machine.brand,
         model: input.machine.model,
         serialNumber: input.machine.serialNumber,
@@ -1733,7 +1827,10 @@ export async function updateInspectionFromForm(
       assertMachineNotArchiveLocked(machine, "Deze machine kan niet meer worden bijgewerkt");
     }
     machine.customerId = customer.id;
-    machine.machineNumber = input.machine.machineNumber;
+    machine.machineNumber =
+      input.machineId && isBatteryChargerType(input.machineType)
+        ? machine.machineNumber
+        : machine.machineNumber || input.machine.machineNumber;
     machine.machineType = input.machineType;
     machine.brand = input.machine.brand;
     machine.model = input.machine.model;
@@ -1842,6 +1939,7 @@ export async function updateInspectionFromForm(
   }
 
   let machineRow: Record<string, unknown> | null = null;
+  let resolvedMachineNumber = input.machine.machineNumber;
   if (resolvedMachineId) {
     const { data: currentMachineRow } = await supabase
       .from("machines")
@@ -1854,13 +1952,16 @@ export async function updateInspectionFromForm(
         mapMachineRow(currentMachineRow),
         "Deze machine kan niet meer worden bijgewerkt"
       );
+      if (isBatteryChargerType(input.machineType)) {
+        resolvedMachineNumber = mapMachineRow(currentMachineRow).machineNumber;
+      }
     }
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("machines")
       .update({
         customer_id: resolvedCustomerId,
-        machine_number: input.machine.machineNumber,
+        machine_number: resolvedMachineNumber,
         machine_type: input.machineType,
         brand: input.machine.brand,
         model: input.machine.model,
@@ -1872,6 +1973,12 @@ export async function updateInspectionFromForm(
       .eq("id", resolvedMachineId)
       .select()
       .maybeSingle();
+    if (error) {
+      if (isBatteryChargerType(input.machineType) && isUniqueMachineNumberError(error)) {
+        throw batteryChargerMachineNumberCollisionError();
+      }
+      throw new Error(error.message || "Klant of machine kon niet worden bijgewerkt.");
+    }
     machineRow = data;
 
     if (!machineRow) {
@@ -1912,7 +2019,7 @@ export async function updateInspectionFromForm(
       checklist: input.checklist,
       customer_snapshot: buildCustomerSnapshot(mergedCustomer),
       machine_snapshot: buildMachineSnapshot({
-        machineNumber: input.machine.machineNumber,
+        machineNumber: String(machineRow.machine_number ?? resolvedMachineNumber),
         brand: input.machine.brand,
         model: input.machine.model,
         serialNumber: input.machine.serialNumber,
@@ -4106,11 +4213,12 @@ export async function createMachine(input: {
   internalNumber: string;
   details?: Record<string, string>;
 }) {
-  const machineNumber =
-    input.internalNumber.trim() ||
-    input.serialNumber.trim() ||
-    `${input.brand.trim()}-${input.model.trim()}`.replace(/\s+/g, "-").toLowerCase() ||
-    randomUUID().slice(0, 8);
+  const machineNumber = isBatteryChargerType(input.machineType)
+    ? batteryChargerTechnicalMachineNumber()
+    : input.internalNumber.trim() ||
+      input.serialNumber.trim() ||
+      `${input.brand.trim()}-${input.model.trim()}`.replace(/\s+/g, "-").toLowerCase() ||
+      randomUUID().slice(0, 8);
   const customer = await getCustomerById(input.customerId);
   const configuration = sanitizeMachineConfiguration(
     applyCustomerLocationToDetails(customer, input.details ?? {})
@@ -4118,7 +4226,43 @@ export async function createMachine(input: {
 
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
-    const { data } = await supabase
+    if (isBatteryChargerType(input.machineType)) {
+      let insertError: unknown = null;
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const nextMachineNumber = attempt === 0 ? machineNumber : batteryChargerTechnicalMachineNumber();
+        const { data, error } = await supabase
+          .from("machines")
+          .insert({
+            customer_id: input.customerId,
+            machine_number: nextMachineNumber,
+            machine_type: input.machineType,
+            availability_status: "available",
+            brand: input.brand,
+            model: input.model,
+            serial_number: input.serialNumber,
+            build_year: Number(input.buildYear || 0) || null,
+            internal_number: input.internalNumber,
+            configuration
+          })
+          .select()
+          .single();
+
+        if (!error) {
+          return data ? mapMachineRow(data).id : "";
+        }
+        insertError = error;
+        if (!isUniqueMachineNumberError(error)) {
+          throw new Error(error.message || "Machine kon niet worden opgeslagen.");
+        }
+      }
+
+      if (insertError) {
+        throw batteryChargerMachineNumberCollisionError();
+      }
+      return "";
+    }
+
+    const { data, error } = await supabase
       .from("machines")
       .upsert(
         {
@@ -4138,12 +4282,19 @@ export async function createMachine(input: {
       .select()
       .single();
 
+    if (error) {
+      throw new Error(error.message || "Machine kon niet worden opgeslagen.");
+    }
+
     return data ? mapMachineRow(data).id : "";
   }
 
   const data = await readAppData();
+  const resolvedMachineNumber = isBatteryChargerType(input.machineType)
+    ? uniqueDemoBatteryChargerMachineNumber(data)
+    : machineNumber;
   const existing = data.machines.find(
-    (machine) => machine.machineNumber.toLowerCase() === machineNumber.toLowerCase()
+    (machine) => machine.machineNumber.toLowerCase() === resolvedMachineNumber.toLowerCase()
   );
 
   if (existing) {
@@ -4164,7 +4315,7 @@ export async function createMachine(input: {
   const machine: MachineRecord = {
     id: randomUUID(),
     customerId: input.customerId,
-    machineNumber,
+    machineNumber: resolvedMachineNumber,
     machineType: input.machineType,
     availabilityStatus: "available",
     brand: input.brand,
@@ -4685,7 +4836,7 @@ export async function updateMachine(input: {
   internalNumber: string;
   details: Record<string, string>;
 }) {
-  const machineNumber =
+  const fallbackMachineNumber =
     input.internalNumber.trim() ||
     input.serialNumber.trim() ||
     `${input.brand.trim()}-${input.model.trim()}`.replace(/\s+/g, "-").toLowerCase() ||
@@ -4702,6 +4853,10 @@ export async function updateMachine(input: {
     if (currentMachine) {
       assertMachineNotArchiveLocked(currentMachine, "Machine bijwerken");
     }
+    const machineNumber =
+      currentMachine && isBatteryChargerType(input.machineType)
+        ? currentMachine.machineNumber
+        : fallbackMachineNumber;
     const customer = currentMachine ? await getCustomerById(currentMachine.customerId) : null;
     const configuration = sanitizeMachineConfiguration(
       applyCustomerLocationToDetails(customer, input.details)
@@ -4718,7 +4873,7 @@ export async function updateMachine(input: {
         )
       : [];
 
-    const { data: updatedMachineRow } = await supabase
+    const { data: updatedMachineRow, error: updateError } = await supabase
       .from("machines")
       .update({
         machine_number: machineNumber,
@@ -4733,6 +4888,13 @@ export async function updateMachine(input: {
       .eq("id", input.id)
       .select("*")
       .maybeSingle();
+
+    if (updateError) {
+      if (isBatteryChargerType(input.machineType) && isUniqueMachineNumberError(updateError)) {
+        throw batteryChargerMachineNumberCollisionError();
+      }
+      throw new Error(updateError.message || "Machine opslaan is niet gelukt.");
+    }
 
     if (!updatedMachineRow) {
       return [];
@@ -4800,6 +4962,9 @@ export async function updateMachine(input: {
   assertMachineNotArchiveLocked(machine, "Machine bijwerken");
 
   const duplicateMachines = findDuplicateMachines(data.machines, machine);
+  const machineNumber = isBatteryChargerType(input.machineType)
+    ? machine.machineNumber
+    : fallbackMachineNumber;
 
   machine.brand = input.brand;
   machine.model = input.model;

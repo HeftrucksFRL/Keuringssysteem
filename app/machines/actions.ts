@@ -104,16 +104,34 @@ export async function createMachineAction(formData: FormData) {
       ? linkedMachine?.customerId || (await ensureRentalStockCustomerId())
       : String(formData.get("customerId") || "");
 
-  const id = await createMachine({
-    customerId,
-    machineType,
-    brand: payload.brand,
-    model: payload.model,
-    serialNumber: payload.serialNumber,
-    buildYear: payload.buildYear,
-    internalNumber: payload.internalNumber,
-    details: payload.details
-  });
+  let id = "";
+  try {
+    id = await createMachine({
+      customerId,
+      machineType,
+      brand: payload.brand,
+      model: payload.model,
+      serialNumber: payload.serialNumber,
+      buildYear: payload.buildYear,
+      internalNumber: payload.internalNumber,
+      details: payload.details
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Machine opslaan is niet gelukt.";
+    const params = new URLSearchParams();
+    params.set("error", message);
+    params.set("type", machineType);
+    if (String(formData.get("customerId") || "")) {
+      params.set("customerId", String(formData.get("customerId") || ""));
+    }
+    if (linkedMachineId) {
+      params.set("linkedMachineId", linkedMachineId);
+    }
+    redirect(`/machines/nieuw?${params.toString()}` as Route);
+  }
 
   await addActivityLog({
     actorId: actor.id,
