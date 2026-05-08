@@ -275,7 +275,10 @@ export function InspectionsTable({
           : "green";
 
     return (
-      <div className="dataset-row compact-overview-row" key={inspection.id}>
+      <div
+        className={`dataset-row compact-overview-row ${isBatteryCharger ? "battery-accessory-row" : ""}`}
+        key={inspection.id}
+      >
         <strong>
           <span className={`status-dot ${statusClass}`} aria-hidden="true" />
           {inspection.inspectionNumber}

@@ -25,10 +25,12 @@ import {
   getVisibleCustomers
 } from "@/lib/inspection-service";
 import {
+  getBatteryChargerDetailLabel,
   formatMachineBrandTypeSerial,
   formatMachineKindBrandType,
   getMachineLocation
 } from "@/lib/machine-presentation";
+import type { MachineRecord } from "@/lib/domain";
 import { formatDisplayDate } from "@/lib/utils";
 import { CustomerPicker } from "@/components/customer-picker";
 import { CustomerInspectionHistory } from "@/components/customer-inspection-history";
@@ -42,6 +44,21 @@ function rentalPhase(rental: { startDate: string; endDate: string; status: "acti
     return "upcoming" as const;
   }
   return "active" as const;
+}
+
+function isBatteryCharger(machine: MachineRecord) {
+  return machine.machineType === "batterij_lader";
+}
+
+function linkedMachineId(machine: MachineRecord) {
+  return String(machine.configuration.linked_machine_id ?? "").trim();
+}
+
+function batteryAccessoryLine(machine: MachineRecord) {
+  return (
+    getBatteryChargerDetailLabel(machine) ||
+    formatMachineKindBrandType(machine)
+  );
 }
 
 export default async function CustomerDetailPage({
@@ -84,12 +101,31 @@ export default async function CustomerDetailPage({
   const attachments = await getInspectionAttachmentsForInspections(
     inspections.map((inspection) => inspection.id)
   );
-  const machinesByLocation = new Map<string, typeof machines>();
+  const regularMachines = machines.filter((machine) => !isBatteryCharger(machine));
+  const batteryAccessories = machines.filter(isBatteryCharger);
+  const batteryAccessoriesByMachineId = new Map<string, MachineRecord[]>();
+  const unlinkedBatteryAccessories: MachineRecord[] = [];
+
+  for (const accessory of batteryAccessories) {
+    const parentId = linkedMachineId(accessory);
+    const parent = parentId ? regularMachines.find((machine) => machine.id === parentId) : null;
+
+    if (!parent) {
+      unlinkedBatteryAccessories.push(accessory);
+      continue;
+    }
+
+    const current = batteryAccessoriesByMachineId.get(parentId) ?? [];
+    current.push(accessory);
+    batteryAccessoriesByMachineId.set(parentId, current);
+  }
+
+  const machinesByLocation = new Map<string, typeof regularMachines>();
   for (const location of locations) {
     machinesByLocation.set(location.id, []);
   }
-  const machinesWithoutLocation: typeof machines = [];
-  for (const machine of machines) {
+  const machinesWithoutLocation: typeof regularMachines = [];
+  for (const machine of regularMachines) {
     const locationId = machine.configuration.customer_location_id;
     if (locationId && machinesByLocation.has(locationId)) {
       machinesByLocation.get(locationId)!.push(machine);
@@ -413,34 +449,44 @@ export default async function CustomerDetailPage({
                 <div className="compact-contact-body">
                   <div className="list">
                     {(machinesByLocation.get(location.id) ?? []).map((machine) => (
-                      <Link
-                        className="list-item"
-                        key={machine.id}
-                        href={`/machines/${machine.id}`}
-                        style={
-                          getMachineArchivedAt(machine)
-                            ? { background: "#fef3f2", borderColor: "#fecdca" }
-                            : undefined
-                        }
-                      >
-                        <span>
-                          <strong>
-                            {machine.machineType === "batterij_lader" || machine.machineType === "stellingmateriaal"
-                              ? formatMachineKindBrandType(machine)
-                              : formatMachineBrandTypeSerial(machine)}
-                          </strong>
-                          <br />
-                          {[
-                            machine.machineType === "batterij_lader"
-                              ? ""
-                              : machine.internalNumber || machine.machineNumber,
-                            machine.machineType === "batterij_lader" ? "" : machine.serialNumber
-                          ]
-                            .filter(Boolean)
-                            .join(" | ")}
-                        </span>
-                        <strong>{getMachineArchivedAt(machine) ? "Gearchiveerd" : "Open"}</strong>
-                      </Link>
+                      <div className="customer-machine-tree" key={machine.id}>
+                        <Link
+                          className="list-item"
+                          href={`/machines/${machine.id}`}
+                          style={
+                            getMachineArchivedAt(machine)
+                              ? { background: "#fef3f2", borderColor: "#fecdca" }
+                              : undefined
+                          }
+                        >
+                          <span>
+                            <strong>
+                              {machine.machineType === "stellingmateriaal"
+                                ? formatMachineKindBrandType(machine)
+                                : formatMachineBrandTypeSerial(machine)}
+                            </strong>
+                            <br />
+                            {[machine.internalNumber || machine.machineNumber, machine.serialNumber]
+                              .filter(Boolean)
+                              .join(" | ")}
+                          </span>
+                          <strong>{getMachineArchivedAt(machine) ? "Gearchiveerd" : "Open"}</strong>
+                        </Link>
+                        {(batteryAccessoriesByMachineId.get(machine.id) ?? []).map((accessory) => (
+                          <Link
+                            className="list-item battery-accessory-row battery-accessory-child"
+                            key={accessory.id}
+                            href={`/machines/${accessory.id}`}
+                          >
+                            <span>
+                              <strong>{formatMachineKindBrandType(accessory)}</strong>
+                              <br />
+                              {batteryAccessoryLine(accessory)}
+                            </span>
+                            <strong>{getMachineArchivedAt(accessory) ? "Gearchiveerd" : "Open"}</strong>
+                          </Link>
+                        ))}
+                      </div>
                     ))}
                     {(machinesByLocation.get(location.id) ?? []).length === 0 ? (
                       <div className="list-item">
@@ -468,19 +514,19 @@ export default async function CustomerDetailPage({
               <div className="compact-contact-body">
                 <div className="list">
             {machinesWithoutLocation.map((machine) => (
-              <Link
-                className="list-item"
-                key={machine.id}
-                href={`/machines/${machine.id}`}
-                style={
-                  getMachineArchivedAt(machine)
-                    ? { background: "#fef3f2", borderColor: "#fecdca" }
-                    : undefined
-                }
-              >
+              <div className="customer-machine-tree" key={machine.id}>
+                <Link
+                  className="list-item"
+                  href={`/machines/${machine.id}`}
+                  style={
+                    getMachineArchivedAt(machine)
+                      ? { background: "#fef3f2", borderColor: "#fecdca" }
+                      : undefined
+                  }
+                >
                     <span>
                       <strong>
-                        {machine.machineType === "batterij_lader" || machine.machineType === "stellingmateriaal"
+                        {machine.machineType === "stellingmateriaal"
                           ? formatMachineKindBrandType(machine)
                           : formatMachineBrandTypeSerial(machine)}
                       </strong>
@@ -494,12 +540,25 @@ export default async function CustomerDetailPage({
                     </span>
                     <strong>
                   {getMachineArchivedAt(machine)
-                    ? machine.machineType === "batterij_lader"
-                      ? "Batterij en/of lader gearchiveerd"
-                      : "Machine gearchiveerd"
+                    ? "Machine gearchiveerd"
                     : "Open"}
                 </strong>
-              </Link>
+                </Link>
+                {(batteryAccessoriesByMachineId.get(machine.id) ?? []).map((accessory) => (
+                  <Link
+                    className="list-item battery-accessory-row battery-accessory-child"
+                    key={accessory.id}
+                    href={`/machines/${accessory.id}`}
+                  >
+                    <span>
+                      <strong>{formatMachineKindBrandType(accessory)}</strong>
+                      <br />
+                      {batteryAccessoryLine(accessory)}
+                    </span>
+                    <strong>{getMachineArchivedAt(accessory) ? "Gearchiveerd" : "Open"}</strong>
+                  </Link>
+                ))}
+              </div>
             ))}
             {machinesWithoutLocation.length === 0 ? (
               <div className="list-item">
@@ -510,6 +569,37 @@ export default async function CustomerDetailPage({
                 </div>
               </div>
             </details>
+            {unlinkedBatteryAccessories.length > 0 ? (
+              <details className="compact-contact-item battery-accessory-group" open>
+                <summary className="compact-contact-summary">
+                  <div className="compact-contact-main">
+                    <strong>Nog niet gekoppelde batterijen en laders</strong>
+                    <span>Koppel deze accessoirekaarten later aan de juiste machine.</span>
+                  </div>
+                  <div className="compact-contact-meta">
+                    <span>{unlinkedBatteryAccessories.length} B/L</span>
+                  </div>
+                </summary>
+                <div className="compact-contact-body">
+                  <div className="list">
+                    {unlinkedBatteryAccessories.map((accessory) => (
+                      <Link
+                        className="list-item battery-accessory-row"
+                        key={accessory.id}
+                        href={`/machines/${accessory.id}`}
+                      >
+                        <span>
+                          <strong>{formatMachineKindBrandType(accessory)}</strong>
+                          <br />
+                          {batteryAccessoryLine(accessory) || "Nog geen herkenbare batterij/lader gegevens"}
+                        </span>
+                        <strong>{getMachineArchivedAt(accessory) ? "Gearchiveerd" : "Koppelen"}</strong>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </details>
+            ) : null}
             {rentals
               .filter((rental) => rentalPhase(rental) === "active")
               .map((rental) => {

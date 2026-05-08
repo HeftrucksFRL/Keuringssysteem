@@ -953,6 +953,52 @@ textarea {
   background: #f6ece3;
 }
 
+.battery-accessory-row,
+.battery-accessory-group {
+  background: #f9f1e8 !important;
+  border-color: #d8b99d !important;
+}
+
+.battery-accessory-row {
+  border-left: 4px solid #9a5b24 !important;
+}
+
+.battery-accessory-row strong {
+  color: #6f3f16;
+}
+
+.battery-accessory-child {
+  margin-left: 1.15rem;
+  position: relative;
+}
+
+.battery-accessory-child::before {
+  content: "";
+  position: absolute;
+  left: -0.72rem;
+  top: -0.55rem;
+  width: 0.7rem;
+  height: 1.65rem;
+  border-left: 2px solid #c59d7d;
+  border-bottom: 2px solid #c59d7d;
+  border-bottom-left-radius: 8px;
+}
+
+.customer-machine-tree {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.battery-accessory-event {
+  border-color: #d8b99d !important;
+  border-left-color: #9a5b24 !important;
+  background: #f9f1e8 !important;
+}
+
+.battery-accessory-event strong {
+  color: #6f3f16;
+}
+
 .archive-folder-machines-archived {
   border-color: #f0b8b2;
   background: #fff6f5;

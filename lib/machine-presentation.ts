@@ -16,6 +16,10 @@ function machineConfiguration(machine: MachineLike) {
   return machine.configuration ?? {};
 }
 
+function clean(value: unknown) {
+  return String(value ?? "").trim();
+}
+
 function readValue(machine: MachineLike, camelKey: keyof MachineRecord | string, snakeKey?: string) {
   const candidate =
     camelKey in machine
@@ -43,7 +47,7 @@ export function isRackingMachine(machine: MachineLike) {
 
 export function getMachineKindLabel(machine: MachineLike) {
   if (isBatteryChargerMachine(machine)) {
-    return "Batterij/lader";
+    return getBatteryChargerKindLabel(machine);
   }
 
   if (isRackingMachine(machine)) {
@@ -53,16 +57,97 @@ export function getMachineKindLabel(machine: MachineLike) {
   return "Machine";
 }
 
+export function hasBatteryDetails(machine: MachineLike) {
+  const configuration = machineConfiguration(machine);
+  return Boolean(
+    clean(configuration.battery_brand) ||
+      clean(configuration.battery_type) ||
+      clean(configuration.battery_serial_number) ||
+      clean(configuration.battery_internal_number) ||
+      clean(configuration.battery_sticker_number) ||
+      clean(configuration.drawing_number)
+  );
+}
+
+export function hasChargerDetails(machine: MachineLike) {
+  const configuration = machineConfiguration(machine);
+  return Boolean(
+    clean(configuration.charger_brand) ||
+      clean(configuration.charger_type) ||
+      clean(configuration.charger_serial_number) ||
+      clean(configuration.charger_internal_number) ||
+      clean(configuration.charger_sticker_number) ||
+      clean(configuration.charger_voltage)
+  );
+}
+
+export function getBatteryChargerKindLabel(machine: MachineLike) {
+  const hasBattery = hasBatteryDetails(machine);
+  const hasCharger = hasChargerDetails(machine);
+
+  if (hasBattery && hasCharger) {
+    return "Batterij + lader";
+  }
+
+  if (hasBattery) {
+    return "Batterij";
+  }
+
+  if (hasCharger) {
+    return "Lader";
+  }
+
+  return "Batterij/lader";
+}
+
+export function getBatteryChargerDetailLabel(machine: MachineLike) {
+  const configuration = machineConfiguration(machine);
+  const batteryLabel = [
+    configuration.battery_brand,
+    configuration.battery_type,
+    configuration.battery_sticker_number ? `sticker ${configuration.battery_sticker_number}` : ""
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const chargerLabel = [
+    configuration.charger_brand,
+    configuration.charger_type,
+    configuration.charger_sticker_number ? `sticker ${configuration.charger_sticker_number}` : ""
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  if (batteryLabel && chargerLabel) {
+    return `Batterij: ${batteryLabel} | Lader: ${chargerLabel}`;
+  }
+
+  if (batteryLabel) {
+    return `Batterij: ${batteryLabel}`;
+  }
+
+  if (chargerLabel) {
+    return `Lader: ${chargerLabel}`;
+  }
+
+  return "";
+}
+
 export function getMachineDisplayTitle(machine: MachineLike) {
   const configuration = machineConfiguration(machine);
 
   if (isBatteryChargerMachine(machine)) {
+    const batteryTitle = [configuration.battery_brand, configuration.battery_type]
+      .filter(Boolean)
+      .join(" ");
+    const chargerTitle = [configuration.charger_brand, configuration.charger_type]
+      .filter(Boolean)
+      .join(" ");
+
     return (
-      [configuration.battery_brand || readValue(machine, "brand"), configuration.battery_type || readValue(machine, "model")]
+      (batteryTitle && chargerTitle ? `${batteryTitle} / ${chargerTitle}` : batteryTitle || chargerTitle) ||
+      [readValue(machine, "brand"), readValue(machine, "model")]
         .filter(Boolean)
         .join(" ") ||
-      [configuration.charger_brand, configuration.charger_type].filter(Boolean).join(" ") ||
-      [readValue(machine, "brand"), readValue(machine, "model")].filter(Boolean).join(" ") ||
       "Batterij / lader"
     );
   }

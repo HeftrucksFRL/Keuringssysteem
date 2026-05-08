@@ -35,6 +35,7 @@ import {
 } from "@/lib/inspection-service";
 import { fileUrl } from "@/lib/file-urls";
 import {
+  getBatteryChargerDetailLabel,
   formatMachineKindBrandType,
   formatMachineBrandTypeSerial,
   getMachineLocation
@@ -88,6 +89,13 @@ function machineFormValues(machine: MachineRecord) {
     vehicle_serial_number: machine.configuration.vehicle_serial_number ?? machine.serialNumber,
     ...machine.configuration
   };
+}
+
+function batteryAccessoryLine(machine: MachineRecord) {
+  return (
+    getBatteryChargerDetailLabel(machine) ||
+    formatMachineKindBrandType(machine)
+  );
 }
 
 export default async function MachineDetailPage({
@@ -543,27 +551,45 @@ export default async function MachineDetailPage({
             </p>
           ) : null}
           {machine.machineType !== "batterij_lader" ? (
-            <div className="actions" style={{ marginTop: "1rem", flexWrap: "wrap" }}>
+            <div className="battery-accessory-section" style={{ marginTop: "1rem" }}>
+              <div className="eyebrow">Batterijen en laders</div>
               {linkedBatteryMachines.length > 0 ? (
-                <LinkedBatteryDialog
-                  machineId={machine.internalNumber || machine.machineNumber || machine.id}
-                  items={linkedBatteryMachines.map((item) => ({
-                    id: item.id,
-                    customerId: item.customerId,
-                    title:
-                      [item.configuration.battery_brand || item.brand, item.configuration.battery_type || item.model]
-                        .filter(Boolean)
-                        .join(" ") || "Batterij / lader",
-                    batteryLabel:
-                      [item.configuration.battery_brand, item.configuration.battery_type]
-                        .filter(Boolean)
-                        .join(" ") || "Batterij: -",
-                    chargerLabel:
-                      [item.configuration.charger_brand, item.configuration.charger_type]
-                        .filter(Boolean)
-                        .join(" ") || "Lader: -"
-                  }))}
-                />
+                <>
+                  <div className="list compact-list" style={{ marginTop: "0.65rem" }}>
+                    {linkedBatteryMachines.map((item) => (
+                      <Link
+                        className="list-item battery-accessory-row"
+                        href={`/machines/${item.id}`}
+                        key={item.id}
+                      >
+                        <span>
+                          <strong>{formatMachineKindBrandType(item)}</strong>
+                          <br />
+                          {batteryAccessoryLine(item)}
+                        </span>
+                        <strong>Open</strong>
+                      </Link>
+                    ))}
+                  </div>
+                  <div className="actions" style={{ marginTop: "0.75rem", flexWrap: "wrap" }}>
+                    <LinkedBatteryDialog
+                      machineId={machine.internalNumber || machine.machineNumber || machine.id}
+                      items={linkedBatteryMachines.map((item) => ({
+                        id: item.id,
+                        customerId: item.customerId,
+                        title: formatMachineKindBrandType(item),
+                        batteryLabel:
+                          [item.configuration.battery_brand, item.configuration.battery_type]
+                            .filter(Boolean)
+                            .join(" ") || "Batterij: -",
+                        chargerLabel:
+                          [item.configuration.charger_brand, item.configuration.charger_type]
+                            .filter(Boolean)
+                            .join(" ") || "Lader: -"
+                      }))}
+                    />
+                  </div>
+                </>
               ) : (
                 <span className="muted">Nog geen batterij / lader gekoppeld.</span>
               )}

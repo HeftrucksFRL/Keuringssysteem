@@ -216,6 +216,14 @@ function planningMachineLabel(machine?: MachineRecord) {
     .join(" ") || "Machine";
 }
 
+function isBatteryAccessoryMachine(machine?: MachineRecord) {
+  return machine?.machineType === "batterij_lader";
+}
+
+function eventHasBatteryAccessory(event: AgendaEvent) {
+  return event.machineList.some(isBatteryAccessoryMachine);
+}
+
 function eventMatchesFilter(event: AgendaEvent, filter: ViewFilter) {
   if (filter === "all") {
     return true;
@@ -757,7 +765,7 @@ export function PlanningCalendar({
                   {visibleDayEvents.map((event) => (
                     <button
                       key={event.key}
-                      className={`month-event ${event.kind === "appointment" ? "appointment" : event.kind === "rental" ? "rental" : event.state}`}
+                      className={`month-event ${event.kind === "appointment" ? "appointment" : event.kind === "rental" ? "rental" : event.state} ${eventHasBatteryAccessory(event) ? "battery-accessory-event" : ""}`}
                       type="button"
                       onClick={() => setSelectedEventKey(event.key)}
                     >
@@ -846,7 +854,7 @@ export function PlanningCalendar({
             <div className="list compact-list">
               {selectedDayEvents.map((event) => (
                 <button
-                  className="list-item calendar-day-option"
+                  className={`list-item calendar-day-option ${eventHasBatteryAccessory(event) ? "battery-accessory-row" : ""}`}
                   key={event.key}
                   type="button"
                   onClick={() => {
@@ -957,7 +965,7 @@ export function PlanningCalendar({
                   {selectedEvent.kind === "inspection" && selectedEvent.routeName
                     ? selectedEvent.planningEntries.map((entry) => (
                         <Link
-                          className="list-item"
+                          className={`list-item ${isBatteryAccessoryMachine(entry.machine) ? "battery-accessory-row" : ""}`}
                           href={entry.machine ? `/machines/${entry.machine.id}` : "#"}
                           key={entry.item.id}
                         >
@@ -982,7 +990,11 @@ export function PlanningCalendar({
                         </Link>
                       ))
                     : selectedEvent.machineList.map((machine) => (
-                        <Link className="list-item" href={`/machines/${machine.id}`} key={machine.id}>
+                        <Link
+                          className={`list-item ${isBatteryAccessoryMachine(machine) ? "battery-accessory-row" : ""}`}
+                          href={`/machines/${machine.id}`}
+                          key={machine.id}
+                        >
                           <span>
                             <strong>
                               {planningMachineLabel(machine)}

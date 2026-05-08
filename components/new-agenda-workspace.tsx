@@ -88,6 +88,10 @@ function machineLabel(machine?: MachineRecord) {
   return formatMachineBrandTypeSerial(machine);
 }
 
+function isBatteryAccessoryMachine(machine?: MachineRecord) {
+  return machine?.machineType === "batterij_lader";
+}
+
 function placeLabel(customer?: CustomerRecord) {
   return customer?.city?.trim() || customer?.address?.trim() || "Onbekende plaats";
 }
@@ -436,7 +440,7 @@ export function NewAgendaWorkspace({
             <div className="new-agenda-list">
               {filteredItems.map((entry) => (
                 <div
-                  className={`new-agenda-row ${entry.state}`}
+                  className={`new-agenda-row ${entry.state} ${isBatteryAccessoryMachine(entry.machine) ? "battery-accessory-event" : ""}`}
                   key={entry.item.id}
                 >
                   <label className="new-agenda-route-check">
@@ -574,7 +578,10 @@ export function NewAgendaWorkspace({
             </div>
             <div className="new-agenda-list">
               {routePreviewItems.map((entry) => (
-                <div className={`new-agenda-row ${entry.state}`} key={`preview-${entry.item.id}`}>
+                <div
+                  className={`new-agenda-row ${entry.state} ${isBatteryAccessoryMachine(entry.machine) ? "battery-accessory-event" : ""}`}
+                  key={`preview-${entry.item.id}`}
+                >
                   <span>
                     <strong>{entry.customer?.companyName ?? "Onbekende klant"}</strong>
                     <small>
@@ -617,7 +624,7 @@ export function NewAgendaWorkspace({
                 <span>Status</span>
                 <strong>{getPlanningDisplayLabel(selectedItem.item)}</strong>
               </div>
-              <div className="list-item static-list-item">
+              <div className={`list-item static-list-item ${isBatteryAccessoryMachine(selectedItem.machine) ? "battery-accessory-row" : ""}`}>
                 <span>Notitie</span>
                 <strong>{selectedItem.item.notes || "-"}</strong>
               </div>
