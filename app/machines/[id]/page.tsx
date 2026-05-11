@@ -443,7 +443,15 @@ export default async function MachineDetailPage({
                 ) : null}
                 <div className="list-item">
                   <span>Bedrijf</span>
-                  <strong>{customer?.companyName ?? "-"}</strong>
+                  <strong>
+                    {customer ? (
+                      <Link href={`/klanten/${customer.id}` as Route}>
+                        {customer.companyName}
+                      </Link>
+                    ) : (
+                      "-"
+                    )}
+                  </strong>
                 </div>
                 <div className="list-item">
                   <span>Contactpersoon</span>
