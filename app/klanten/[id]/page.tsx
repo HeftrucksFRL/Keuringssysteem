@@ -19,6 +19,7 @@ import {
   getInspectionAttachmentsForInspections,
   getInspectionsForCustomer,
   getMachineArchivedAt,
+  getMachineArchiveLockDate,
   getMachinesForCustomer,
   getMachineSummaries,
   getRentalsForCustomer,
@@ -85,7 +86,15 @@ export default async function CustomerDetailPage({
     notFound();
   }
 
-  const machines = await getMachinesForCustomer(customer.id, { includeArchived: true });
+  const customerMachines = await getMachinesForCustomer(customer.id, { includeArchived: true });
+  const machines = customerMachines.filter((machine) => {
+    if (!getMachineArchivedAt(machine)) {
+      return true;
+    }
+
+    const archiveLockDate = getMachineArchiveLockDate(machine);
+    return !archiveLockDate || archiveLockDate.getTime() > Date.now();
+  });
   const locations = customer.locations ?? [];
   const contacts = await getCustomerContacts(customer.id);
   const assignableCustomers = (await getVisibleCustomers()).filter(

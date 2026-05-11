@@ -464,7 +464,7 @@ export async function unarchiveMachineAction(formData: FormData) {
     redirect(`/machines/${machineId}`);
   }
 
-  if (getMachineArchiveLockDate(machine)?.getTime() ?? 0 <= Date.now()) {
+  if ((getMachineArchiveLockDate(machine)?.getTime() ?? 0) <= Date.now()) {
     redirect(`/machines/${machineId}?error=${encodeURIComponent("Archiveren ongedaan maken is alleen binnen 7 dagen mogelijk.")}`);
   }
 

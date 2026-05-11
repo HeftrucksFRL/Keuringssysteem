@@ -4861,7 +4861,7 @@ export async function updateMachine(input: {
     const configuration = sanitizeMachineConfiguration(
       applyCustomerLocationToDetails(customer, input.details)
     );
-    const duplicateMachines = currentMachine
+    const duplicateMachines = currentMachine && !isBatteryChargerType(input.machineType)
       ? findDuplicateMachines(
           ((await supabase
             .from("machines")
@@ -4961,7 +4961,9 @@ export async function updateMachine(input: {
 
   assertMachineNotArchiveLocked(machine, "Machine bijwerken");
 
-  const duplicateMachines = findDuplicateMachines(data.machines, machine);
+  const duplicateMachines = isBatteryChargerType(input.machineType)
+    ? []
+    : findDuplicateMachines(data.machines, machine);
   const machineNumber = isBatteryChargerType(input.machineType)
     ? machine.machineNumber
     : fallbackMachineNumber;
