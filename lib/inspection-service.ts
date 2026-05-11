@@ -4910,14 +4910,19 @@ export async function updateMachine(input: {
         .update({ machine_id: input.id })
         .in("machine_id", duplicateIds);
 
-      await supabase
-        .from("machines")
-        .update({
-          configuration: {
-            __archivedAt: nowIso()
-          }
-        })
-        .in("id", duplicateIds);
+      await Promise.all(
+        duplicateMachines.map((duplicate) =>
+          supabase
+            .from("machines")
+            .update({
+              configuration: {
+                ...duplicate.configuration,
+                __archivedAt: nowIso()
+              }
+            })
+            .eq("id", duplicate.id)
+        )
+      );
     }
 
     const affectedMachineIds = [input.id, ...duplicateIds];
@@ -4984,6 +4989,7 @@ export async function updateMachine(input: {
 
   for (const duplicate of duplicateMachines) {
     duplicate.configuration = {
+      ...duplicate.configuration,
       __archivedAt: nowIso()
     };
     duplicate.updatedAt = nowIso();
