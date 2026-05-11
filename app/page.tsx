@@ -12,13 +12,11 @@ import {
   getCustomerDisplayName,
   getDashboardData,
   getFailedMailAlerts,
-  getMachineSummaries,
   getPlanningPreview,
   getRecentMachineSummaries,
   getTodoItems
 } from "@/lib/inspection-service";
 import { formatMachineKindBrandType } from "@/lib/machine-presentation";
-import { getPlanningDisplayLabel, getPlanningDisplayState } from "@/lib/planning";
 import { formatDisplayDate, formatDisplayDateTime } from "@/lib/utils";
 
 function buildTodoNote(title: string, description?: string | null) {
@@ -87,7 +85,7 @@ export default async function HomePage({
   const dashboard = await getDashboardData();
   const params = await searchParams;
   const [planningRows, recentMachines, failedMailAlerts, todoItems, activityLogs] = await Promise.all([
-    getPlanningPreview(3),
+    getPlanningPreview(100),
     getRecentMachineSummaries(4),
     getFailedMailAlerts(),
     getTodoItems(String(user?.id ?? "demo-user")),
@@ -96,15 +94,32 @@ export default async function HomePage({
   const customerIds = Array.from(
     new Set([...planningRows.map((item) => item.customerId), ...recentMachines.map((item) => item.customerId)])
   );
-  const planningMachineIds = Array.from(new Set(planningRows.map((item) => item.machineId)));
-  const [customers, planningMachines] = await Promise.all([
-    getCustomerSummaries({ ids: customerIds }),
-    getMachineSummaries({ ids: planningMachineIds })
-  ]);
+  const customers = await getCustomerSummaries({ ids: customerIds });
   const customerById = new Map(customers.map((customer) => [customer.id, customer]));
-  const machineById = new Map(
-    [...recentMachines, ...planningMachines].map((machine) => [machine.id, machine])
-  );
+  const routeRows = Array.from(
+    planningRows.reduce((groups, item) => {
+      const routeTitle = item.notes?.startsWith("Route: ")
+        ? item.notes.replace(/^Route:\s*/, "").trim()
+        : "";
+
+      if (!routeTitle) {
+        return groups;
+      }
+
+      const key = `${item.dueDate}|${routeTitle}`;
+      const current = groups.get(key) ?? {
+        date: item.dueDate,
+        title: routeTitle,
+        items: [] as typeof planningRows
+      };
+      current.items.push(item);
+      groups.set(key, current);
+      return groups;
+    }, new Map<string, { date: string; title: string; items: typeof planningRows }>())
+  )
+    .map(([, route]) => route)
+    .sort((left, right) => left.date.localeCompare(right.date) || left.title.localeCompare(right.title, "nl"))
+    .slice(0, 3);
   const todoMessage = {
     added: "Notitie toegevoegd.",
     updated: "Notitie bijgewerkt.",
@@ -321,46 +336,48 @@ export default async function HomePage({
       </section>
 
       <section className="panel" style={{ marginTop: "1rem" }}>
-        <div className="eyebrow">Planning</div>
-        <h2>Vervolgkeuringen</h2>
+        <div className="eyebrow">Routes</div>
+        <h2>Geplande routes</h2>
         <div className="table-like">
           <div className="table-row table-head">
-            <span>Klant / machine</span>
-            <span>Deadline</span>
-            <span>Status</span>
+            <span>Route</span>
+            <span>Datum</span>
+            <span>Stops</span>
             <span>Actie</span>
           </div>
-          {planningRows.map((item) => {
-            const customer = customerById.get(item.customerId);
-            const machine = machineById.get(item.machineId);
-
-            const planningHref = item.inspectionId
-              ? { pathname: `/keuringen/${item.inspectionId}` }
-              : { pathname: "/planning", query: { month: item.dueDate.slice(0, 7) } };
-
+          {routeRows.map((route) => {
+            const places = Array.from(
+              new Set(
+                route.items
+                  .map((item) => customerById.get(item.customerId)?.city || customerById.get(item.customerId)?.companyName)
+                  .filter(Boolean)
+              )
+            );
             return (
-              <Link className="table-row" href={planningHref} key={item.id}>
+              <Link
+                className="table-row"
+                href={{ pathname: "/planning", query: { month: route.date.slice(0, 7) } }}
+                key={`${route.date}-${route.title}`}
+              >
                 <span>
-                  <strong>{customer ? getCustomerDisplayName(customer) : "Onbekende klant"}</strong>
+                  <strong>{route.title}</strong>
                   <br />
-                  {machine?.brand ?? "Machine"} {machine?.model ?? ""}
+                  {places.slice(0, 3).join(" | ") || "Route"}
                 </span>
-                <span>{formatDisplayDate(item.dueDate)}</span>
-                <span
-                  className={`badge ${
-                    getPlanningDisplayState(item) === "overdue"
-                      ? "orange"
-                      : getPlanningDisplayState(item) === "scheduled"
-                        ? "blue"
-                        : "green"
-                  }`}
-                >
-                  {getPlanningDisplayLabel(item)}
-                </span>
-                <span>{item.inspectionId ? "Open keuring" : "Open planning"}</span>
+                <span>{formatDisplayDate(route.date)}</span>
+                <span className="badge blue">{route.items.length} stops</span>
+                <span>Open planning</span>
               </Link>
             );
           })}
+          {routeRows.length === 0 ? (
+            <div className="table-row">
+              <span>Geen geplande routes</span>
+              <span>-</span>
+              <span>-</span>
+              <span>-</span>
+            </div>
+          ) : null}
         </div>
       </section>
     </>

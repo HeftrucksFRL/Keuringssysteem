@@ -8,7 +8,10 @@ export interface ActivityActor {
 }
 
 const activityLogViewerEmails = new Set(["info@heftruckopleiding.frl"]);
-const cleanupManagerEmails = new Set(["info@heftruckopleiding.frl"]);
+const cleanupManagerEmails = new Set([
+  "info@heftruckopleiding.frl",
+  "info@terpstratrading.frl"
+]);
 
 function toDisplayNamePart(value: string) {
   return value
