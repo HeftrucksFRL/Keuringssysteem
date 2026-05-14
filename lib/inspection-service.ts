@@ -358,16 +358,8 @@ function findDuplicateMachines(
   machines: MachineRecord[],
   currentMachine: MachineRecord
 ) {
-  const keyValues = new Set(
-    [
-      currentMachine.machineNumber,
-      currentMachine.internalNumber,
-      currentMachine.serialNumber
-    ]
-      .map((value) => normalizeValue(value))
-      .filter(Boolean)
-  );
-  const brandModel = `${normalizeValue(currentMachine.brand)}|${normalizeValue(currentMachine.model)}`;
+  const serialNumber = normalizeValue(currentMachine.serialNumber);
+  const machineNumber = normalizeValue(currentMachine.machineNumber);
 
   return machines.filter((candidate) => {
     if (candidate.id === currentMachine.id) {
@@ -380,19 +372,13 @@ function findDuplicateMachines(
       return false;
     }
 
-    const candidateValues = [
-      candidate.machineNumber,
-      candidate.internalNumber,
-      candidate.serialNumber
-    ]
-      .map((value) => normalizeValue(value))
-      .filter(Boolean);
-
-    if (candidateValues.some((value) => keyValues.has(value))) {
+    const candidateSerialNumber = normalizeValue(candidate.serialNumber);
+    if (serialNumber && candidateSerialNumber === serialNumber) {
       return true;
     }
 
-    return `${normalizeValue(candidate.brand)}|${normalizeValue(candidate.model)}` === brandModel;
+    const candidateMachineNumber = normalizeValue(candidate.machineNumber);
+    return Boolean(machineNumber && candidateMachineNumber === machineNumber);
   });
 }
 

@@ -119,9 +119,28 @@ function machineValues(machine?: MachineRecord | null) {
     model: machine?.model ?? "",
     serial_number: machine?.serialNumber ?? "",
     build_year: machine?.buildYear ?? "",
-    internal_number: machine?.internalNumber || machine?.machineNumber || "",
+    internal_number: realInternalNumber({
+      internalNumber: machine?.internalNumber,
+      machineNumber: machine?.machineNumber,
+      serialNumber: machine?.serialNumber
+    }),
     hour_reading: machine?.configuration.hour_reading ?? ""
   };
+}
+
+function realInternalNumber(input: {
+  internalNumber?: string;
+  machineNumber?: string;
+  serialNumber?: string;
+}) {
+  const internalNumber = String(input.internalNumber ?? "").trim();
+  if (!internalNumber) {
+    return "";
+  }
+
+  const machineNumber = String(input.machineNumber ?? "").trim();
+  const serialNumber = String(input.serialNumber ?? "").trim();
+  return internalNumber !== machineNumber && internalNumber !== serialNumber ? internalNumber : "";
 }
 
 function machineConfigurationValues(configuration: Record<string, string>) {
@@ -284,7 +303,11 @@ export function InspectionForm({
           model: existingInspection.machineSnapshot.model ?? "",
           serial_number: existingInspection.machineSnapshot.serial_number ?? "",
           build_year: existingInspection.machineSnapshot.build_year ?? "",
-          internal_number: existingInspection.machineSnapshot.internal_number ?? "",
+          internal_number: realInternalNumber({
+            internalNumber: existingInspection.machineSnapshot.internal_number,
+            machineNumber: existingInspection.machineSnapshot.machine_number,
+            serialNumber: existingInspection.machineSnapshot.serial_number
+          }),
           inspection_date: existingInspection.inspectionDate,
           findings: existingInspection.findings,
           recommendations: existingInspection.recommendations,
@@ -1313,7 +1336,15 @@ export function InspectionForm({
                   {selectedMachine?.machineType !== "batterij_lader" ? (
                     <>
                       <div className={`info-card ${selectedMachine ? "info-card-complete" : "info-card-muted"}`}>
-                        <strong>{selectedMachine?.internalNumber || selectedMachine?.machineNumber || "-"}</strong>
+                        <strong>
+                          {selectedMachine
+                            ? realInternalNumber({
+                                internalNumber: selectedMachine.internalNumber,
+                                machineNumber: selectedMachine.machineNumber,
+                                serialNumber: selectedMachine.serialNumber
+                              }) || "-"
+                            : "-"}
+                        </strong>
                         <span>Intern nummer</span>
                       </div>
                       <div className={`info-card ${selectedMachine ? "info-card-complete" : "info-card-muted"}`}>

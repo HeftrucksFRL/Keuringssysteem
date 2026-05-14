@@ -5,7 +5,6 @@ import { PDFDocument, PDFEmbeddedPage, PDFPage, StandardFonts, rgb } from "pdf-l
 import { getFormDefinition } from "@/lib/form-definitions";
 import type { InspectionRecord } from "@/lib/domain";
 import {
-  formatMachineBrandTypeSerial,
   formatMachineKindBrandType,
   getMachineLocation
 } from "@/lib/machine-presentation";
@@ -293,18 +292,22 @@ function inspectionMachineLabel(inspection: InspectionRecord) {
     });
   }
 
-  return formatMachineBrandTypeSerial(
-    {
-      machineType: inspection.machineType,
-      brand: inspection.machineSnapshot.brand,
-      model: inspection.machineSnapshot.model,
-      serial_number: inspection.machineSnapshot.serial_number,
-      configuration: inspection.machineSnapshot
-    }
-  );
+  return formatMachineKindBrandType({
+    machineType: inspection.machineType,
+    brand: inspection.machineSnapshot.brand,
+    model: inspection.machineSnapshot.model,
+    configuration: inspection.machineSnapshot
+  });
 }
 
 function customerMachineRows(inspection: InspectionRecord): Array<[string, string]> {
+  const serialNumber = String(inspection.machineSnapshot.serial_number ?? "").trim();
+  const machineNumber = String(inspection.machineSnapshot.machine_number ?? "").trim();
+  const internalNumber = String(inspection.machineSnapshot.internal_number ?? "").trim();
+  const realInternalNumber =
+    internalNumber && internalNumber !== serialNumber && internalNumber !== machineNumber
+      ? internalNumber
+      : "";
   const rows: Array<[string, string]> = [
     ["Klant", inspection.customerSnapshot.customer_name ?? "-"],
     ["Adres", inspection.customerSnapshot.customer_address ?? "-"],
@@ -322,7 +325,8 @@ function customerMachineRows(inspection: InspectionRecord): Array<[string, strin
     }
   } else {
     rows.push(["Bouwjaar", inspection.machineSnapshot.build_year ?? "-"]);
-    rows.push(["Intern nummer", inspection.machineSnapshot.internal_number ?? "-"]);
+    rows.push(["Serienummer", serialNumber || "-"]);
+    rows.push(["Intern nummer", realInternalNumber || "-"]);
   }
 
   return rows;

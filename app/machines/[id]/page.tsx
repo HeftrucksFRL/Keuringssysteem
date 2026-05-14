@@ -74,18 +74,39 @@ function machineTitle(machine: MachineRecord | null) {
   return [machine.brand, machine.model].filter(Boolean).join(" ") || "Machine";
 }
 
+function realInternalNumber(input: {
+  internalNumber?: string;
+  machineNumber?: string;
+  serialNumber?: string;
+}) {
+  const internalNumber = String(input.internalNumber ?? "").trim();
+  if (!internalNumber) {
+    return "";
+  }
+
+  const machineNumber = String(input.machineNumber ?? "").trim();
+  const serialNumber = String(input.serialNumber ?? "").trim();
+  return internalNumber !== machineNumber && internalNumber !== serialNumber ? internalNumber : "";
+}
+
 function machineFormValues(machine: MachineRecord) {
+  const internalNumber = realInternalNumber({
+    internalNumber: machine.internalNumber,
+    machineNumber: machine.machineNumber,
+    serialNumber: machine.serialNumber
+  });
+
   return {
     brand: machine.brand,
     model: machine.model,
     serial_number: machine.serialNumber,
     build_year: machine.buildYear,
-    internal_number: machine.internalNumber || machine.machineNumber || "",
+    internal_number: internalNumber,
     vehicle_brand: machine.configuration.vehicle_brand ?? machine.brand,
     vehicle_type: machine.configuration.vehicle_type ?? machine.model,
     vehicle_build_year: machine.configuration.vehicle_build_year ?? machine.buildYear,
     vehicle_internal_number:
-      machine.configuration.vehicle_internal_number ?? machine.internalNumber ?? machine.machineNumber,
+      machine.configuration.vehicle_internal_number ?? internalNumber,
     vehicle_serial_number: machine.configuration.vehicle_serial_number ?? machine.serialNumber,
     ...machine.configuration
   };
