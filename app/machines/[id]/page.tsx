@@ -84,9 +84,8 @@ function realInternalNumber(input: {
     return "";
   }
 
-  const machineNumber = String(input.machineNumber ?? "").trim();
   const serialNumber = String(input.serialNumber ?? "").trim();
-  return internalNumber !== machineNumber && internalNumber !== serialNumber ? internalNumber : "";
+  return internalNumber !== serialNumber ? internalNumber : "";
 }
 
 function machineFormValues(machine: MachineRecord) {

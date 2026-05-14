@@ -302,10 +302,9 @@ function inspectionMachineLabel(inspection: InspectionRecord) {
 
 function customerMachineRows(inspection: InspectionRecord): Array<[string, string]> {
   const serialNumber = String(inspection.machineSnapshot.serial_number ?? "").trim();
-  const machineNumber = String(inspection.machineSnapshot.machine_number ?? "").trim();
   const internalNumber = String(inspection.machineSnapshot.internal_number ?? "").trim();
   const realInternalNumber =
-    internalNumber && internalNumber !== serialNumber && internalNumber !== machineNumber
+    internalNumber && internalNumber !== serialNumber
       ? internalNumber
       : "";
   const rows: Array<[string, string]> = [
