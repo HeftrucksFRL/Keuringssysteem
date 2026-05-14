@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
     (attachment) => attachment.storagePath === targetPath
   );
 
-  if (!kind || !targetPath) {
+  if (!kind || !targetPath || !storedAttachment) {
     return new NextResponse("Bestand niet gevonden.", { status: 404 });
   }
 

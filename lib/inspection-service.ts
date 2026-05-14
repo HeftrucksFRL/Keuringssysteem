@@ -350,38 +350,6 @@ function getMachineAvailabilityStatus(
   return "available" as const;
 }
 
-function normalizeValue(value: string) {
-  return value.trim().toLowerCase();
-}
-
-function findDuplicateMachines(
-  machines: MachineRecord[],
-  currentMachine: MachineRecord
-) {
-  const serialNumber = normalizeValue(currentMachine.serialNumber);
-  const machineNumber = normalizeValue(currentMachine.machineNumber);
-
-  return machines.filter((candidate) => {
-    if (candidate.id === currentMachine.id) {
-      return false;
-    }
-    if (candidate.customerId !== currentMachine.customerId) {
-      return false;
-    }
-    if (isMachineArchived(candidate)) {
-      return false;
-    }
-
-    const candidateSerialNumber = normalizeValue(candidate.serialNumber);
-    if (serialNumber && candidateSerialNumber === serialNumber) {
-      return true;
-    }
-
-    const candidateMachineNumber = normalizeValue(candidate.machineNumber);
-    return Boolean(machineNumber && candidateMachineNumber === machineNumber);
-  });
-}
-
 function nextInspectionNumber(existing: InspectionRecord[], inspectionDate: string) {
   const year = Number(inspectionDate.slice(0, 4));
   const base = getYearSequenceStart(year);
@@ -4847,18 +4815,6 @@ export async function updateMachine(input: {
     const configuration = sanitizeMachineConfiguration(
       applyCustomerLocationToDetails(customer, input.details)
     );
-    const duplicateMachines = currentMachine && !isBatteryChargerType(input.machineType)
-      ? findDuplicateMachines(
-          ((await supabase
-            .from("machines")
-            .select("*")
-            .eq("customer_id", currentMachine.customerId)).data ?? []).map((row) =>
-            mapMachineRow(row)
-          ),
-          currentMachine
-        )
-      : [];
-
     const { data: updatedMachineRow, error: updateError } = await supabase
       .from("machines")
       .update({
@@ -4888,37 +4844,13 @@ export async function updateMachine(input: {
 
     const machine = mapMachineRow(updatedMachineRow);
     const machineSnapshot = buildMachineSnapshot(machine);
-    const duplicateIds = duplicateMachines.map((item) => item.id);
-
-    if (duplicateIds.length > 0) {
-      await supabase
-        .from("planning_items")
-        .update({ machine_id: input.id })
-        .in("machine_id", duplicateIds);
-
-      await Promise.all(
-        duplicateMachines.map((duplicate) =>
-          supabase
-            .from("machines")
-            .update({
-              configuration: {
-                ...duplicate.configuration,
-                __archivedAt: nowIso()
-              }
-            })
-            .eq("id", duplicate.id)
-        )
-      );
-    }
-
-    const affectedMachineIds = [input.id, ...duplicateIds];
     const { data: inspectionRows } = await supabase
       .from("inspections")
       .update({
-        machine_id: input.id,
         machine_snapshot: machineSnapshot
       })
-      .in("machine_id", affectedMachineIds)
+      .eq("machine_id", input.id)
+      .eq("status", "draft")
       .select("*");
 
     const affectedInspectionIds: string[] = [];
@@ -4952,9 +4884,6 @@ export async function updateMachine(input: {
 
   assertMachineNotArchiveLocked(machine, "Machine bijwerken");
 
-  const duplicateMachines = isBatteryChargerType(input.machineType)
-    ? []
-    : findDuplicateMachines(data.machines, machine);
   const machineNumber = isBatteryChargerType(input.machineType)
     ? machine.machineNumber
     : fallbackMachineNumber;
@@ -4973,32 +4902,13 @@ export async function updateMachine(input: {
   );
   machine.updatedAt = nowIso();
 
-  for (const duplicate of duplicateMachines) {
-    duplicate.configuration = {
-      ...duplicate.configuration,
-      __archivedAt: nowIso()
-    };
-    duplicate.updatedAt = nowIso();
-  }
-
-  for (const planningItem of data.planningItems) {
-    if (duplicateMachines.some((duplicate) => duplicate.id === planningItem.machineId)) {
-      planningItem.machineId = input.id;
-      planningItem.updatedAt = nowIso();
-    }
-  }
-
   const machineSnapshot = buildMachineSnapshot(machine);
   const affectedInspectionIds: string[] = [];
   for (const inspection of data.inspections) {
-    if (
-      inspection.machineId !== input.id &&
-      !duplicateMachines.some((duplicate) => duplicate.id === inspection.machineId)
-    ) {
+    if (inspection.machineId !== input.id || inspection.status !== "draft") {
       continue;
     }
 
-    inspection.machineId = input.id;
     inspection.machineSnapshot = machineSnapshot;
     inspection.updatedAt = nowIso();
     affectedInspectionIds.push(inspection.id);
