@@ -62,6 +62,23 @@ function sanitizeMachineConfiguration(configuration: Record<string, string>) {
   );
 }
 
+export function batteryChargerInspectionConfiguration(
+  currentMachine: Pick<MachineRecord, "machineType" | "configuration"> | null,
+  nextDetails: Record<string, string>
+) {
+  const nextConfiguration = sanitizeMachineConfiguration(nextDetails);
+  const linkedMachineId =
+    currentMachine && isBatteryChargerType(currentMachine.machineType)
+      ? String(currentMachine.configuration.linked_machine_id ?? "").trim()
+      : "";
+
+  if (linkedMachineId) {
+    nextConfiguration.linked_machine_id = linkedMachineId;
+  }
+
+  return nextConfiguration;
+}
+
 const MACHINE_ARCHIVE_LOCK_DAYS = 7;
 const BATTERY_CHARGER_MACHINE_NUMBER_COLLISION_MESSAGE =
   "Deze batterij/lader probeert hetzelfde technische nummer te gebruiken als een bestaande machine.";
@@ -783,7 +800,7 @@ async function createDemoInspection(input: CreateInspectionInput) {
   machine.serialNumber = input.machine.serialNumber;
   machine.buildYear = input.machine.buildYear;
   machine.internalNumber = input.machine.internalNumber;
-  machine.configuration = sanitizeMachineConfiguration(input.machine.details);
+  machine.configuration = batteryChargerInspectionConfiguration(machine, input.machine.details);
   machine.updatedAt = nowIso();
   const inspectionNumber = nextInspectionNumber(data.inspections, input.inspectionDate);
   const nextInspectionDate = addTwelveMonths(input.inspectionDate);
@@ -1509,7 +1526,7 @@ export async function createInspection(input: CreateInspectionInput) {
         serial_number: input.machine.serialNumber,
         build_year: Number(input.machine.buildYear || 0) || null,
         internal_number: input.machine.internalNumber,
-        configuration: sanitizeMachineConfiguration(input.machine.details)
+        configuration: batteryChargerInspectionConfiguration(currentMachine, input.machine.details)
       })
       .eq("id", input.machineId)
       .select()
@@ -1791,7 +1808,7 @@ export async function updateInspectionFromForm(
     machine.serialNumber = input.machine.serialNumber;
     machine.buildYear = input.machine.buildYear;
     machine.internalNumber = input.machine.internalNumber;
-    machine.configuration = sanitizeMachineConfiguration(input.machine.details);
+    machine.configuration = batteryChargerInspectionConfiguration(machine, input.machine.details);
     machine.updatedAt = nowIso();
 
     inspection.customerId = customer.id;
@@ -1922,7 +1939,10 @@ export async function updateInspectionFromForm(
         serial_number: input.machine.serialNumber,
         build_year: Number(input.machine.buildYear || 0) || null,
         internal_number: input.machine.internalNumber,
-        configuration: sanitizeMachineConfiguration(input.machine.details)
+        configuration: batteryChargerInspectionConfiguration(
+          currentMachineRow ? mapMachineRow(currentMachineRow) : null,
+          input.machine.details
+        )
       })
       .eq("id", resolvedMachineId)
       .select()

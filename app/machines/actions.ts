@@ -71,7 +71,10 @@ function getMachinePayload(formData: FormData, machineType: MachineType) {
     )
   );
 
-  const linkedMachineId = String(formData.get("linked_machine_id") || "").trim();
+  const skipMachineLink = String(formData.get("skip_machine_link") || "").trim() === "1";
+  const linkedMachineId =
+    String(formData.get("linked_machine_id") || "").trim() ||
+    (skipMachineLink ? "" : String(formData.get("fallback_linked_machine_id") || "").trim());
   if (machineType === "batterij_lader" && linkedMachineId) {
     details.linked_machine_id = linkedMachineId;
   }
@@ -95,7 +98,10 @@ export async function createMachineAction(formData: FormData) {
   const toStock = String(formData.get("toStock") || "") === "1";
   const machineType = String(formData.get("machineType") || "heftruck_reachtruck") as MachineType;
   const payload = getMachinePayload(formData, machineType);
-  const linkedMachineId = String(formData.get("linked_machine_id") || "").trim();
+  const skipMachineLink = String(formData.get("skip_machine_link") || "").trim() === "1";
+  const linkedMachineId =
+    String(formData.get("linked_machine_id") || "").trim() ||
+    (skipMachineLink ? "" : String(formData.get("fallback_linked_machine_id") || "").trim());
   const linkedMachine =
     linkedMachineId ? await getMachineById(linkedMachineId, { includeArchived: true }) : null;
   const customerId = toStock

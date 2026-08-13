@@ -64,7 +64,9 @@ export function MachineCreateFields({
           <label className="status-chip" htmlFor="skip-machine-link" style={{ marginBottom: "0.75rem" }}>
             <input
               id="skip-machine-link"
+              name="skip_machine_link"
               type="checkbox"
+              value="1"
               checked={skipLink}
               onChange={(event) => {
                 const checked = event.target.checked;

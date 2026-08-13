@@ -6,8 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "test": "tsx --test tests/**/*.test.ts",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
+    "audit:battery-links": "node scripts/export-multiple-battery-links.mjs",
     "prepare:battery-import": "node scripts/prepare-battery-lader-import.mjs",
     "import:battery-laders": "node scripts/import-battery-laders.mjs"
   },

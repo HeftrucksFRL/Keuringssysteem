@@ -66,6 +66,7 @@ export default async function NewMachinePage({
 
       <form action={createMachineAction} className="panel" style={{ marginTop: "1rem" }}>
         <input type="hidden" name="toStock" value={toStock ? "1" : ""} />
+        <input type="hidden" name="fallback_linked_machine_id" value={query?.linkedMachineId ?? ""} />
         <div className="form-grid-wide">
           {isBatteryChargerFlow ? null : toStock ? (
             <div className="field">
