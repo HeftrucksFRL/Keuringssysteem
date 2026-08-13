@@ -1,14 +1,17 @@
-import { canManageCleanup, requireUser } from "@/lib/auth";
+import { canCorrectInspectionCustomer, canManageCleanup, requireUser } from "@/lib/auth";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Route } from "next";
 import {
   addCustomerContactAction,
   addCustomerLocationAction,
+  archiveCustomerAction,
   cleanupMoveMachineAction,
+  correctInspectionCustomerAction,
   deleteCustomerAction,
   deleteCustomerContactAction,
   deleteCustomerLocationAction,
+  restoreCustomerAction,
   updateCustomerAction,
   updateCustomerLocationAction,
   updateCustomerContactAction
@@ -73,6 +76,8 @@ export default async function CustomerDetailPage({
     contactSaved?: string;
     cleanupMoved?: string;
     locationSaved?: string;
+    inspectionCustomerCorrected?: string;
+    restored?: string;
     error?: string;
   }>;
 }) {
@@ -80,6 +85,7 @@ export default async function CustomerDetailPage({
   const query = await searchParams;
   const currentUser = await requireUser();
   const showCleanupTools = canManageCleanup(currentUser);
+  const showInspectionCorrectionTools = canCorrectInspectionCustomer(currentUser);
   const customer = await getCustomerById(id);
 
   if (!customer) {
@@ -148,7 +154,11 @@ export default async function CustomerDetailPage({
       <section className="hero">
         <div className="eyebrow">Klantkaart</div>
         <h1>{customer.companyName}</h1>
-        <p>Beheer hier de klantgegevens, machines en start direct een nieuwe keuring.</p>
+        <p>
+          {customer.archivedAt
+            ? `Gearchiveerde klant sinds ${formatDisplayDate(customer.archivedAt)}. De volledige historie blijft bewaard.`
+            : "Beheer hier de klantgegevens, machines en start direct een nieuwe keuring."}
+        </p>
         {query?.saved ? <p className="form-message success">Klant opgeslagen.</p> : null}
         {query?.created ? <p className="form-message success">Klant toegevoegd.</p> : null}
         {query?.contactSaved ? <p className="form-message success">Contactpersoon toegevoegd.</p> : null}
@@ -156,14 +166,40 @@ export default async function CustomerDetailPage({
         {query?.cleanupMoved ? (
           <p className="form-message success">Machine en gekoppelde historie zijn verplaatst.</p>
         ) : null}
+        {query?.inspectionCustomerCorrected ? (
+          <p className="form-message success">Klantkoppeling van het keuringsrapport is gecorrigeerd.</p>
+        ) : null}
+        {query?.restored ? <p className="form-message success">Klant teruggezet uit het archief.</p> : null}
         {query?.error ? <p className="form-message error">{decodeURIComponent(query.error)}</p> : null}
         <div className="actions">
-          <Link className="button" href={`/keuringen/nieuw?customerId=${customer.id}`}>
-            Nieuwe keuring starten
-          </Link>
-          <Link className="button-secondary" href={`/machines/nieuw?customerId=${customer.id}`}>
-            Machine toevoegen
-          </Link>
+          {!customer.archivedAt ? (
+            <>
+              <Link className="button" href={`/keuringen/nieuw?customerId=${customer.id}`}>
+                Nieuwe keuring starten
+              </Link>
+              <Link className="button-secondary" href={`/machines/nieuw?customerId=${customer.id}`}>
+                Machine toevoegen
+              </Link>
+              <form action={archiveCustomerAction}>
+                <input type="hidden" name="customerId" value={customer.id} />
+                <button className="button-secondary" type="submit">
+                  Klant archiveren
+                </button>
+              </form>
+            </>
+          ) : (
+            <>
+              <Link className="button-secondary" href="/klanten/archief">
+                Naar klantenarchief
+              </Link>
+              <form action={restoreCustomerAction}>
+                <input type="hidden" name="customerId" value={customer.id} />
+                <button className="button" type="submit">
+                  Klant terugzetten
+                </button>
+              </form>
+            </>
+          )}
         </div>
       </section>
 
@@ -788,6 +824,51 @@ export default async function CustomerDetailPage({
         <h2>Recente keuringen</h2>
         <CustomerInspectionHistory inspections={inspections} attachments={attachments} />
       </section>
+
+      {showInspectionCorrectionTools && inspections.length > 0 ? (
+        <section className="panel" style={{ marginTop: "1rem" }}>
+          <div className="eyebrow">Beheerder</div>
+          <h2>Klantkoppeling keuringsrapport corrigeren</h2>
+          <p className="muted">
+            Gebruik dit alleen als een rapport administratief aan de verkeerde klant is gekoppeld.
+            De machine blijft bij de huidige klant; het rapport wordt opnieuw opgebouwd en de reden
+            wordt vastgelegd in het activiteitenlogboek.
+          </p>
+          <div className="list" style={{ marginTop: "1rem" }}>
+            {inspections.map((inspection) => (
+              <details className="list-item" key={`correct-inspection-${inspection.id}`}>
+                <summary>
+                  <strong>Keuring {inspection.inspectionNumber}</strong>{" "}
+                  <span className="muted">- {formatDisplayDate(inspection.inspectionDate)}</span>
+                </summary>
+                <form action={correctInspectionCustomerAction} style={{ marginTop: "1rem" }}>
+                  <input type="hidden" name="inspectionId" value={inspection.id} />
+                  <input type="hidden" name="sourceCustomerId" value={customer.id} />
+                  <CustomerPicker
+                    customers={assignableCustomers}
+                    label="Corrigeer naar klant"
+                    required
+                  />
+                  <div className="field">
+                    <label htmlFor={`correction-reason-${inspection.id}`}>Reden voor correctie</label>
+                    <input
+                      id={`correction-reason-${inspection.id}`}
+                      name="reason"
+                      placeholder="Bijvoorbeeld: dubbele klantregistratie"
+                      required
+                    />
+                  </div>
+                  <div className="actions">
+                    <button className="button-secondary" type="submit">
+                      Klantkoppeling corrigeren
+                    </button>
+                  </div>
+                </form>
+              </details>
+            ))}
+          </div>
+        </section>
+      ) : null}
     </>
   );
 }

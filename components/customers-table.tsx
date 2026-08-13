@@ -9,6 +9,8 @@ interface CustomersTableProps {
   customers: CustomerRecord[];
   machines: MachineRecord[];
   inspections: InspectionRecord[];
+  emptyTitle?: string;
+  emptyDescription?: string;
 }
 
 interface CustomerLetterGroup {
@@ -29,7 +31,9 @@ function firstLetter(value: string) {
 export function CustomersTable({
   customers,
   machines,
-  inspections
+  inspections,
+  emptyTitle = "Geen klanten gevonden",
+  emptyDescription = "Probeer een andere zoekterm."
 }: CustomersTableProps) {
   const [query, setQuery] = useState("");
 
@@ -109,9 +113,9 @@ export function CustomersTable({
       {groupedCustomers.length === 0 ? (
         <div className="dataset-list">
           <div className="dataset-row compact-overview-row">
-            <strong>Geen klanten gevonden</strong>
+            <strong>{emptyTitle}</strong>
             <span className="compact-overview-detail">
-              Probeer een andere zoekterm.
+              {emptyDescription}
             </span>
             <span />
           </div>

@@ -1,4 +1,9 @@
-import { getInspectionSummaries, getMachineSummaries, getVisibleCustomers } from "@/lib/inspection-service";
+import {
+  getArchivedCustomers,
+  getInspectionSummaries,
+  getMachineSummaries,
+  getVisibleCustomers
+} from "@/lib/inspection-service";
 import { CustomersTable } from "@/components/customers-table";
 import Link from "next/link";
 
@@ -8,8 +13,9 @@ export default async function CustomersPage({
   searchParams?: Promise<{ deleted?: string }>;
 }) {
   const query = await searchParams;
-  const [customers, inspections, machines] = await Promise.all([
+  const [customers, archivedCustomers, inspections, machines] = await Promise.all([
     getVisibleCustomers(),
+    getArchivedCustomers(),
     getInspectionSummaries(),
     getMachineSummaries()
   ]);
@@ -22,6 +28,9 @@ export default async function CustomersPage({
       <div className="actions" style={{ marginTop: "0.75rem", marginBottom: "1rem" }}>
         <Link className="button" href="/klanten/nieuw">
           Klant toevoegen
+        </Link>
+        <Link className="button-secondary" href="/klanten/archief">
+          Archiefbak ({archivedCustomers.length})
         </Link>
       </div>
       <CustomersTable customers={customers} machines={machines} inspections={inspections} />

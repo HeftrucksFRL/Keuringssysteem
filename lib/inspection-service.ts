@@ -1116,25 +1116,28 @@ async function listDemoData() {
 type CustomerNotesPayload = {
   notes: string;
   locations: CustomerLocationRecord[];
+  archivedAt: string;
 };
 
 function parseCustomerNotes(rawValue: unknown, customerId: string): CustomerNotesPayload {
   const raw = String(rawValue ?? "").trim();
   if (!raw) {
-    return { notes: "", locations: [] };
+    return { notes: "", locations: [], archivedAt: "" };
   }
 
   try {
     const parsed = JSON.parse(raw) as {
       notes?: unknown;
       locations?: Array<Partial<CustomerLocationRecord>>;
+      archivedAt?: unknown;
     };
     if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.locations)) {
-      return { notes: raw, locations: [] };
+      return { notes: raw, locations: [], archivedAt: "" };
     }
 
     return {
       notes: String(parsed.notes ?? ""),
+      archivedAt: String(parsed.archivedAt ?? ""),
       locations: parsed.locations.map((location) => ({
         id: String(location.id || randomUUID()),
         customerId,
@@ -1148,25 +1151,27 @@ function parseCustomerNotes(rawValue: unknown, customerId: string): CustomerNote
       }))
     };
   } catch {
-    return { notes: raw, locations: [] };
+    return { notes: raw, locations: [], archivedAt: "" };
   }
 }
 
 function encodeCustomerNotes(input: CustomerNotesPayload) {
-  if (!input.notes.trim() && input.locations.length === 0) {
+  if (!input.notes.trim() && input.locations.length === 0 && !input.archivedAt) {
     return null;
   }
 
   return JSON.stringify({
     notes: input.notes.trim(),
-    locations: input.locations
+    locations: input.locations,
+    archivedAt: input.archivedAt || undefined
   });
 }
 
 function customerNotesPayload(customer: CustomerRecord): CustomerNotesPayload {
   return {
     notes: customer.notes ?? "",
-    locations: customer.locations ?? []
+    locations: customer.locations ?? [],
+    archivedAt: customer.archivedAt ?? ""
   };
 }
 
@@ -1182,6 +1187,7 @@ function mapCustomerRow(row: Record<string, unknown>): CustomerRecord {
     email: String(row.email ?? ""),
     notes: notesPayload.notes,
     locations: notesPayload.locations,
+    archivedAt: notesPayload.archivedAt || undefined,
     createdAt: String(row.created_at ?? ""),
     updatedAt: String(row.updated_at ?? "")
   };
@@ -2324,7 +2330,10 @@ export async function getCustomerSummaries(options: {
 
     return options.visibleOnly
       ? customers.filter(
-          (customer) => !isRentalStockCustomer(customer) && !isMachineHistoryCustomer(customer)
+          (customer) =>
+            !isRentalStockCustomer(customer) &&
+            !isMachineHistoryCustomer(customer) &&
+            !isCustomerArchived(customer)
         )
       : customers;
   }
@@ -2337,7 +2346,10 @@ export async function getCustomerSummaries(options: {
   }
   if (options.visibleOnly) {
     customers = customers.filter(
-      (customer) => !isRentalStockCustomer(customer) && !isMachineHistoryCustomer(customer)
+      (customer) =>
+        !isRentalStockCustomer(customer) &&
+        !isMachineHistoryCustomer(customer) &&
+        !isCustomerArchived(customer)
     );
   }
   return customers;
@@ -2388,7 +2400,24 @@ export async function getCustomerContacts(customerId?: string) {
 export async function getVisibleCustomers() {
   const customers = await getCustomers();
   return customers.filter(
-    (customer) => !isRentalStockCustomer(customer) && !isMachineHistoryCustomer(customer)
+    (customer) =>
+      !isRentalStockCustomer(customer) &&
+      !isMachineHistoryCustomer(customer) &&
+      !isCustomerArchived(customer)
+  );
+}
+
+export function isCustomerArchived(customer: Pick<CustomerRecord, "archivedAt">) {
+  return Boolean(customer.archivedAt);
+}
+
+export async function getArchivedCustomers() {
+  const customers = await getCustomers();
+  return customers.filter(
+    (customer) =>
+      !isRentalStockCustomer(customer) &&
+      !isMachineHistoryCustomer(customer) &&
+      isCustomerArchived(customer)
   );
 }
 
@@ -3854,6 +3883,54 @@ export async function updateCustomer(input: {
   await writeAppData(data);
 }
 
+async function setCustomerArchivedState(customerId: string, archived: boolean) {
+  const customer = await getCustomerById(customerId);
+  if (!customer) {
+    throw new Error("Klant niet gevonden.");
+  }
+  if (isRentalStockCustomer(customer) || isMachineHistoryCustomer(customer)) {
+    throw new Error("Deze systeemklant kan niet worden gearchiveerd.");
+  }
+
+  const archivedAt = archived ? nowIso() : "";
+
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const { error } = await supabase
+      .from("customers")
+      .update({
+        notes: encodeCustomerNotes({
+          ...customerNotesPayload(customer),
+          archivedAt
+        })
+      })
+      .eq("id", customerId);
+
+    if (error) {
+      throw new Error(`Klant archiveren mislukt: ${error.message}`);
+    }
+  } else {
+    const data = await readAppData();
+    const storedCustomer = data.customers.find((item) => item.id === customerId);
+    if (!storedCustomer) {
+      throw new Error("Klant niet gevonden.");
+    }
+    storedCustomer.archivedAt = archivedAt || undefined;
+    storedCustomer.updatedAt = nowIso();
+    await writeAppData(data);
+  }
+
+  return { ...customer, archivedAt: archivedAt || undefined };
+}
+
+export async function archiveCustomer(customerId: string) {
+  return setCustomerArchivedState(customerId, true);
+}
+
+export async function restoreCustomer(customerId: string) {
+  return setCustomerArchivedState(customerId, false);
+}
+
 export async function addCustomerContact(input: {
   customerId: string;
   name: string;
@@ -5188,6 +5265,97 @@ export async function reassignMachineToCustomerForCleanup(input: {
 
   await writeAppData(data);
   return affectedInspectionIds;
+}
+
+export async function correctInspectionCustomer(input: {
+  inspectionId: string;
+  sourceCustomerId: string;
+  targetCustomerId: string;
+}) {
+  if (!input.inspectionId || !input.sourceCustomerId || !input.targetCustomerId) {
+    throw new Error("Kies een keuring en een nieuwe klant.");
+  }
+  if (input.sourceCustomerId === input.targetCustomerId) {
+    throw new Error("Kies een andere klant.");
+  }
+
+  if (hasSupabaseConfig()) {
+    const supabase = createSupabaseAdmin();
+    const [{ data: inspectionRow }, { data: customerRow }] = await Promise.all([
+      supabase.from("inspections").select("*").eq("id", input.inspectionId).maybeSingle(),
+      supabase.from("customers").select("*").eq("id", input.targetCustomerId).maybeSingle()
+    ]);
+
+    if (!inspectionRow) {
+      throw new Error("Keuring niet gevonden.");
+    }
+    if (String(inspectionRow.customer_id) !== input.sourceCustomerId) {
+      throw new Error("Deze keuring staat inmiddels bij een andere klant. Vernieuw de klantkaart.");
+    }
+    if (!customerRow) {
+      throw new Error("Nieuwe klant niet gevonden.");
+    }
+
+    const targetCustomer = mapCustomerRow(customerRow);
+    if (isCustomerArchived(targetCustomer)) {
+      throw new Error("Een keuringsrapport kan niet naar een gearchiveerde klant worden verplaatst.");
+    }
+
+    const { data: updatedRow, error } = await supabase
+      .from("inspections")
+      .update({
+        customer_id: input.targetCustomerId,
+        customer_snapshot: buildCustomerSnapshot(targetCustomer)
+      })
+      .eq("id", input.inspectionId)
+      .eq("customer_id", input.sourceCustomerId)
+      .select("*")
+      .maybeSingle();
+
+    if (error || !updatedRow) {
+      throw new Error(`Klantkoppeling corrigeren mislukt${error ? `: ${error.message}` : "."}`);
+    }
+
+    const inspection = mapInspectionRow(updatedRow);
+    const { data: attachmentRows } = await supabase
+      .from("inspection_attachments")
+      .select("id, kind, storage_path")
+      .eq("inspection_id", inspection.id);
+
+    await syncSupabaseInspectionDocuments(
+      inspection,
+      (attachmentRows ?? []).map((row) => ({
+        id: String(row.id),
+        kind: String(row.kind),
+        storage_path: String(row.storage_path)
+      }))
+    );
+
+    return { inspection, targetCustomer };
+  }
+
+  const data = await readAppData();
+  const inspection = data.inspections.find((item) => item.id === input.inspectionId);
+  const targetCustomer = data.customers.find((item) => item.id === input.targetCustomerId);
+  if (!inspection) {
+    throw new Error("Keuring niet gevonden.");
+  }
+  if (inspection.customerId !== input.sourceCustomerId) {
+    throw new Error("Deze keuring staat inmiddels bij een andere klant. Vernieuw de klantkaart.");
+  }
+  if (!targetCustomer) {
+    throw new Error("Nieuwe klant niet gevonden.");
+  }
+  if (isCustomerArchived(targetCustomer)) {
+    throw new Error("Een keuringsrapport kan niet naar een gearchiveerde klant worden verplaatst.");
+  }
+
+  inspection.customerId = targetCustomer.id;
+  inspection.customerSnapshot = buildCustomerSnapshot(targetCustomer);
+  inspection.updatedAt = nowIso();
+  await syncDemoInspectionDocuments(data, inspection);
+  await writeAppData(data);
+  return { inspection, targetCustomer };
 }
 
 export async function updateInspection(input: {

@@ -12,6 +12,7 @@ const cleanupManagerEmails = new Set([
   "info@heftruckopleiding.frl",
   "info@terpstratrading.frl"
 ]);
+const inspectionCustomerCorrectionEmails = new Set(["info@heftruckopleiding.frl"]);
 
 function toDisplayNamePart(value: string) {
   return value
@@ -97,6 +98,16 @@ export function canManageCleanup(
   return cleanupManagerEmails.has(email);
 }
 
+export function canCorrectInspectionCustomer(
+  user: { email?: string | null } | null | undefined
+) {
+  const email = String(user?.email ?? "")
+    .trim()
+    .toLowerCase();
+
+  return inspectionCustomerCorrectionEmails.has(email);
+}
+
 export async function requireActivityActor(): Promise<ActivityActor> {
   const user = await requireUser();
   return {
@@ -110,6 +121,17 @@ export async function requireCleanupManager(): Promise<ActivityActor> {
   const actor = await requireActivityActor();
   if (!canManageCleanup(actor)) {
     throw new Error("Alleen info@heftruckopleiding.frl mag deze tijdelijke opschoonacties uitvoeren.");
+  }
+
+  return actor;
+}
+
+export async function requireInspectionCustomerCorrectionManager(): Promise<ActivityActor> {
+  const actor = await requireActivityActor();
+  if (!canCorrectInspectionCustomer(actor)) {
+    throw new Error(
+      "Alleen info@heftruckopleiding.frl mag de klantkoppeling van een keuringsrapport corrigeren."
+    );
   }
 
   return actor;

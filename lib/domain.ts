@@ -13,6 +13,7 @@ export interface CustomerRecord {
   email: string;
   notes?: string;
   locations?: CustomerLocationRecord[];
+  archivedAt?: string;
   createdAt: string;
   updatedAt: string;
 }

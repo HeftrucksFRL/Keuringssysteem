@@ -3,22 +3,35 @@
 import type { Route } from "next";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireActivityActor, requireCleanupManager } from "@/lib/auth";
+import {
+  requireActivityActor,
+  requireCleanupManager,
+  requireInspectionCustomerCorrectionManager
+} from "@/lib/auth";
 import {
   addActivityLog,
   addCustomerLocation,
   addCustomerContact,
+  archiveCustomer,
+  correctInspectionCustomer,
   createCustomer,
   deleteCustomer,
   deleteCustomerContact,
   deleteCustomerLocation,
   ensureRentalStockCustomerId,
   reassignMachineToCustomerForCleanup,
+  restoreCustomer,
   updateCustomer,
   updateCustomerLocation,
   updateCustomerContact,
   updatePlanningItem
 } from "@/lib/inspection-service";
+
+function customerPathWithError(customerId: string, error: unknown) {
+  const message =
+    error instanceof Error ? error.message : "De actie kon niet worden uitgevoerd.";
+  return `/klanten/${customerId}?error=${encodeURIComponent(message)}` as Route;
+}
 
 export async function createCustomerAction(formData: FormData) {
   const actor = await requireActivityActor();
@@ -77,6 +90,110 @@ export async function updateCustomerAction(formData: FormData) {
   revalidatePath("/keuringen/nieuw");
   revalidatePath("/");
   redirect(`/klanten/${id}?saved=1`);
+}
+
+export async function archiveCustomerAction(formData: FormData) {
+  const actor = await requireActivityActor();
+  const customerId = String(formData.get("customerId") || "");
+
+  let customer;
+  try {
+    customer = await archiveCustomer(customerId);
+  } catch (error) {
+    redirect(customerPathWithError(customerId, error));
+  }
+
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "customer.archived",
+    entityType: "customer",
+    entityId: customerId,
+    targetLabel: customer.companyName
+  });
+
+  revalidatePath("/klanten");
+  revalidatePath("/klanten/archief");
+  revalidatePath(`/klanten/${customerId}`);
+  revalidatePath("/keuringen/nieuw");
+  redirect("/klanten/archief?archived=1");
+}
+
+export async function restoreCustomerAction(formData: FormData) {
+  const actor = await requireActivityActor();
+  const customerId = String(formData.get("customerId") || "");
+
+  let customer;
+  try {
+    customer = await restoreCustomer(customerId);
+  } catch (error) {
+    redirect(customerPathWithError(customerId, error));
+  }
+
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "customer.restored",
+    entityType: "customer",
+    entityId: customerId,
+    targetLabel: customer.companyName
+  });
+
+  revalidatePath("/klanten");
+  revalidatePath("/klanten/archief");
+  revalidatePath(`/klanten/${customerId}`);
+  revalidatePath("/keuringen/nieuw");
+  redirect(`/klanten/${customerId}?restored=1`);
+}
+
+export async function correctInspectionCustomerAction(formData: FormData) {
+  const actor = await requireInspectionCustomerCorrectionManager();
+  const sourceCustomerId = String(formData.get("sourceCustomerId") || "");
+  const targetCustomerId = String(formData.get("customerId") || "");
+  const inspectionId = String(formData.get("inspectionId") || "");
+  const reason = String(formData.get("reason") || "").trim();
+
+  if (!reason) {
+    redirect(
+      `/klanten/${sourceCustomerId}?error=${encodeURIComponent("Vul een reden voor de correctie in.")}`
+    );
+  }
+
+  let result;
+  try {
+    result = await correctInspectionCustomer({
+      inspectionId,
+      sourceCustomerId,
+      targetCustomerId
+    });
+  } catch (error) {
+    redirect(customerPathWithError(sourceCustomerId, error));
+  }
+
+  await addActivityLog({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: "inspection.customer_corrected",
+    entityType: "inspection",
+    entityId: inspectionId,
+    targetLabel: `Keuring ${result.inspection.inspectionNumber}`,
+    details: {
+      sourceCustomerId,
+      targetCustomerId,
+      targetCustomerName: result.targetCustomer.companyName,
+      reason
+    }
+  });
+
+  revalidatePath("/klanten");
+  revalidatePath(`/klanten/${sourceCustomerId}`);
+  revalidatePath(`/klanten/${targetCustomerId}`);
+  revalidatePath(`/keuringen/${inspectionId}`);
+  revalidatePath("/keuringen");
+  redirect(`/klanten/${sourceCustomerId}?inspectionCustomerCorrected=1`);
 }
 
 export async function movePlanningItemAction(formData: FormData) {
