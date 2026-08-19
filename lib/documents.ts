@@ -6,6 +6,10 @@ import { getFormDefinition } from "@/lib/form-definitions";
 import { buildChecklistRemarkLines } from "@/lib/inspection-remarks";
 import type { InspectionRecord } from "@/lib/domain";
 import {
+  inspectionInspectorName,
+  inspectionTemplateOwner
+} from "@/lib/inspection-inspector";
+import {
   formatMachineKindBrandType,
   getMachineLocation
 } from "@/lib/machine-presentation";
@@ -56,15 +60,19 @@ async function loadReportAssets() {
   };
 }
 
-async function loadWordTemplatePath() {
+async function loadWordTemplatePath(inspection: InspectionRecord) {
+  const owner = inspectionTemplateOwner(inspection);
   return firstExistingPath([
+    path.join(process.cwd(), `Sjabloon keuringsformulier ${owner}.docx`),
     path.join(process.cwd(), "Sjabloon keuringsformulier.docx"),
     path.join(process.cwd(), "Keuringsrapport sjabloon.docx")
   ]);
 }
 
-async function loadPdfTemplatePath() {
+async function loadPdfTemplatePath(inspection: InspectionRecord) {
+  const owner = inspectionTemplateOwner(inspection);
   return firstExistingPath([
+    path.join(process.cwd(), `Sjabloon keuringsformulier ${owner}.pdf`),
     path.join(process.cwd(), "Sjabloon keuringsformulier.pdf"),
     path.join(process.cwd(), "Keuringsrapport sjabloon.pdf")
   ]);
@@ -240,7 +248,7 @@ function buildWordChecklistTable(inspection: InspectionRecord, layout: WordTempl
 }
 
 async function generateWordFromTemplate(inspection: InspectionRecord) {
-  const templatePath = await loadWordTemplatePath();
+  const templatePath = await loadWordTemplatePath(inspection);
   if (!templatePath) {
     throw new Error("Sjabloon keuringsformulier.docx ontbreekt in de projectmap.");
   }
@@ -348,6 +356,7 @@ function summaryRows(inspection: InspectionRecord): Array<[string, string]> {
     ["Keurnummer", inspection.inspectionNumber],
     ["Datum", formatDisplayDate(inspection.inspectionDate)],
     ["Status", inspectionStatusLabel(inspection)],
+    ["Keurmeester", inspectionInspectorName(inspection)],
     ...customerMachineRows(inspection)
   ];
 }
@@ -356,7 +365,7 @@ export async function generateInspectionDocuments(
   inspection: InspectionRecord,
   options: GenerateDocumentsOptions = {}
 ) {
-  const pdfTemplatePath = await loadPdfTemplatePath();
+  const pdfTemplatePath = await loadPdfTemplatePath(inspection);
   const pdfDocument = await PDFDocument.create();
   const boldFont = await pdfDocument.embedFont(StandardFonts.HelveticaBold);
   const regularFont = await pdfDocument.embedFont(StandardFonts.Helvetica);

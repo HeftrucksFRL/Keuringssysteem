@@ -114,6 +114,7 @@ export async function submitInspectionAction(
   const machineNumber = buildMachineDossier(machineType as MachineType, inspectionDate, machineDetails);
 
   const inspection = await createInspection({
+    inspector: actor,
     machineType: machineType as MachineType,
     customer: {
       companyName: String(formData.get("customer_name") || ""),

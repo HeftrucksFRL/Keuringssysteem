@@ -12,6 +12,10 @@ import { addTwelveMonths, formatDisplayDate, formatLocalDateInput, parseLocalDat
 import { generateInspectionDocuments } from "@/lib/documents";
 import { getYearSequenceStart } from "@/lib/inspection-number";
 import {
+  canonicalInspectionActor,
+  type InspectionActor
+} from "@/lib/inspection-inspector";
+import {
   getCustomerDisplayName,
   historyOwnerLabel,
   isMachineHistoryCustomer,
@@ -65,7 +69,8 @@ function sanitizeMachineConfiguration(configuration: Record<string, string>) {
 function storedChecklist(input: CreateInspectionInput) {
   return {
     ...input.checklist,
-    __notes: input.checklistNotes ?? {}
+    __notes: input.checklistNotes ?? {},
+    ...(input.inspector ? { __inspector: canonicalInspectionActor(input.inspector) } : {})
   };
 }
 
@@ -85,7 +90,44 @@ function readStoredChecklist(value: unknown) {
           )
         ) as Record<string, string>
       : {};
-  return { checklist, checklistNotes };
+  const rawInspector =
+    raw.__inspector && typeof raw.__inspector === "object"
+      ? (raw.__inspector as Record<string, unknown>)
+      : null;
+  const inspector = rawInspector
+    ? canonicalInspectionActor({
+        id: String(rawInspector.id ?? ""),
+        name: String(rawInspector.name ?? ""),
+        email: String(rawInspector.email ?? "")
+      })
+    : null;
+  return { checklist, checklistNotes, inspector };
+}
+
+async function upsertInspectorProfile(
+  supabase: ReturnType<typeof createSupabaseAdmin>,
+  inspector: InspectionActor | undefined
+) {
+  if (!inspector) {
+    return null;
+  }
+
+  const canonical = canonicalInspectionActor(inspector);
+  const { error } = await supabase.from("profiles").upsert(
+    {
+      id: canonical.id,
+      full_name: canonical.name,
+      email: canonical.email,
+      role: "inspector"
+    },
+    { onConflict: "id" }
+  );
+
+  if (error) {
+    throw new Error(error.message || "De keurmeester kon niet aan de keuring worden gekoppeld.");
+  }
+
+  return canonical;
 }
 
 export function batteryChargerInspectionConfiguration(
@@ -831,6 +873,9 @@ async function createDemoInspection(input: CreateInspectionInput) {
   const inspectionNumber = nextInspectionNumber(data.inspections, input.inspectionDate);
   const nextInspectionDate = addTwelveMonths(input.inspectionDate);
 
+  const demoInspector = input.inspector
+    ? canonicalInspectionActor(input.inspector)
+    : null;
   const inspection: InspectionRecord = {
     id: randomUUID(),
     inspectionNumber,
@@ -846,6 +891,9 @@ async function createDemoInspection(input: CreateInspectionInput) {
       contactDepartment: input.customer.contactDepartment
     }),
     machineSnapshot: buildMachineSnapshot(machine),
+    inspectorId: demoInspector?.id,
+    inspectorName: demoInspector?.name ?? appConfig.defaultInspector,
+    inspectorEmail: demoInspector?.email,
     checklist: input.checklist,
     checklistNotes: input.checklistNotes ?? {},
     findings: input.findings,
@@ -1281,6 +1329,9 @@ function mapInspectionRow(row: Record<string, unknown>): InspectionRecord {
     sendPdfToCustomer: Boolean(row.send_pdf_to_customer),
     customerSnapshot: (row.customer_snapshot as Record<string, string>) ?? {},
     machineSnapshot: (row.machine_snapshot as Record<string, string>) ?? {},
+    inspectorId: stored.inspector?.id || (row.inspector_id ? String(row.inspector_id) : undefined),
+    inspectorName: stored.inspector?.name,
+    inspectorEmail: stored.inspector?.email,
     checklist: stored.checklist,
     checklistNotes: stored.checklistNotes,
     findings: String(row.findings ?? ""),
@@ -1430,6 +1481,7 @@ export async function createInspection(input: CreateInspectionInput) {
   }
 
   const supabase = createSupabaseAdmin();
+  const inspector = await upsertInspectorProfile(supabase, input.inspector);
   const status = statusFromResultLabels(input.resultLabels);
   const nextInspectionDate = addTwelveMonths(input.inspectionDate);
   const { data: currentMachineRow } = input.machineId
@@ -1656,7 +1708,8 @@ export async function createInspection(input: CreateInspectionInput) {
       next_inspection_date: nextInspectionDate,
       status,
       send_pdf_to_customer: input.sendPdfToCustomer,
-      checklist: storedChecklist(input),
+      inspector_id: inspector?.id ?? null,
+      checklist: storedChecklist({ ...input, inspector: inspector ?? input.inspector }),
       customer_snapshot: buildCustomerSnapshot(mergedCustomer),
       machine_snapshot: buildMachineSnapshot({
         machineNumber: String(machineRow.machine_number ?? resolvedMachineNumber),
@@ -1678,6 +1731,7 @@ export async function createInspection(input: CreateInspectionInput) {
     throw new Error(insertError?.message || "Keuring kon niet worden opgeslagen.");
   }
 
+  const insertedChecklist = readStoredChecklist(inserted.checklist);
   const inspection: InspectionRecord = {
     id: inserted.id,
     inspectionNumber: String(inserted.inspection_number),
@@ -1690,7 +1744,11 @@ export async function createInspection(input: CreateInspectionInput) {
     sendPdfToCustomer: inserted.send_pdf_to_customer,
     customerSnapshot: inserted.customer_snapshot,
     machineSnapshot: inserted.machine_snapshot,
-    ...readStoredChecklist(inserted.checklist),
+    inspectorId: inspector?.id,
+    inspectorName: inspector?.name,
+    inspectorEmail: inspector?.email,
+    checklist: insertedChecklist.checklist,
+    checklistNotes: insertedChecklist.checklistNotes,
     findings: inserted.findings ?? "",
     recommendations: inserted.recommendations ?? "",
     conclusion: inserted.conclusion ?? "",
@@ -1846,6 +1904,20 @@ export async function updateInspectionFromForm(
     machine.configuration = batteryChargerInspectionConfiguration(machine, input.machine.details);
     machine.updatedAt = nowIso();
 
+    const priorStatus = inspection.status;
+    const nextInspector =
+      priorStatus === "draft" && input.inspector
+        ? canonicalInspectionActor(input.inspector)
+        : inspection.inspectorName
+          ? {
+              id: inspection.inspectorId ?? "",
+              name: inspection.inspectorName,
+              email: inspection.inspectorEmail ?? ""
+            }
+          : input.inspector
+            ? canonicalInspectionActor(input.inspector)
+            : null;
+
     inspection.customerId = customer.id;
     inspection.machineId = machine.id;
     inspection.machineType = input.machineType;
@@ -1858,6 +1930,9 @@ export async function updateInspectionFromForm(
       contactDepartment: input.customer.contactDepartment
     });
     inspection.machineSnapshot = buildMachineSnapshot(machine);
+    inspection.inspectorId = nextInspector?.id || undefined;
+    inspection.inspectorName = nextInspector?.name ?? appConfig.defaultInspector;
+    inspection.inspectorEmail = nextInspector?.email || undefined;
     inspection.checklist = input.checklist;
     inspection.checklistNotes = input.checklistNotes ?? {};
     inspection.findings = input.findings;
@@ -1905,6 +1980,23 @@ export async function updateInspectionFromForm(
   }
 
   const currentInspection = mapInspectionRow(currentInspectionRow);
+  const requestedInspector = input.inspector
+    ? canonicalInspectionActor(input.inspector)
+    : null;
+  const existingInspector = currentInspection.inspectorName
+    ? {
+        id: currentInspection.inspectorId ?? "",
+        name: currentInspection.inspectorName,
+        email: currentInspection.inspectorEmail ?? ""
+      }
+    : null;
+  const selectedInspector =
+    currentInspection.status === "draft"
+      ? requestedInspector ?? existingInspector
+      : existingInspector;
+  const persistedInspector = selectedInspector?.id
+    ? await upsertInspectorProfile(supabase, selectedInspector)
+    : selectedInspector;
   const resolvedCustomerId = input.customerId ?? currentInspection.customerId;
   const resolvedMachineId = input.machineId ?? currentInspection.machineId;
   const existingCustomer = resolvedCustomerId ? await getCustomerById(resolvedCustomerId) : null;
@@ -2026,7 +2118,11 @@ export async function updateInspectionFromForm(
       next_inspection_date: nextInspectionDate,
       status,
       send_pdf_to_customer: input.sendPdfToCustomer,
-      checklist: storedChecklist(input),
+      inspector_id: persistedInspector?.id || null,
+      checklist: storedChecklist({
+        ...input,
+        inspector: persistedInspector ?? undefined
+      }),
       customer_snapshot: buildCustomerSnapshot(mergedCustomer),
       machine_snapshot: buildMachineSnapshot({
         machineNumber: String(machineRow.machine_number ?? resolvedMachineNumber),

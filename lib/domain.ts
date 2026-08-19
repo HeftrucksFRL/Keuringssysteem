@@ -70,6 +70,9 @@ export interface InspectionRecord {
   sendPdfToCustomer: boolean;
   customerSnapshot: Record<string, string>;
   machineSnapshot: Record<string, string>;
+  inspectorId?: string;
+  inspectorName?: string;
+  inspectorEmail?: string;
   checklist: Record<string, ChecklistOption>;
   checklistNotes?: Record<string, string>;
   findings: string;
@@ -187,6 +190,11 @@ export interface CreateInspectionInput {
   customerId?: string;
   machineId?: string;
   linkedBatteryMachineId?: string;
+  inspector?: {
+    id: string;
+    name: string;
+    email: string;
+  };
   machineType: MachineType;
   customer: {
     companyName: string;

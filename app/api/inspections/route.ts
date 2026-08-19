@@ -147,10 +147,12 @@ export async function POST(request: NextRequest) {
         .filter(([key]) => !key.startsWith("customer_"))
     );
 
+    const actor = await requireActivityActor();
     const payload = {
       customerId: existingCustomerId || undefined,
       machineId: existingMachineId || undefined,
       linkedBatteryMachineId: linkedBatteryMachineId || undefined,
+      inspector: actor,
       machineType,
       customer: {
         companyName: String(formData.get("customer_name") || ""),
@@ -204,7 +206,6 @@ export async function POST(request: NextRequest) {
       ? await updateInspectionFromForm(inspectionId, payload)
       : await createInspection(payload);
 
-    const actor = await requireActivityActor();
     await addActivityLog({
       actorId: actor.id,
       actorName: actor.name,

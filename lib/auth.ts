@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { appConfig, hasSupabaseConfig } from "@/lib/env";
+import { knownInspectorNameForEmail } from "@/lib/inspection-inspector";
 
 export interface ActivityActor {
   id: string;
@@ -53,6 +54,12 @@ export function getUserDisplayName(
     | null
     | undefined
 ) {
+  const email = String(user?.email ?? "").trim().toLowerCase();
+  const knownInspectorName = knownInspectorNameForEmail(email);
+  if (knownInspectorName) {
+    return knownInspectorName;
+  }
+
   const fullName = String(user?.user_metadata?.full_name ?? "").trim();
   if (fullName) {
     return fullName;
