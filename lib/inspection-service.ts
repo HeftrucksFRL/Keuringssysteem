@@ -62,6 +62,32 @@ function sanitizeMachineConfiguration(configuration: Record<string, string>) {
   );
 }
 
+function storedChecklist(input: CreateInspectionInput) {
+  return {
+    ...input.checklist,
+    __notes: input.checklistNotes ?? {}
+  };
+}
+
+function readStoredChecklist(value: unknown) {
+  const raw =
+    value && typeof value === "object"
+      ? (value as Record<string, unknown>)
+      : {};
+  const checklist = Object.fromEntries(
+    Object.entries(raw).filter(([, entry]) => typeof entry === "string")
+  ) as InspectionRecord["checklist"];
+  const checklistNotes =
+    raw.__notes && typeof raw.__notes === "object"
+      ? Object.fromEntries(
+          Object.entries(raw.__notes as Record<string, unknown>).filter(
+            ([, entry]) => typeof entry === "string"
+          )
+        ) as Record<string, string>
+      : {};
+  return { checklist, checklistNotes };
+}
+
 export function batteryChargerInspectionConfiguration(
   currentMachine: Pick<MachineRecord, "machineType" | "configuration"> | null,
   nextDetails: Record<string, string>
@@ -821,6 +847,7 @@ async function createDemoInspection(input: CreateInspectionInput) {
     }),
     machineSnapshot: buildMachineSnapshot(machine),
     checklist: input.checklist,
+    checklistNotes: input.checklistNotes ?? {},
     findings: input.findings,
     recommendations: input.recommendations,
     conclusion: input.conclusion,
@@ -1241,6 +1268,7 @@ function mapRentalRow(row: Record<string, unknown>): RentalRecord {
 }
 
 function mapInspectionRow(row: Record<string, unknown>): InspectionRecord {
+  const stored = readStoredChecklist(row.checklist);
   return {
     id: String(row.id),
     inspectionNumber: String(row.inspection_number ?? ""),
@@ -1253,7 +1281,8 @@ function mapInspectionRow(row: Record<string, unknown>): InspectionRecord {
     sendPdfToCustomer: Boolean(row.send_pdf_to_customer),
     customerSnapshot: (row.customer_snapshot as Record<string, string>) ?? {},
     machineSnapshot: (row.machine_snapshot as Record<string, string>) ?? {},
-    checklist: row.checklist as InspectionRecord["checklist"],
+    checklist: stored.checklist,
+    checklistNotes: stored.checklistNotes,
     findings: String(row.findings ?? ""),
     recommendations: String(row.recommendations ?? ""),
     conclusion: String(row.conclusion ?? ""),
@@ -1627,7 +1656,7 @@ export async function createInspection(input: CreateInspectionInput) {
       next_inspection_date: nextInspectionDate,
       status,
       send_pdf_to_customer: input.sendPdfToCustomer,
-      checklist: input.checklist,
+      checklist: storedChecklist(input),
       customer_snapshot: buildCustomerSnapshot(mergedCustomer),
       machine_snapshot: buildMachineSnapshot({
         machineNumber: String(machineRow.machine_number ?? resolvedMachineNumber),
@@ -1661,7 +1690,7 @@ export async function createInspection(input: CreateInspectionInput) {
     sendPdfToCustomer: inserted.send_pdf_to_customer,
     customerSnapshot: inserted.customer_snapshot,
     machineSnapshot: inserted.machine_snapshot,
-    checklist: inserted.checklist,
+    ...readStoredChecklist(inserted.checklist),
     findings: inserted.findings ?? "",
     recommendations: inserted.recommendations ?? "",
     conclusion: inserted.conclusion ?? "",
@@ -1830,6 +1859,7 @@ export async function updateInspectionFromForm(
     });
     inspection.machineSnapshot = buildMachineSnapshot(machine);
     inspection.checklist = input.checklist;
+    inspection.checklistNotes = input.checklistNotes ?? {};
     inspection.findings = input.findings;
     inspection.recommendations = input.recommendations;
     inspection.conclusion = input.conclusion;
@@ -1996,7 +2026,7 @@ export async function updateInspectionFromForm(
       next_inspection_date: nextInspectionDate,
       status,
       send_pdf_to_customer: input.sendPdfToCustomer,
-      checklist: input.checklist,
+      checklist: storedChecklist(input),
       customer_snapshot: buildCustomerSnapshot(mergedCustomer),
       machine_snapshot: buildMachineSnapshot({
         machineNumber: String(machineRow.machine_number ?? resolvedMachineNumber),

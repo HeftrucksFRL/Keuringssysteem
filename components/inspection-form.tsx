@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { getCsrfHeaders } from "@/lib/client-security";
 import { getFormDefinition } from "@/lib/form-definitions";
+import { buildChecklistRemarkLines } from "@/lib/inspection-remarks";
 import { previewNextInspectionNumber } from "@/lib/inspection-number";
 import { formatMachineKindBrandType } from "@/lib/machine-presentation";
 import { isMachineHistoryCustomer, isRentalStockCustomer, stockOwnerLabel } from "@/lib/stock-customer";
@@ -33,6 +34,13 @@ type Step = 1 | 2 | 3 | 4;
 type Mode = "existing" | "new";
 type Flash = { type: "success" | "error" | "info"; text: string } | null;
 type PhotoItem = { file: File; previewUrl: string; sizeLabel: string };
+type ChecklistNoteDialog = {
+  itemKey: string;
+  itemLabel: string;
+  sectionTitle: string;
+  option: "aandacht" | "afkeur";
+  text: string;
+} | null;
 type SavedDraft = {
   type: MachineType;
   step: Step;
@@ -48,6 +56,8 @@ type SavedDraft = {
   contactMode: "existing" | "new";
   values: Record<string, string>;
   checklist: Record<string, ChecklistOption>;
+  checklistNotes?: Record<string, string>;
+  collapsedSections?: Record<string, "goed" | "nvt" | boolean>;
   savedAt: string;
 };
 
@@ -88,6 +98,24 @@ function buildDefaultChecklist(type: MachineType) {
       section.items.map((item) => [item.key, defaultOption])
     )
   ) as Record<string, ChecklistOption>;
+}
+
+function normalizeChecklist(
+  values: Record<string, ChecklistOption>
+): Record<string, ChecklistOption> {
+  return Object.fromEntries(
+    Object.entries(values).map(([key, value]) => [
+      key,
+      value === "matig" ? "aandacht" : value === "slecht" ? "afkeur" : value
+    ])
+  );
+}
+
+function checklistOptionLabel(option: ChecklistOption) {
+  if (option === "nvt") return "N.v.t.";
+  if (option === "aandacht" || option === "matig") return "Aandacht";
+  if (option === "afkeur" || option === "slecht") return "Afkeur";
+  return "Goed";
 }
 
 function customerValues(customer?: CustomerRecord | null) {
@@ -267,6 +295,7 @@ export function InspectionForm({
   const isEditingExisting = Boolean(existingInspection);
   const formRef = useRef<HTMLFormElement | null>(null);
   const topRef = useRef<HTMLDivElement | null>(null);
+  const restoredDraftMachineIdRef = useRef("");
   const [isPending, startTransition] = useTransition();
   const [type, setType] = useState<MachineType>(existingInspection?.machineType ?? defaultType);
   const [step, setStep] = useState<Step>(existingInspection ? 4 : defaultMachineId ? 4 : defaultCustomerId ? 3 : 1);
@@ -319,16 +348,36 @@ export function InspectionForm({
   const [message, setMessage] = useState<Flash>(null);
   const [checklist, setChecklist] = useState<Record<string, ChecklistOption>>(
     existingInspection
-      ? { ...buildDefaultChecklist(existingInspection.machineType), ...existingInspection.checklist }
+      ? normalizeChecklist({
+          ...buildDefaultChecklist(existingInspection.machineType),
+          ...existingInspection.checklist
+        })
       : buildDefaultChecklist(defaultType)
   );
+  const [checklistNotes, setChecklistNotes] = useState<Record<string, string>>(
+    existingInspection?.checklistNotes ?? {}
+  );
+  const [collapsedSections, setCollapsedSections] = useState<
+    Record<string, "goed" | "nvt">
+  >({});
+  const [checklistNoteDialog, setChecklistNoteDialog] =
+    useState<ChecklistNoteDialog>(null);
   const [selectedResultLabels, setSelectedResultLabels] = useState<string[]>(
     existingInspection ? resultLabelsFromStatus(existingInspection.status, existingInspection.machineType) : []
   );
   const [draftNotice, setDraftNotice] = useState("");
+  const [draftHydrated, setDraftHydrated] = useState(isEditingExisting);
   const [inspectionHistory, setInspectionHistory] = useState<InspectionRecord[]>(inspections);
 
   const form = useMemo(() => getFormDefinition(type), [type]);
+  const checklistRemarkLines = useMemo(
+    () => buildChecklistRemarkLines(form, checklist, checklistNotes),
+    [checklist, checklistNotes, form]
+  );
+  const reportRemarksPreview = useMemo(() => {
+    const freeRemarks = String(values.findings ?? "").trim();
+    return [...checklistRemarkLines, ...(freeRemarks ? [freeRemarks] : [])].join("\n");
+  }, [checklistRemarkLines, values.findings]);
   const customerById = useMemo(
     () => new Map(customers.map((customer) => [customer.id, customer])),
     [customers]
@@ -469,19 +518,13 @@ export function InspectionForm({
     if (isEditingExisting) {
       return;
     }
-    setChecklist(buildDefaultChecklist(type));
-  }, [isEditingExisting, type]);
-
-  useEffect(() => {
-    if (isEditingExisting) {
-      return;
-    }
     if (typeof window === "undefined") {
       return;
     }
 
     const raw = window.localStorage.getItem(draftStorageKey);
     if (!raw) {
+      setDraftHydrated(true);
       return;
     }
 
@@ -496,6 +539,7 @@ export function InspectionForm({
         !hasRouteDefaults || (customerMatchesRoute && machineMatchesRoute);
 
       if (!canRestore) {
+        setDraftHydrated(true);
         return;
       }
 
@@ -507,17 +551,87 @@ export function InspectionForm({
       setMachineQuery(draft.machineQuery);
       setLinkedBatteryQuery(draft.linkedBatteryQuery ?? "");
       setSelectedCustomerId(draft.selectedCustomerId);
+      restoredDraftMachineIdRef.current = draft.selectedMachineId;
       setSelectedMachineId(draft.selectedMachineId);
       setLinkedBatteryMachineId(draft.linkedBatteryMachineId ?? "");
       setSelectedContactId(draft.selectedContactId);
       setContactMode(draft.contactMode);
       setValues(draft.values);
-      setChecklist(draft.checklist);
+      setChecklist(normalizeChecklist(draft.checklist));
+      setChecklistNotes(draft.checklistNotes ?? {});
+      setCollapsedSections(
+        Object.fromEntries(
+          Object.entries(draft.collapsedSections ?? {}).flatMap(([sectionKey, savedValue]) => {
+            if (!savedValue) return [];
+            if (savedValue === "goed" || savedValue === "nvt") {
+              return [[sectionKey, savedValue]];
+            }
+            const section = getFormDefinition(draft.type).sections.find(
+              (candidate) => candidate.key === sectionKey
+            );
+            const firstItemKey = section?.items[0]?.key;
+            return [[sectionKey, firstItemKey && draft.checklist[firstItemKey] === "nvt" ? "nvt" : "goed"]];
+          })
+        )
+      );
       setMessage({ type: "info", text: "Concept opnieuw geladen." });
     } catch {
       window.localStorage.removeItem(draftStorageKey);
+    } finally {
+      setDraftHydrated(true);
     }
   }, [defaultCustomerId, defaultMachineId, isEditingExisting]);
+
+  useEffect(() => {
+    if (isEditingExisting || !draftHydrated || typeof window === "undefined") {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      const draft: SavedDraft = {
+        type,
+        step,
+        customerMode,
+        machineMode,
+        customerQuery,
+        machineQuery,
+        linkedBatteryQuery,
+        selectedCustomerId,
+        selectedMachineId,
+        linkedBatteryMachineId,
+        selectedContactId,
+        contactMode,
+        values,
+        checklist,
+        checklistNotes,
+        collapsedSections,
+        savedAt: new Date().toISOString()
+      };
+      window.localStorage.setItem(draftStorageKey, JSON.stringify(draft));
+      setDraftNotice("Automatisch opgeslagen");
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [
+    checklist,
+    checklistNotes,
+    collapsedSections,
+    contactMode,
+    customerMode,
+    customerQuery,
+    draftHydrated,
+    isEditingExisting,
+    linkedBatteryMachineId,
+    linkedBatteryQuery,
+    machineMode,
+    machineQuery,
+    selectedContactId,
+    selectedCustomerId,
+    selectedMachineId,
+    step,
+    type,
+    values
+  ]);
 
   useEffect(() => {
     if (!savedState) {
@@ -626,6 +740,11 @@ export function InspectionForm({
   useEffect(() => {
     if (isEditingExisting) return;
     if (!selectedMachine) return;
+    if (restoredDraftMachineIdRef.current === selectedMachine.id) {
+      restoredDraftMachineIdRef.current = "";
+      return;
+    }
+    setCollapsedSections({});
     setType(selectedMachine.machineType);
     setValues((current) => ({
       ...current,
@@ -640,6 +759,7 @@ export function InspectionForm({
     const previousInspection = latestInspectionForMachine(inspectionHistory, selectedMachine.id);
     if (!previousInspection) {
       setChecklist(buildDefaultChecklist(selectedMachine.machineType));
+      setChecklistNotes({});
       return;
     }
     setValues((current) => ({
@@ -652,7 +772,13 @@ export function InspectionForm({
       conclusion: previousInspection.conclusion,
       inspection_date: current.inspection_date
     }));
-    setChecklist({ ...buildDefaultChecklist(selectedMachine.machineType), ...previousInspection.checklist });
+    setChecklist(
+      normalizeChecklist({
+        ...buildDefaultChecklist(selectedMachine.machineType),
+        ...previousInspection.checklist
+      })
+    );
+    setChecklistNotes(previousInspection.checklistNotes ?? {});
   }, [selectedMachine, inspectionHistory, isEditingExisting]);
 
   useEffect(() => {
@@ -717,6 +843,66 @@ export function InspectionForm({
     setValues((current) => ({ ...current, [key]: value }));
   }
 
+  function applyChecklistOption(
+    sectionTitle: string,
+    itemKey: string,
+    itemLabel: string,
+    option: ChecklistOption
+  ) {
+    setDraftNotice("");
+    if (option === "aandacht" || option === "afkeur") {
+      setChecklistNoteDialog({
+        sectionTitle,
+        itemKey,
+        itemLabel,
+        option,
+        text: checklistNotes[itemKey] ?? ""
+      });
+      return;
+    }
+
+    setChecklist((current) => ({ ...current, [itemKey]: option }));
+    setChecklistNotes((current) => {
+      const next = { ...current };
+      delete next[itemKey];
+      return next;
+    });
+  }
+
+  function applySectionOption(
+    sectionKey: string,
+    itemKeys: string[],
+    option: "goed" | "nvt"
+  ) {
+    setDraftNotice("");
+    setChecklist((current) => ({
+      ...current,
+      ...Object.fromEntries(itemKeys.map((itemKey) => [itemKey, option]))
+    }));
+    setChecklistNotes((current) => {
+      const next = { ...current };
+      itemKeys.forEach((itemKey) => delete next[itemKey]);
+      return next;
+    });
+    setCollapsedSections((current) => ({ ...current, [sectionKey]: option }));
+  }
+
+  function saveChecklistNote() {
+    if (!checklistNoteDialog) return;
+    const note = checklistNoteDialog.text.trim();
+    setChecklist((current) => ({
+      ...current,
+      [checklistNoteDialog.itemKey]: checklistNoteDialog.option
+    }));
+    setChecklistNotes((current) => {
+      const next = { ...current };
+      if (note) next[checklistNoteDialog.itemKey] = note;
+      else delete next[checklistNoteDialog.itemKey];
+      return next;
+    });
+    setChecklistNoteDialog(null);
+  }
+
   function chooseCustomer(customer: CustomerRecord) {
     setCustomerMode("existing");
     setSelectedCustomerId(customer.id);
@@ -733,6 +919,8 @@ export function InspectionForm({
     setDraftNotice("");
     setValues((current) => ({ ...current, ...customerValues(customer), ...machineValues(null), findings: "", recommendations: "", conclusion: "" }));
     setChecklist(buildDefaultChecklist(type));
+    setChecklistNotes({});
+    setCollapsedSections({});
     setStep(2);
   }
 
@@ -752,6 +940,8 @@ export function InspectionForm({
     setDraftNotice("");
     setValues((current) => ({ ...current, ...customerValues(null), ...machineValues(null), findings: "", recommendations: "", conclusion: "" }));
     setChecklist(buildDefaultChecklist(type));
+    setChecklistNotes({});
+    setCollapsedSections({});
   }
 
   function chooseMachine(machine: MachineRecord) {
@@ -780,6 +970,8 @@ export function InspectionForm({
     setDraftNotice("");
     setValues((current) => ({ ...current, ...machineValues(null) }));
     setChecklist(buildDefaultChecklist(type));
+    setChecklistNotes({});
+    setCollapsedSections({});
   }
 
   function chooseContactMode(nextMode: "existing" | "new") {
@@ -877,6 +1069,7 @@ export function InspectionForm({
     const formData = new FormData(event.currentTarget);
     formData.set("machine_type", type);
     formData.set("checklist", JSON.stringify(checklist));
+    formData.set("checklist_notes", JSON.stringify(checklistNotes));
     formData.delete("photos");
     photos.forEach((photo) => formData.append("photos", photo.file));
 
@@ -926,6 +1119,8 @@ export function InspectionForm({
       contactMode,
       values,
       checklist,
+      checklistNotes,
+      collapsedSections,
       savedAt: new Date().toISOString()
     };
 
@@ -935,7 +1130,7 @@ export function InspectionForm({
   }
 
   return (
-    <form ref={formRef} onSubmit={submitForm} className="inspection-layout">
+    <form ref={formRef} onSubmit={submitForm} className="inspection-layout inspection-layout-focused">
       <div ref={topRef} />
       {existingInspection ? <input type="hidden" name="inspection_id" value={existingInspection.id} /> : null}
       {Object.entries(values).filter(([key]) => key.startsWith("customer_")).map(([key, value]) => (
@@ -948,6 +1143,7 @@ export function InspectionForm({
         : null}
       <input type="hidden" name="existing_customer_id" value={selectedCustomerId} />
       <input type="hidden" name="existing_machine_id" value={selectedMachineId} />
+      <input type="hidden" name="checklist_notes" value={JSON.stringify(checklistNotes)} />
       <input type="hidden" name="linked_battery_machine_id" value={linkedBatteryMachineId} />
       <input type="hidden" name="selected_contact_id" value={contactMode === "existing" ? resolvedSelectedContactId : ""} />
       <input type="hidden" name="save_as_new_contact" value={contactMode === "new" ? "1" : ""} />
@@ -1370,6 +1566,8 @@ export function InspectionForm({
                       const nextType = event.target.value as MachineType;
                       setType(nextType);
                       setChecklist(buildDefaultChecklist(nextType));
+                      setChecklistNotes({});
+                      setCollapsedSections({});
                       setDraftNotice("");
                     }}
                   >
@@ -1659,30 +1857,93 @@ export function InspectionForm({
             <div className="checklist">
               {form.sections.map((section) => (
                 <div className="section-card" key={section.key}>
-                  <h3>{section.title}</h3>
-                  <div className="checklist">
+                  <div className="checklist-section-heading">
+                    <h3>{section.title}</h3>
+                    <div className="status-options checklist-section-actions" aria-label={`Hele categorie ${section.title}`}>
+                      <button
+                        className="status-chip"
+                        type="button"
+                        onClick={() =>
+                          applySectionOption(
+                            section.key,
+                            section.items.map((item) => item.key),
+                            "goed"
+                          )
+                        }
+                      >
+                        Hele categorie goed
+                      </button>
+                      <button
+                        className="status-chip"
+                        type="button"
+                        onClick={() =>
+                          applySectionOption(
+                            section.key,
+                            section.items.map((item) => item.key),
+                            "nvt"
+                          )
+                        }
+                      >
+                        Hele categorie n.v.t.
+                      </button>
+                    </div>
+                  </div>
+                  {collapsedSections[section.key] ? (
+                    <button
+                      className="checklist-section-summary"
+                      type="button"
+                      onClick={() =>
+                        setCollapsedSections((current) => {
+                          const next = { ...current };
+                          delete next[section.key];
+                          return next;
+                        })
+                      }
+                    >
+                      {section.items.length} keurpunten {collapsedSections[section.key] === "nvt"
+                        ? "n.v.t."
+                        : "goedgekeurd"}. Klik om ze te bekijken of aan te passen.
+                    </button>
+                  ) : (
+                  <div className="checklist checklist-section-points">
                     {section.items.map((item) => (
                       <div className="checklist-row" key={item.key}>
                         <strong>{item.label}</strong>
                         <div className="status-options">
                           {form.checklistOptions.map((option) => (
-                            <label className={`status-chip ${checklist[item.key] === option ? "active" : ""}`} key={option}>
-                              <input
-                                type="radio"
-                                name={item.key}
-                                checked={checklist[item.key] === option}
-                                onChange={() => {
-                                  setDraftNotice("");
-                                  setChecklist((current) => ({ ...current, [item.key]: option }));
-                                }}
-                              />
-                              {option === "nvt" ? "n.v.t." : option}
-                            </label>
+                            <button
+                              aria-pressed={checklist[item.key] === option}
+                              className={`status-chip status-chip-${option} ${checklist[item.key] === option ? "active" : ""}`}
+                              key={option}
+                              type="button"
+                              onClick={() =>
+                                applyChecklistOption(section.title, item.key, item.label, option)
+                              }
+                            >
+                              {checklistOptionLabel(option)}
+                            </button>
                           ))}
                         </div>
+                        {checklistNotes[item.key] ? (
+                          <button
+                            className="checklist-note-preview"
+                            type="button"
+                            onClick={() =>
+                              applyChecklistOption(
+                                section.title,
+                                item.key,
+                                item.label,
+                                checklist[item.key]
+                              )
+                            }
+                          >
+                            <strong>Toelichting:</strong> {checklistNotes[item.key]}
+                          </button>
+                        ) : null}
                       </div>
                     ))}
                   </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -1692,8 +1953,20 @@ export function InspectionForm({
             <div className="eyebrow">Afronding</div>
             <h2>Notities</h2>
             <div className="form-block">
+              <div className="field report-remarks-preview">
+                <label htmlFor="report-remarks-preview">Opmerkingen zoals ze in het rapport komen</label>
+                <textarea
+                  id="report-remarks-preview"
+                  readOnly
+                  placeholder="Aandachts- en afkeurpunten met een toelichting verschijnen hier direct."
+                  value={reportRemarksPreview}
+                />
+                <span className="muted">
+                  Automatisch opgebouwd als categorienummer – keurpunt (status): notitie.
+                </span>
+              </div>
               <div className="field">
-                <label htmlFor="findings">Opmerking voor klant</label>
+                <label htmlFor="findings">Extra opmerking voor klant</label>
                 <textarea id="findings" name="findings" value={values.findings ?? ""} onChange={(event) => setFieldValue("findings", event.target.value)} />
               </div>
               <div className="field">
@@ -1760,6 +2033,59 @@ export function InspectionForm({
             </div>
           </section>
         </>
+      ) : null}
+
+      {checklistNoteDialog ? (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setChecklistNoteDialog(null);
+          }}
+        >
+          <div
+            aria-labelledby="checklist-note-title"
+            aria-modal="true"
+            className="modal-card checklist-note-modal"
+            role="dialog"
+          >
+            <div className="eyebrow">
+              {checklistOptionLabel(checklistNoteDialog.option)}
+            </div>
+            <h2 id="checklist-note-title">{checklistNoteDialog.itemLabel}</h2>
+            <p className="muted">{checklistNoteDialog.sectionTitle}</p>
+            <div className="field">
+              <label htmlFor="checklist-note-text">Toelichting</label>
+              <textarea
+                autoFocus
+                id="checklist-note-text"
+                placeholder={
+                  checklistNoteDialog.option === "aandacht"
+                    ? "Beschrijf het aandachtspunt of advies..."
+                    : "Beschrijf waarom dit keurpunt is afgekeurd..."
+                }
+                value={checklistNoteDialog.text}
+                onChange={(event) =>
+                  setChecklistNoteDialog((current) =>
+                    current ? { ...current, text: event.target.value } : current
+                  )
+                }
+              />
+            </div>
+            <div className="wizard-actions">
+              <button
+                className="button-secondary"
+                type="button"
+                onClick={() => setChecklistNoteDialog(null)}
+              >
+                Annuleren
+              </button>
+              <button className="button" type="button" onClick={saveChecklistNote}>
+                Toelichting opslaan
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       <section className="inspection-card inspection-card-full">

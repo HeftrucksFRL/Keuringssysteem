@@ -3,6 +3,7 @@ import path from "node:path";
 import AdmZip from "adm-zip";
 import { PDFDocument, PDFEmbeddedPage, PDFPage, StandardFonts, rgb } from "pdf-lib";
 import { getFormDefinition } from "@/lib/form-definitions";
+import { buildChecklistRemarkLines } from "@/lib/inspection-remarks";
 import type { InspectionRecord } from "@/lib/domain";
 import {
   formatMachineKindBrandType,
@@ -168,6 +169,17 @@ function buildWordMultilineContent(text: string) {
   return lines.map((line) => buildWordParagraph(line)).join("");
 }
 
+export function buildInspectionRemarks(inspection: InspectionRecord) {
+  const form = getFormDefinition(inspection.machineType);
+  const pointRemarks = buildChecklistRemarkLines(
+    form,
+    inspection.checklist,
+    inspection.checklistNotes ?? {}
+  );
+  const freeRemarks = inspection.findings.trim();
+  return [...pointRemarks, ...(freeRemarks ? [freeRemarks] : [])].join("\n");
+}
+
 function buildWordChecklistTable(inspection: InspectionRecord, layout: WordTemplateLayout) {
   const form = getFormDefinition(inspection.machineType);
   const rows: Array<[string, string]> = form.sections.flatMap((section) => [
@@ -254,7 +266,7 @@ async function generateWordFromTemplate(inspection: InspectionRecord) {
     buildWordSectionTitle("Checklist"),
     buildWordChecklistTable(inspection, layout),
     buildWordSectionTitle("Opmerkingen"),
-    buildWordMultilineContent(inspection.findings)
+    buildWordMultilineContent(buildInspectionRemarks(inspection))
   ].join("");
 
   const updatedDocumentXml = documentXml.replace(
@@ -682,7 +694,7 @@ export async function generateInspectionDocuments(
 
   drawMetaCard();
   drawTwoColumnInfoCard();
-  drawSectionCard("Opmerkingen", inspection.findings);
+  drawSectionCard("Opmerkingen", buildInspectionRemarks(inspection));
 
   let checklistStarted = false;
   form.sections.forEach((section) => {

@@ -64,6 +64,22 @@ function parseChecklist(
   ) as Record<string, ChecklistOption>;
 }
 
+function parseChecklistNotes(rawNotes: string, machineType: MachineType) {
+  if (!rawNotes) return {};
+  const parsed = JSON.parse(rawNotes) as Record<string, unknown>;
+  const definition = getFormDefinition(machineType);
+  const allowedKeys = new Set(
+    definition.sections.flatMap((section) => section.items.map((item) => item.key))
+  );
+
+  return Object.fromEntries(
+    Object.entries(parsed)
+      .filter(([key, value]) => allowedKeys.has(key) && typeof value === "string")
+      .map(([key, value]) => [key, String(value).trim().slice(0, 2000)])
+      .filter(([, value]) => value.length > 0)
+  );
+}
+
 export async function submitInspectionAction(
   _prevState: InspectionActionState,
   formData: FormData
@@ -121,6 +137,10 @@ export async function submitInspectionAction(
     },
     inspectionDate,
     checklist: parseChecklist(checklist, machineType as MachineType),
+    checklistNotes: parseChecklistNotes(
+      String(formData.get("checklist_notes") || ""),
+      machineType as MachineType
+    ),
     findings: String(formData.get("findings") || ""),
     recommendations: String(formData.get("recommendations") || ""),
     conclusion: String(formData.get("conclusion") || ""),

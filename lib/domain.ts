@@ -71,6 +71,7 @@ export interface InspectionRecord {
   customerSnapshot: Record<string, string>;
   machineSnapshot: Record<string, string>;
   checklist: Record<string, ChecklistOption>;
+  checklistNotes?: Record<string, string>;
   findings: string;
   recommendations: string;
   conclusion: string;
@@ -208,6 +209,7 @@ export interface CreateInspectionInput {
   };
   inspectionDate: string;
   checklist: Record<string, ChecklistOption>;
+  checklistNotes?: Record<string, string>;
   findings: string;
   recommendations: string;
   conclusion: string;

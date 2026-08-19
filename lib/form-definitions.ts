@@ -1,4 +1,5 @@
 import type { FormDefinition } from "@/lib/types";
+import { newReportSections } from "@/lib/new-report-sections";
 
 const commonCustomerFields = [
   { key: "customer_name", label: "Klantnaam" },
@@ -50,7 +51,7 @@ function withHourReading(
   return nextFields;
 }
 
-export const formDefinitions: FormDefinition[] = [
+const baseFormDefinitions: FormDefinition[] = [
   {
     type: "verreiker",
     title: "Verreiker",
@@ -1065,6 +1066,12 @@ export const formDefinitions: FormDefinition[] = [
     ]
   }
 ];
+
+export const formDefinitions: FormDefinition[] = baseFormDefinitions.map((definition) => ({
+  ...definition,
+  checklistOptions: ["goed", "aandacht", "afkeur", "nvt"],
+  sections: newReportSections[definition.type]
+}));
 
 export function getFormDefinition(type: FormDefinition["type"]) {
   return formDefinitions.find((definition) => definition.type === type) ?? formDefinitions[0];

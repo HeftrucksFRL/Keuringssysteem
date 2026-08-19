@@ -1,6 +1,12 @@
 export type InspectionStatus = "draft" | "completed" | "approved" | "rejected";
 
-export type ChecklistOption = "goed" | "matig" | "slecht" | "nvt";
+export type ChecklistOption =
+  | "goed"
+  | "aandacht"
+  | "afkeur"
+  | "nvt"
+  | "matig"
+  | "slecht";
 
 export type MachineType =
   | "heftruck_reachtruck"

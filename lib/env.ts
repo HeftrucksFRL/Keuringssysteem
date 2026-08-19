@@ -1,4 +1,8 @@
 export function hasSupabaseConfig() {
+  if (process.env.LOCAL_TEST_MODE === "1") {
+    return false;
+  }
+
   return Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL &&
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY &&
@@ -7,6 +11,10 @@ export function hasSupabaseConfig() {
 }
 
 export function hasPublicSupabaseConfig() {
+  if (process.env.LOCAL_TEST_MODE === "1") {
+    return false;
+  }
+
   return Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL &&
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
