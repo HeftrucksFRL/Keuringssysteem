@@ -5,20 +5,13 @@ function normalizeRentalOwnerText(value: string | undefined) {
 }
 
 const STOCK_CUSTOMER_ALIASES = [
-  "heftrucks.frl",
+  "heftrucks frl",
   "heftrucks friesland",
-  "heftrucks friesland b.v",
+  "heftrucks friesland b v",
   "heftrucks friesland bv",
   "terpstra trading",
-  "terpstra trading b.v",
+  "terpstra trading b v",
   "terpstra trading bv"
-];
-
-const STOCK_CUSTOMER_EMAIL_MARKERS = [
-  "@heftrucks.frl",
-  "heftrucks.frl",
-  "@terpstratrading.frl",
-  "terpstratrading.frl"
 ];
 
 const HISTORY_CUSTOMER_ALIASES = [
@@ -38,12 +31,10 @@ export function historyOwnerLabel() {
 export function isRentalStockCustomer(
   customer?: Pick<CustomerRecord, "companyName" | "email"> | null
 ) {
-  const company = normalizeRentalOwnerText(customer?.companyName);
-  const email = normalizeRentalOwnerText(customer?.email);
-  return (
-    STOCK_CUSTOMER_ALIASES.some((alias) => company.includes(alias)) ||
-    STOCK_CUSTOMER_EMAIL_MARKERS.some((marker) => email.includes(marker))
-  );
+  const company = normalizeRentalOwnerText(customer?.companyName)
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+  return STOCK_CUSTOMER_ALIASES.includes(company);
 }
 
 export function isMachineHistoryCustomer(
