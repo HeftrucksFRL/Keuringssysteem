@@ -95,6 +95,16 @@ function machineDisplaySerial(machine: MachineRecord) {
   return machine.serialNumber;
 }
 
+function linkedTruckLabel(machine: MachineRecord | null | undefined) {
+  if (!machine || machine.machineType === "batterij_lader") {
+    return "";
+  }
+
+  const title = [machine.brand, machine.model].filter(Boolean).join(" ") || "Truck";
+  const number = machine.internalNumber || machine.machineNumber;
+  return [title, number, isArchived(machine) ? "[archief]" : ""].filter(Boolean).join(" - ");
+}
+
 function machineFolderKey(machine: MachineRecord, owner: CustomerRecord | null): MachineFolderKey {
   if (isArchived(machine)) {
     return "archived";
@@ -220,6 +230,10 @@ export function MachinesTable({
     () => new Map(customers.map((customer) => [customer.id, customer])),
     [customers]
   );
+  const machineById = useMemo(
+    () => new Map(machines.map((machine) => [machine.id, machine])),
+    [machines]
+  );
 
   const activeRentalsByMachine = useMemo(() => {
     const today = todayLocalIso();
@@ -249,6 +263,9 @@ export function MachinesTable({
         : null;
       const stockMachine = isRentalStockCustomer(owner);
       const historyMachine = isMachineHistoryCustomer(owner);
+      const linkedTruck = machineById.get(
+        String(machine.configuration.linked_machine_id ?? "").trim()
+      );
       const stockSearchTerms = stockMachine
         ? ["voorraad", "eigen voorraad", "heftrucks.frl", "heftrucks friesland"]
         : [];
@@ -270,6 +287,11 @@ export function MachinesTable({
         machine.configuration.charger_brand,
         machine.configuration.charger_type,
         machine.configuration.charger_serial_number,
+        linkedTruck?.brand,
+        linkedTruck?.model,
+        linkedTruck?.internalNumber,
+        linkedTruck?.machineNumber,
+        linkedTruck?.serialNumber,
         machine.configuration.location,
         owner?.companyName,
         rentalCustomer?.companyName,
@@ -284,7 +306,7 @@ export function MachinesTable({
         .toLowerCase()
         .includes(needle);
     });
-  }, [activeRentalsByMachine, customerById, machines, query]);
+  }, [activeRentalsByMachine, customerById, machineById, machines, query]);
 
   const groupedMachines = useMemo(() => {
     const buckets = new Map<MachineFolderKey, MachineRecord[]>(
@@ -349,6 +371,10 @@ export function MachinesTable({
                     const stockMachine = isRentalStockCustomer(owner);
                     const historyMachine = isMachineHistoryCustomer(owner);
                     const archived = isArchived(machine);
+                    const linkedTruck = machineById.get(
+                      String(machine.configuration.linked_machine_id ?? "").trim()
+                    );
+                    const connectedTruckLabel = linkedTruckLabel(linkedTruck);
                     const ownerLabel = owner
                       ? historyMachine
                         ? historyOwnerLabel()
@@ -404,6 +430,13 @@ export function MachinesTable({
                             : ownerLabel}{" "}
                           - {titleCase(machine.machineType)}
                         </span>
+                        {machine.machineType === "batterij_lader" ? (
+                          <span>
+                            {connectedTruckLabel
+                              ? `Gekoppelde truck: ${connectedTruckLabel}`
+                              : "Niet aan een truck gekoppeld"}
+                          </span>
+                        ) : null}
                         <span>
                           <span className="badge" style={badgeStyle}>
                             {badgeLabel}

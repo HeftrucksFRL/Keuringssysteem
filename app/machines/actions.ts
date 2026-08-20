@@ -75,9 +75,6 @@ function getMachinePayload(formData: FormData, machineType: MachineType) {
   const linkedMachineId =
     String(formData.get("linked_machine_id") || "").trim() ||
     (skipMachineLink ? "" : String(formData.get("fallback_linked_machine_id") || "").trim());
-  if (machineType === "batterij_lader" && linkedMachineId) {
-    details.linked_machine_id = linkedMachineId;
-  }
   const customerLocationId = String(formData.get("customer_location_id") || "").trim();
   if (customerLocationId) {
     details.customer_location_id = customerLocationId;
@@ -112,6 +109,14 @@ export async function createMachineAction(formData: FormData) {
 
   let id = "";
   try {
+    if (
+      machineType === "batterij_lader" &&
+      linkedMachineId &&
+      (!linkedMachine || linkedMachine.machineType === "batterij_lader" || isMachineArchived(linkedMachine))
+    ) {
+      throw new Error("Kies een bestaande, actieve truck om de batterij / lader aan te koppelen.");
+    }
+
     id = await createMachine({
       customerId,
       machineType,
@@ -122,6 +127,12 @@ export async function createMachineAction(formData: FormData) {
       internalNumber: payload.internalNumber,
       details: payload.details
     });
+    if (machineType === "batterij_lader" && linkedMachineId) {
+      await setBatteryChargerLink({
+        batteryMachineId: id,
+        linkedMachineId
+      });
+    }
   } catch (error) {
     const message =
       error instanceof Error

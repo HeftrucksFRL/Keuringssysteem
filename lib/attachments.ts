@@ -45,12 +45,15 @@ export async function storeInspectionPhoto(
   );
   const storagePath = `inspections/${inspectionId}/photos/${fileName}`;
 
-  await supabase.storage.from("inspection-files").upload(storagePath, compressed, {
+  const { error: uploadError } = await supabase.storage.from("inspection-files").upload(storagePath, compressed, {
     upsert: true,
     contentType: "image/jpeg"
   });
+  if (uploadError) {
+    throw new Error(`Foto opslaan mislukt: ${uploadError.message}`);
+  }
 
-  const { data } = await supabase
+  const { data, error: attachmentError } = await supabase
     .from("inspection_attachments")
     .insert({
       inspection_id: inspectionId,
@@ -62,13 +65,32 @@ export async function storeInspectionPhoto(
     .select()
     .single();
 
+  if (attachmentError || !data) {
+    await supabase.storage.from("inspection-files").remove([storagePath]);
+    throw new Error(
+      `Foto aan keuring koppelen mislukt: ${attachmentError?.message ?? "onbekende fout"}`
+    );
+  }
+
   return {
-    id: String(data?.id ?? randomUUID()),
+    id: String(data.id),
     inspectionId,
     kind: "photo" as const,
     fileName,
     storagePath,
     mimeType: "image/jpeg",
-    createdAt: String(data?.created_at ?? new Date().toISOString())
+    createdAt: String(data.created_at ?? new Date().toISOString())
   };
+}
+
+export async function storeInspectionPhotos(
+  inspectionId: string,
+  photos: Array<{ fileName: string; contentType: string; buffer: Buffer }>,
+  storePhoto = storeInspectionPhoto
+) {
+  const attachments: InspectionAttachmentRecord[] = [];
+  for (const photo of photos) {
+    attachments.push(await storePhoto(inspectionId, photo));
+  }
+  return attachments;
 }

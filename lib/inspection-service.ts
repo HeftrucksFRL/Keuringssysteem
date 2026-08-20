@@ -4,7 +4,7 @@ import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import { buildCustomerMail, buildInternalMail } from "@/lib/mail";
 import { sendInspectionEmails } from "@/lib/mailer";
-import { storeInspectionPhoto } from "@/lib/attachments";
+import { storeInspectionPhotos } from "@/lib/attachments";
 import { appConfig, hasSupabaseConfig } from "@/lib/env";
 import { demoData } from "@/lib/demo-data";
 import { readAppData, writeAppData } from "@/lib/file-store";
@@ -481,6 +481,37 @@ function buildMachineSnapshot(machine: {
   };
 }
 
+async function buildInspectionMachineSnapshot(machine: MachineRecord) {
+  const snapshot = buildMachineSnapshot(machine);
+  if (machine.machineType !== "batterij_lader") {
+    return snapshot;
+  }
+
+  const linkedMachineId = getLinkedMachineId(machine);
+  if (!linkedMachineId) {
+    return snapshot;
+  }
+
+  const linkedMachine = await getMachineById(linkedMachineId, { includeArchived: true });
+  if (!linkedMachine || linkedMachine.machineType === "batterij_lader") {
+    return snapshot;
+  }
+
+  return {
+    ...snapshot,
+    linked_machine_brand: linkedMachine.brand || "",
+    linked_machine_model: linkedMachine.model || "",
+    linked_machine_label:
+      [
+        [linkedMachine.brand, linkedMachine.model].filter(Boolean).join(" ") || "Truck",
+        isMachineArchived(linkedMachine) ? "[archief]" : ""
+      ].filter(Boolean).join(" "),
+    linked_machine_internal_number:
+      linkedMachine.internalNumber || linkedMachine.machineNumber || "",
+    linked_machine_serial_number: linkedMachine.serialNumber || ""
+  };
+}
+
 function buildCustomerSnapshot(customer: {
   companyName: string;
   address: string;
@@ -890,7 +921,7 @@ async function createDemoInspection(input: CreateInspectionInput) {
       ...customer,
       contactDepartment: input.customer.contactDepartment
     }),
-    machineSnapshot: buildMachineSnapshot(machine),
+    machineSnapshot: await buildInspectionMachineSnapshot(machine),
     inspectorId: demoInspector?.id,
     inspectorName: demoInspector?.name ?? appConfig.defaultInspector,
     inspectorEmail: demoInspector?.email,
@@ -934,8 +965,7 @@ async function createDemoInspection(input: CreateInspectionInput) {
     });
   }
 
-  for (const photo of input.photos) {
-    const attachment = await storeInspectionPhoto(inspection.id, photo);
+  for (const attachment of await storeInspectionPhotos(inspection.id, input.photos)) {
     data.attachments.unshift(attachment);
   }
 
@@ -1688,6 +1718,10 @@ export async function createInspection(input: CreateInspectionInput) {
     throw new Error("Machine kon niet worden opgeslagen. Kies opnieuw een machine.");
   }
 
+  const inspectionMachineSnapshot = await buildInspectionMachineSnapshot(
+    mapMachineRow(machineRow)
+  );
+
   const { data: generatedInspectionNumber, error: sequenceError } = await supabase.rpc(
     "next_inspection_number",
     { target_date: input.inspectionDate }
@@ -1711,15 +1745,7 @@ export async function createInspection(input: CreateInspectionInput) {
       inspector_id: inspector?.id ?? null,
       checklist: storedChecklist({ ...input, inspector: inspector ?? input.inspector }),
       customer_snapshot: buildCustomerSnapshot(mergedCustomer),
-      machine_snapshot: buildMachineSnapshot({
-        machineNumber: String(machineRow.machine_number ?? resolvedMachineNumber),
-        brand: input.machine.brand,
-        model: input.machine.model,
-        serialNumber: input.machine.serialNumber,
-        buildYear: input.machine.buildYear,
-        internalNumber: input.machine.internalNumber,
-        configuration: sanitizeMachineConfiguration(input.machine.details)
-      }),
+      machine_snapshot: inspectionMachineSnapshot,
       findings: input.findings,
       recommendations: input.recommendations,
       conclusion: input.conclusion
@@ -1806,9 +1832,7 @@ export async function createInspection(input: CreateInspectionInput) {
     }
   ]);
 
-  for (const photo of input.photos) {
-    await storeInspectionPhoto(inspection.id, photo);
-  }
+  await storeInspectionPhotos(inspection.id, input.photos);
 
   await syncSupabaseInspectionPlanning(supabase, {
     inspectionId: inspection.id,
@@ -1929,7 +1953,7 @@ export async function updateInspectionFromForm(
       ...customer,
       contactDepartment: input.customer.contactDepartment
     });
-    inspection.machineSnapshot = buildMachineSnapshot(machine);
+    inspection.machineSnapshot = await buildInspectionMachineSnapshot(machine);
     inspection.inspectorId = nextInspector?.id || undefined;
     inspection.inspectorName = nextInspector?.name ?? appConfig.defaultInspector;
     inspection.inspectorEmail = nextInspector?.email || undefined;
@@ -1964,6 +1988,9 @@ export async function updateInspectionFromForm(
     }
 
     await syncDemoInspectionDocuments(data, inspection);
+    for (const attachment of await storeInspectionPhotos(inspection.id, input.photos)) {
+      data.attachments.unshift(attachment);
+    }
     await writeAppData(data);
     return inspection;
   }
@@ -2107,6 +2134,9 @@ export async function updateInspectionFromForm(
 
   const nextInspectionDate = addTwelveMonths(input.inspectionDate);
   const status = statusFromResultLabels(input.resultLabels);
+  const inspectionMachineSnapshot = await buildInspectionMachineSnapshot(
+    mapMachineRow(machineRow)
+  );
 
   const { data: updatedRow } = await supabase
     .from("inspections")
@@ -2124,15 +2154,7 @@ export async function updateInspectionFromForm(
         inspector: persistedInspector ?? undefined
       }),
       customer_snapshot: buildCustomerSnapshot(mergedCustomer),
-      machine_snapshot: buildMachineSnapshot({
-        machineNumber: String(machineRow.machine_number ?? resolvedMachineNumber),
-        brand: input.machine.brand,
-        model: input.machine.model,
-        serialNumber: input.machine.serialNumber,
-        buildYear: input.machine.buildYear,
-        internalNumber: input.machine.internalNumber,
-        configuration: sanitizeMachineConfiguration(input.machine.details)
-      }),
+      machine_snapshot: inspectionMachineSnapshot,
       findings: input.findings,
       recommendations: input.recommendations,
       conclusion: input.conclusion
@@ -2160,6 +2182,8 @@ export async function updateInspectionFromForm(
       linkedMachineId: inspection.machineId
     });
   }
+
+  await storeInspectionPhotos(inspection.id, input.photos);
 
   const { data: attachmentRows } = await supabase
     .from("inspection_attachments")
@@ -2643,7 +2667,6 @@ export async function getMachineSummaries(options: {
   const data = await listDemoData();
   let machines = data.machines.map((machine) => ({
     ...machine,
-    configuration: {},
     availabilityStatus: machine.availabilityStatus ?? "available"
   }));
 
@@ -3736,6 +3759,14 @@ export async function setBatteryChargerLink(input: {
         throw new Error("De gekozen machine is niet gevonden.");
       }
 
+      const linkedMachine = mapMachineRow(linkedRow);
+      if (linkedMachine.machineType === "batterij_lader") {
+        throw new Error("Een batterij / lader kan alleen aan een truck worden gekoppeld.");
+      }
+      if (isMachineArchived(linkedMachine)) {
+        throw new Error("Een batterij / lader kan niet aan een gearchiveerde truck worden gekoppeld.");
+      }
+
       nextCustomerId = String(linkedRow.customer_id);
     }
 
@@ -3748,13 +3779,17 @@ export async function setBatteryChargerLink(input: {
       delete nextConfiguration.linked_machine_id;
     }
 
-    await supabase
+    const { error: updateError } = await supabase
       .from("machines")
       .update({
         customer_id: nextCustomerId,
         configuration: nextConfiguration
       })
       .eq("id", input.batteryMachineId);
+
+    if (updateError) {
+      throw new Error(`Batterij / lader koppelen mislukt: ${updateError.message}`);
+    }
 
     return;
   }
@@ -3776,6 +3811,12 @@ export async function setBatteryChargerLink(input: {
     const linkedMachine = data.machines.find((machine) => machine.id === linkedMachineId);
     if (!linkedMachine) {
       throw new Error("De gekozen machine is niet gevonden.");
+    }
+    if (linkedMachine.machineType === "batterij_lader") {
+      throw new Error("Een batterij / lader kan alleen aan een truck worden gekoppeld.");
+    }
+    if (isMachineArchived(linkedMachine)) {
+      throw new Error("Een batterij / lader kan niet aan een gearchiveerde truck worden gekoppeld.");
     }
 
     batteryMachine.customerId = linkedMachine.customerId;
@@ -5035,9 +5076,10 @@ export async function updateMachine(input: {
         ? currentMachine.machineNumber
         : fallbackMachineNumber;
     const customer = currentMachine ? await getCustomerById(currentMachine.customerId) : null;
-    const configuration = sanitizeMachineConfiguration(
-      applyCustomerLocationToDetails(customer, input.details)
-    );
+    const nextDetails = applyCustomerLocationToDetails(customer, input.details);
+    const configuration = isBatteryChargerType(input.machineType)
+      ? batteryChargerInspectionConfiguration(currentMachine, nextDetails)
+      : sanitizeMachineConfiguration(nextDetails);
     const { data: updatedMachineRow, error: updateError } = await supabase
       .from("machines")
       .update({
@@ -5066,7 +5108,7 @@ export async function updateMachine(input: {
     }
 
     const machine = mapMachineRow(updatedMachineRow);
-    const machineSnapshot = buildMachineSnapshot(machine);
+    const machineSnapshot = await buildInspectionMachineSnapshot(machine);
     const { data: inspectionRows } = await supabase
       .from("inspections")
       .update({
@@ -5120,12 +5162,13 @@ export async function updateMachine(input: {
   machine.machineType = input.machineType;
   machine.availabilityStatus = machine.availabilityStatus ?? "available";
   const customer = data.customers.find((item) => item.id === machine.customerId) ?? null;
-  machine.configuration = sanitizeMachineConfiguration(
-    applyCustomerLocationToDetails(customer, input.details)
-  );
+  const nextDetails = applyCustomerLocationToDetails(customer, input.details);
+  machine.configuration = isBatteryChargerType(input.machineType)
+    ? batteryChargerInspectionConfiguration(machine, nextDetails)
+    : sanitizeMachineConfiguration(nextDetails);
   machine.updatedAt = nowIso();
 
-  const machineSnapshot = buildMachineSnapshot(machine);
+  const machineSnapshot = await buildInspectionMachineSnapshot(machine);
   const affectedInspectionIds: string[] = [];
   for (const inspection of data.inspections) {
     if (inspection.machineId !== input.id || inspection.status !== "draft") {

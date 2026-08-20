@@ -10,6 +10,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "audit:battery-links": "node scripts/export-multiple-battery-links.mjs",
+    "audit:battery-link-health": "node scripts/audit-battery-link-health.mjs",
     "prepare:battery-import": "node scripts/prepare-battery-lader-import.mjs",
     "import:battery-laders": "node scripts/import-battery-laders.mjs"
   },

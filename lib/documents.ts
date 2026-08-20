@@ -339,6 +339,27 @@ function customerMachineRows(inspection: InspectionRecord): Array<[string, strin
   ];
 
   if (inspection.machineType === "batterij_lader") {
+    const linkedMachineId = String(inspection.machineSnapshot.linked_machine_id ?? "").trim();
+    const linkedMachineName = [
+      inspection.machineSnapshot.linked_machine_brand,
+      inspection.machineSnapshot.linked_machine_model
+    ]
+      .filter(Boolean)
+      .join(" ") ||
+      String(inspection.machineSnapshot.linked_machine_label ?? "")
+        .replace(/\s*\[archief\]\s*$/i, "")
+        .trim();
+    const linkedMachineLabel = [
+      linkedMachineName,
+      inspection.machineSnapshot.linked_machine_serial_number
+        ? `serienr. ${inspection.machineSnapshot.linked_machine_serial_number}`
+        : ""
+    ]
+      .filter(Boolean)
+      .join(" - ");
+    if (linkedMachineId && linkedMachineLabel) {
+      rows.push(["Gekoppelde truck", linkedMachineLabel]);
+    }
     if ((inspection.machineSnapshot.drawing_number ?? "").trim()) {
       rows.push(["Bakmaat", inspection.machineSnapshot.drawing_number ?? "-"]);
     }

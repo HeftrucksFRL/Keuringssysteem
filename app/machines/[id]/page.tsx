@@ -624,6 +624,7 @@ export default async function MachineDetailPage({
             </div>
           ) : null}
           {!isArchived &&
+          machine.machineType !== "batterij_lader" &&
           (isRentalStockMachine || isHistoryMachine) &&
           canManageCustomerAssignments ? (
             <form action={assignMachineToCustomerAction} style={{ marginTop: "1rem" }}>
@@ -636,9 +637,7 @@ export default async function MachineDetailPage({
               />
               <div className="actions">
                 <button className="button-secondary" type="submit">
-                  {machine.machineType === "batterij_lader"
-                    ? "Batterij / lader koppelen"
-                    : "Machine koppelen"}
+                  Machine koppelen
                 </button>
               </div>
             </form>

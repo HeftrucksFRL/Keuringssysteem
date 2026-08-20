@@ -15,7 +15,7 @@ function inspection(overrides: Partial<InspectionRecord> = {}): InspectionRecord
     inspectionNumber: "269999",
     customerId: "customer-1",
     machineId: "machine-1",
-    machineType: "heftruck",
+    machineType: "heftruck_reachtruck",
     inspectionDate: "2026-08-19",
     nextInspectionDate: "2027-08-19",
     status: "approved",
@@ -38,8 +38,10 @@ function wordXmlText(buffer: Buffer) {
   const zip = new AdmZip(buffer);
   return zip
     .getEntries()
-    .filter((entry) => /^word\/(document|footer\d+)\.xml$/.test(entry.entryName))
-    .map((entry) => zip.readAsText(entry))
+    .filter((entry: { entryName: string }) =>
+      /^word\/(document|footer\d+)\.xml$/.test(entry.entryName)
+    )
+    .map((entry: unknown) => zip.readAsText(entry))
     .join(" ")
     .replace(/<[^>]+>/g, " ")
     .replace(/\s+/g, " ");
@@ -103,4 +105,41 @@ test("een Age-keuring gebruikt de Age-naam in inhoud en voetregel van Word", asy
 
   assert.match(text, /Keurmeester Age Terpstra/);
   assert.doesNotMatch(text, /Keurmeester Renze Pieter Veltman/);
+});
+
+test("een gekoppelde truck staat op het batterij-/laderkeuringsrapport", async () => {
+  const documents = await generateInspectionDocuments(
+    inspection({
+      id: "inspection-battery",
+      machineType: "batterij_lader",
+      machineSnapshot: {
+        linked_machine_id: "truck-1",
+        linked_machine_brand: "Toyota",
+        linked_machine_model: "Traigo",
+        linked_machine_label: "Toyota Traigo",
+        linked_machine_internal_number: "HT-17",
+        linked_machine_serial_number: "SER-123"
+      }
+    }),
+    { persistToDisk: false }
+  );
+
+  assert.match(
+    wordXmlText(documents.wordBuffer),
+    /Gekoppelde truck Toyota Traigo - serienr\. SER-123/
+  );
+  assert.doesNotMatch(wordXmlText(documents.wordBuffer), /HT-17/);
+});
+
+test("zonder geldige koppelsnapshot komt er geen gekoppelde truck op het rapport", async () => {
+  const documents = await generateInspectionDocuments(
+    inspection({
+      id: "inspection-unlinked-battery",
+      machineType: "batterij_lader",
+      machineSnapshot: { linked_machine_id: "verdwenen-truck" }
+    }),
+    { persistToDisk: false }
+  );
+
+  assert.doesNotMatch(wordXmlText(documents.wordBuffer), /Gekoppelde truck/);
 });
