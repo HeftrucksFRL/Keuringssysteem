@@ -5,6 +5,10 @@ import { createClient } from "@supabase/supabase-js";
 import { buildCustomerMail, buildInternalMail } from "@/lib/mail";
 import { sendInspectionEmails } from "@/lib/mailer";
 import { storeInspectionPhotos } from "@/lib/attachments";
+import {
+  findMatchingContact,
+  hasMeaningfulContactDetails
+} from "@/lib/customer-contact-dedup";
 import { appConfig, hasSupabaseConfig } from "@/lib/env";
 import { demoData } from "@/lib/demo-data";
 import { readAppData, writeAppData } from "@/lib/file-store";
@@ -667,14 +671,24 @@ function upsertDemoCustomerContact(
   const nextDepartment = trimContactValue(input.contactDepartment);
   const nextPhone = trimContactValue(input.phone);
   const nextEmail = trimContactValue(input.email);
-  const shouldAddAsNew = input.saveAsNewContact || !input.contactId;
-
+  const contactInput = {
+    name: nextName,
+    department: nextDepartment,
+    phone: nextPhone,
+    email: nextEmail
+  };
+  const customerContacts = data.customerContacts.filter(
+    (item) => item.customerId === customer.id
+  );
   let contact =
-    (!shouldAddAsNew
-      ? data.customerContacts.find(
-          (item) => item.id === input.contactId && item.customerId === customer.id
-        )
-      : null) ?? null;
+    customerContacts.find((item) => item.id === input.contactId) ??
+    findMatchingContact(customerContacts, contactInput, {
+      explicitNew: Boolean(input.saveAsNewContact)
+    });
+
+  if (!contact && !hasMeaningfulContactDetails(contactInput)) {
+    return pickPrimaryContact(customer, customerContacts);
+  }
 
   if (!contact) {
     contact = {
@@ -690,10 +704,10 @@ function upsertDemoCustomerContact(
     };
     data.customerContacts.unshift(contact);
   } else {
-    contact.name = nextName;
-    contact.department = nextDepartment;
-    contact.phone = nextPhone;
-    contact.email = nextEmail;
+    contact.name = nextName || contact.name;
+    contact.department = nextDepartment || contact.department;
+    contact.phone = nextPhone || contact.phone;
+    contact.email = nextEmail || contact.email;
     contact.isPrimary = true;
     contact.updatedAt = nowIso();
   }
@@ -718,27 +732,56 @@ async function upsertSupabaseCustomerContact(
   const nextDepartment = trimContactValue(input.contactDepartment);
   const nextPhone = trimContactValue(input.phone);
   const nextEmail = trimContactValue(input.email);
-  const shouldAddAsNew = input.saveAsNewContact || !input.contactId;
-
-  let selectedContactRow: Record<string, unknown> | null = null;
+  const contactInput = {
+    name: nextName,
+    department: nextDepartment,
+    phone: nextPhone,
+    email: nextEmail
+  };
+  const { data: existingContactRows, error: contactsError } = await supabase
+    .from("customer_contacts")
+    .select("*")
+    .eq("customer_id", customerId);
+  if (contactsError) {
+    throw new Error(`Contactpersonen ophalen mislukt: ${contactsError.message}`);
+  }
+  const contactRows = (existingContactRows ?? []) as Record<string, unknown>[];
+  let selectedContactRow =
+    contactRows.find((row) => String(row.id) === input.contactId) ??
+    findMatchingContact(
+      contactRows.map((row) => ({
+        ...row,
+        id: String(row.id),
+        name: String(row.name ?? ""),
+        department: String(row.department ?? ""),
+        phone: String(row.phone ?? ""),
+        email: String(row.email ?? "")
+      })),
+      contactInput,
+      { explicitNew: Boolean(input.saveAsNewContact) }
+    );
   const usesMissingDepartmentColumn = (message?: string) =>
     Boolean(
       message?.includes("customer_contacts.department") ||
         message?.includes("Could not find the 'department' column")
     );
 
-  if (!shouldAddAsNew && input.contactId) {
+  if (!selectedContactRow && !hasMeaningfulContactDetails(contactInput)) {
+    return contactRows.find((row) => Boolean(row.is_primary)) ?? contactRows[0] ?? null;
+  }
+
+  if (selectedContactRow) {
     const updatePayload = {
-      name: nextName,
-      department: nextDepartment,
-      phone: nextPhone,
-      email: nextEmail,
+      name: nextName || String(selectedContactRow.name ?? "Contactpersoon"),
+      department: nextDepartment || String(selectedContactRow.department ?? ""),
+      phone: nextPhone || String(selectedContactRow.phone ?? ""),
+      email: nextEmail || String(selectedContactRow.email ?? ""),
       is_primary: true
     };
     let result = await supabase
       .from("customer_contacts")
       .update(updatePayload)
-      .eq("id", input.contactId)
+      .eq("id", String(selectedContactRow.id))
       .eq("customer_id", customerId)
       .select("*")
       .maybeSingle();
@@ -748,13 +791,16 @@ async function upsertSupabaseCustomerContact(
       result = await supabase
         .from("customer_contacts")
         .update(fallbackPayload)
-        .eq("id", input.contactId)
+        .eq("id", String(selectedContactRow.id))
         .eq("customer_id", customerId)
         .select("*")
         .maybeSingle();
     }
 
-    selectedContactRow = result.data;
+    if (result.error) {
+      throw new Error(`Contactpersoon bijwerken mislukt: ${result.error.message}`);
+    }
+    selectedContactRow = result.data ?? selectedContactRow;
   }
 
   if (!selectedContactRow) {
@@ -4106,14 +4152,62 @@ export async function addCustomerContact(input: {
   email: string;
   makePrimary?: boolean;
 }) {
+  const contactInput = {
+    name: trimContactValue(input.name),
+    department: trimContactValue(input.department),
+    phone: trimContactValue(input.phone),
+    email: trimContactValue(input.email)
+  };
+  if (!hasMeaningfulContactDetails(contactInput)) {
+    throw new Error("Vul minimaal een naam, telefoonnummer of e-mailadres in.");
+  }
+
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
+    const { data: existingRows, error: existingError } = await supabase
+      .from("customer_contacts")
+      .select("*")
+      .eq("customer_id", input.customerId);
+    if (existingError) {
+      throw new Error(existingError.message);
+    }
+    const existing = findMatchingContact(
+      (existingRows ?? []).map((row) => ({
+        ...row,
+        id: String(row.id),
+        name: String(row.name ?? ""),
+        department: String(row.department ?? ""),
+        phone: String(row.phone ?? ""),
+        email: String(row.email ?? "")
+      })),
+      contactInput,
+      { explicitNew: true }
+    );
+    if (existing) {
+      if (input.makePrimary) {
+        await supabase
+          .from("customer_contacts")
+          .update({ is_primary: false })
+          .eq("customer_id", input.customerId)
+          .neq("id", String(existing.id));
+        await supabase
+          .from("customer_contacts")
+          .update({ is_primary: true })
+          .eq("id", String(existing.id));
+        await supabase
+          .from("customers")
+          .update({ contact_name: String(existing.name ?? input.name) })
+          .eq("id", input.customerId);
+      }
+      return mapCustomerContactRow(existing);
+    }
+
     const insertPayload = {
       customer_id: input.customerId,
-      name: input.name,
-      department: input.department ?? "",
-      phone: input.phone,
-      email: input.email,
+      name: contactInput.name || "Contactpersoon",
+      department: contactInput.department,
+      phone: contactInput.phone,
+      email: contactInput.email,
       is_primary: Boolean(input.makePrimary)
     };
     let result = await supabase
@@ -4164,13 +4258,32 @@ export async function addCustomerContact(input: {
     return null;
   }
 
+  const existing = findMatchingContact(
+    data.customerContacts.filter((item) => item.customerId === input.customerId),
+    contactInput,
+    { explicitNew: true }
+  );
+  if (existing) {
+    if (input.makePrimary) {
+      data.customerContacts = data.customerContacts.map((item) =>
+        item.customerId === input.customerId
+          ? { ...item, isPrimary: item.id === existing.id, updatedAt: nowIso() }
+          : item
+      );
+      customer.contactName = existing.name;
+      customer.updatedAt = nowIso();
+      await writeAppData(data);
+    }
+    return existing;
+  }
+
   const contact: CustomerContactRecord = {
     id: randomUUID(),
     customerId: input.customerId,
-    name: input.name,
-    department: input.department ?? "",
-    phone: input.phone,
-    email: input.email,
+    name: contactInput.name || "Contactpersoon",
+    department: contactInput.department,
+    phone: contactInput.phone,
+    email: contactInput.email,
     isPrimary: Boolean(input.makePrimary),
     createdAt: nowIso(),
     updatedAt: nowIso()
