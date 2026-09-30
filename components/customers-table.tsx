@@ -50,33 +50,34 @@ export function CustomersTable({
   const lastInspectionByCustomerId = useMemo(() => {
     const map = new Map<string, string>();
 
-    [...inspections]
-      .sort((left, right) => right.inspectionDate.localeCompare(left.inspectionDate, "nl"))
-      .forEach((inspection) => {
-        if (!map.has(inspection.customerId)) {
-          map.set(inspection.customerId, inspection.inspectionDate);
-        }
-      });
+    inspections.forEach((inspection) => {
+      const previousDate = map.get(inspection.customerId);
+      if (!previousDate || inspection.inspectionDate > previousDate) {
+        map.set(inspection.customerId, inspection.inspectionDate);
+      }
+    });
 
     return map;
   }, [inspections]);
 
+  const sortedCustomers = useMemo(
+    () => [...customers].sort((left, right) => left.companyName.localeCompare(right.companyName, "nl")),
+    [customers]
+  );
+
   const filteredCustomers = useMemo(() => {
     const needle = query.trim().toLowerCase();
 
-    const rows = !needle
-      ? customers
-      : customers.filter((customer) =>
+    return !needle
+      ? sortedCustomers
+      : sortedCustomers.filter((customer) =>
           [customer.companyName, customer.contactName, customer.email, customer.phone]
             .join(" ")
             .toLowerCase()
             .includes(needle)
         );
 
-    return [...rows].sort((left, right) =>
-      left.companyName.localeCompare(right.companyName, "nl")
-    );
-  }, [customers, query]);
+  }, [sortedCustomers, query]);
 
   const groupedCustomers = useMemo(() => {
     const groups = new Map<string, CustomerRecord[]>();

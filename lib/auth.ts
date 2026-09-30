@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { appConfig, hasSupabaseConfig } from "@/lib/env";
 import { knownInspectorNameForEmail } from "@/lib/inspection-inspector";
@@ -24,7 +25,8 @@ function toDisplayNamePart(value: string) {
     .join(" ");
 }
 
-export async function getCurrentUser() {
+// Share the verified user only within this server render, never across requests.
+export const getCurrentUser = cache(async function getCurrentUser() {
   if (!hasSupabaseConfig()) {
     return {
       id: "demo-user",
@@ -41,7 +43,7 @@ export async function getCurrentUser() {
   } = await supabase.auth.getUser();
 
   return user;
-}
+});
 
 export async function requireUser() {
   const user = await getCurrentUser();

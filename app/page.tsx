@@ -85,9 +85,9 @@ export default async function HomePage({
 }) {
   const user = await requireUser();
   const showActivityLog = canViewActivityLog(user);
-  const dashboard = await getDashboardData();
   const params = await searchParams;
-  const [planningRows, recentMachines, failedMailAlerts, todoItems, activityLogs] = await Promise.all([
+  const [dashboard, planningRows, recentMachines, failedMailAlerts, todoItems, activityLogs] = await Promise.all([
+    getDashboardData(),
     getPlanningPreview(100),
     getRecentMachineSummaries(4),
     getFailedMailAlerts(),
