@@ -5,11 +5,12 @@ Een gezamenlijk leadbord voor de bestaande accounts van Age en Renze op `/frello
 ## Gebruik
 
 - Het gezamenlijke bord begint met Nieuwe leads, Contact gelegd, Offerte verstuurd, Opvolgen, Gewonnen en Verloren.
-- **Nieuw bord** biedt Gezamenlijk of Privé. Privé is standaard. De zichtbaarheid staat na aanmaken vast, zodat een privébord niet per ongeluk gedeeld kan worden.
+- **Bord bewerken → Nieuw bord** biedt Gezamenlijk of Privé. Privé is standaard. De zichtbaarheid staat na aanmaken vast, zodat een privébord niet per ongeluk gedeeld kan worden.
 - Open een kaart om titel, omschrijving, klant/contactgegevens, verantwoordelijke, opvolgdatum en labels bij te werken. Labels worden met komma’s gescheiden.
 - Een kaart bevat een checklist, reacties en bijlagen. Reacties worden bij opslaan aan de huidige gebruiker gekoppeld. Een leeg checklistpunt wordt bij opslaan verwijderd.
 - Sleep kaarten tussen kolommen of vóór een andere kaart. Op een touchscreen kan de kolom ook in de geopende kaart worden gekozen.
-- **Bord & kolommen** laat de bordnaam en kolomnamen aanpassen en een nieuwe kolom toevoegen.
+- **Bord bewerken → Bordnaam & kolommen** laat de bordnaam en kolomnamen aanpassen en een nieuwe kolom toevoegen. Bord kiezen, zoeken, filteren en het archief staan eveneens in de popup, zodat het bord direct zichtbaar is.
+- Kaarten kleuren automatisch op verantwoordelijke: Age lichtblauw en Renze lichtpaars. De naam blijft zichtbaar; niet-toegewezen kaarten zijn neutraal.
 - Kaarten kunnen worden gearchiveerd en via Archief weer worden teruggezet. Er worden geen kaarten definitief verwijderd.
 - Sla een nieuwe kaart eerst op; daarna kunnen bijlagen worden toegevoegd. Maximaal 4 MB per bestand: PDF, gangbare afbeeldingen, Office, TXT, CSV en ZIP. HTML, SVG, scripts en uitvoerbare bestanden worden geweigerd. Downloads gebruiken korte ondertekende links en worden als bestand aangeboden.
 
@@ -34,3 +35,7 @@ Met `LOCAL_TEST_MODE=1` gebruikt `/frello` voorbeeldgegevens in browseropslag. `
 Op 12 november 2026 is de migratie uitgevoerd in het aangesloten Supabase-project. Een transactie met de twee echte accountrollen heeft gecontroleerd dat beiden het gezamenlijke bord zien en alleen hun eigen privébord/bijlagemetadata. Een wijziging van het privébord van de ander wordt geweigerd; wijzigen van zichtbaarheid heeft geen tabelrecht. De tabletrol ziet geen bord- of bijlageregels. De tijdelijke testregels zijn met ROLLBACK verwijderd. De proefinterface is gecontroleerd op verslepen, kaartbewerking, checklist/reacties, privéborden en upload van een tekstbijlage. Er is geen proefbestand in productie opgeslagen.
 
 Dit is een eigen kanbanmodule voor leadopvolging. Automatische acties, koppelingen met Trello, agenda-e-mails en pushmeldingen zijn niet inbegrepen.
+
+## Hoofdnavigatie
+
+Dashboard, Nieuwe keuring, Werkplaats en Frellobord blijven direct bereikbaar. Onder **Relaties & materieel** staan Klanten, Machines en Keuringen. Onder **Planning** staan Keuringsplanning en Verhuur. Het menu loopt zo nodig door op meerdere regels en heeft geen horizontale schuifbalk. Submenu's sluiten bij een klik buiten het menu, bij navigatie of met Escape. De werkplaatstablet houdt uitsluitend de Werkplaats-knop.
