@@ -21,3 +21,13 @@ test("purchase dashboard excludes goods already ordered or finished",()=>{
   assert.equal(orderIsOpen("Ontvangen"),false);
   assert.equal(orderIsOpen("Afgewezen"),false);
 });
+
+import {simpleOrderSchema,normalizeOrderRequest} from "../lib/workshop-orders";
+test("simple requests retain free text and optional context, without accepting forged status or date",()=>{
+  const raw={id:"d3e82ffa-f8c2-41e1-9c8c-c4f07cb92398",employeeId:"mechanic",text:"  Kwasten\nEn olie  ",context:"voorraad"};
+  const parsed=simpleOrderSchema.parse(raw),details=normalizeOrderRequest(parsed);
+  assert.equal(details.notes,"Kwasten\nEn olie");assert.equal(details.context,"voorraad");assert.equal(details.item,"Kwasten");
+  assert.equal(simpleOrderSchema.safeParse({...raw,created_at:"2020-01-01"}).success,false);
+  assert.equal(simpleOrderSchema.safeParse({...raw,status:"Besteld"}).success,false);
+  assert.equal(simpleOrderSchema.safeParse({...raw,text:" "}).success,false);
+});

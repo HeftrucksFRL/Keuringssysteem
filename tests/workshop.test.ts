@@ -26,3 +26,26 @@ test("transport requires a ready machine, assigned chauffeur, full addresses and
   assert.equal(parse([{...ready,transport:{...transport,state:"Afgeleverd"}}]).success,false);
   assert.equal(parse([{...ready,transport:{...transport,state:"Afgeleverd",confirmation:"Ontvangen door Jan"}}]).success,true);
 });
+
+import {applyWorkshopActivity,workshopActivitySchema,type WorkshopState} from "../lib/workshop";
+const activity={requestId:"d3e82ffa-f8c2-41e1-9c8c-c4f07cb92398",jobId:"one",employeeId:"mechanic",action:"start" as const,text:"Olie vervangen"};
+test("tablet activity changes only status and appends a dated named update, safely retryable",()=>{
+  const state=parse([job,{...job,id:"two",number:"WB-0002",time:"10:00"}]);assert.equal(state.success,true);if(!state.success)return;
+  const at="2026-11-12T12:00:00.000Z",original=state.data.state;
+  const next=applyWorkshopActivity(original,activity,at);
+  assert.equal(next.jobs[0].status,"Mee bezig");assert.equal(next.jobs[0].date,job.date);assert.equal(next.jobs[1],original.jobs[1]);
+  assert.deepEqual(next.jobs[0].updates?.[0],{id:activity.requestId,employeeId:"mechanic",employeeName:"Jelle",action:"start",text:activity.text,at});
+  assert.equal(applyWorkshopActivity(next,activity),next);
+  for(const [action,status] of [["pause","Pauze"],["parts","Wachten op onderdelen"],["review","Werkbon-controle"],["hold","On hold"]] as const)assert.equal(applyWorkshopActivity(original,{...activity,action}).jobs[0].status,status);
+});
+test("tablet cannot schedule or release transport, but may leave notes on unplanned/ready jobs",()=>{
+  const state={employees,jobs:[job]} as WorkshopState;
+  assert.equal(workshopActivitySchema.safeParse({...activity,transport:{}}).success,false);
+  assert.equal(workshopActivitySchema.safeParse({...activity,action:"note",text:" "}).success,false);
+  assert.throws(()=>applyWorkshopActivity(state,{...activity,employeeId:"unknown"}));
+  for(const changed of [{...job,status:"Nieuw",employee:"",date:""},{...job,status:"Klaar voor transport",checks:[true,true,true]}]){
+    const current={employees,jobs:[changed]} as WorkshopState;
+    assert.throws(()=>applyWorkshopActivity(current,activity));
+    assert.equal(applyWorkshopActivity(current,{...activity,action:"note"}).jobs[0].status,changed.status);
+  }
+});

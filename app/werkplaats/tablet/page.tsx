@@ -11,7 +11,7 @@ export default async function TabletSetupPage() {
     <Link href="/werkplaats">← Werkplaatsagenda</Link>
     <h1>Werkplaatstablet instellen</h1>
     <p>Een gedeeld account voor de tablet. De gebruikersnaam is <strong>werkplaats</strong>. Een e-mailadres of mailbox is niet nodig.</p>
-    <p>Dit account ziet alleen de werkplaatsmodule. Monteurs kunnen de agenda en bonnen bekijken en onderdelen of gereedschap aanvragen. Planning aanpassen, aanvragen afhandelen en medewerkers beheren kan alleen met een eigen beheerdersaccount.</p>
+    <p>Dit account ziet alleen de werkplaatsmodule. Monteurs kunnen de agenda en bonnen bekijken, notities en voortgang doorgeven en onderdelen of gereedschap aanvragen. Planning aanpassen, aanvragen afhandelen en medewerkers beheren kan alleen met een eigen beheerdersaccount.</p>
     <WorkshopTabletSetup demo={!hasSupabaseConfig()} />
   </section>;
 }

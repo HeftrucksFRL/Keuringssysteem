@@ -70,3 +70,8 @@ Regeltests dekken overlap, aansluitende afspraken, medewerkers, kalendergrenzen,
 ## Bronbestanden en pakket opnieuw maken
 
 De onderhoudbare agenda-assets staan in `modules/werkplaats/assets`; `scripts/package-workshop-module.mjs` kopieert deze naar `public/werkplaats-preview` en bouwt de ZIP. Voer dit script uit na wijzigingen aan de assets. Het pakket bevat geen credentials, klantgegevens of node_modules.
+
+### Voortgang op het werkplaatstablet
+Monteurs kiezen hun naam op de gedeelde tablet en voegen notities toe of gebruiken Start, Pauze, Wachten op onderdelen, Afronden / controle en On hold. Elke update bewaart naam, datum en tijd. Dit zijn voortgangsmeldingen, geen berekening van gewerkte uren. Afronden wordt Werkbon-controle; vrijgave en transport blijven bij het beheer. De tablet mag de planning niet wijzigen. De beperkte POST-route /api/werkplaats/werkbon controleert invoer, bestaande medewerker en werkbon en bewaart wijzigingen met versiecontrole.
+
+De bestellijst gebruikt vrije tekst, een medewerkernaam en optioneel een werkbonnummer of voorraadvermelding. De server legt datum en tijd vast. Bestaande aanvragen blijven beschikbaar. Deze aanpassingen gebruiken de bestaande JSON-opslag en vragen geen databasemigratie.

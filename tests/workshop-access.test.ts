@@ -33,3 +33,8 @@ test("workshop uses a username without a mailbox; existing accounts keep their l
   assert.equal(canManageWorkshopTablet({email:"werkplaats@accounts.invalid",app_metadata:{app_role:"workshop_viewer"}}),false);
   assert.equal(canManageWorkshopTablet({email:"other@example.com"}),false);
 });
+
+test("tablet may post limited work updates but cannot change planning",()=>{
+ assert.equal(workshopViewerRequestAllowed("/api/werkplaats/werkbon","POST"),true);
+ for(const method of ["GET","PUT","PATCH","DELETE"])assert.equal(workshopViewerRequestAllowed("/api/werkplaats/werkbon",method),false);
+});

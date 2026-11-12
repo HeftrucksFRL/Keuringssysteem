@@ -11,7 +11,14 @@ export const orderRequestSchema=z.object({
 }).strict();
 export const orderUpdateSchema=z.object({id:z.string().uuid(),version:z.number().int().min(0),status:z.enum(orderStatuses),managerNote:z.string().trim().max(3000),supplier:z.string().trim().max(180),reference:z.string().trim().max(180)}).strict();
 export type OrderRequest=z.infer<typeof orderRequestSchema>;
-export type OrderDetails=OrderRequest & {employeeName:string;jobNumber:string;machine:string};
+export const simpleOrderSchema=z.object({id:z.string().uuid(),text:z.string().trim().min(1).max(3000),employeeId:z.string().min(1).max(80),context:z.string().trim().max(180)}).strict();
+export type SimpleOrder=z.infer<typeof simpleOrderSchema>;
+export const orderSubmissionSchema=z.union([simpleOrderSchema,orderRequestSchema]);
+export function normalizeOrderRequest(input:SimpleOrder|OrderRequest):OrderRequest&{context?:string}{
+  if(!('text' in input))return input;
+  return {id:input.id,item:input.text.split(/\r?\n/)[0].slice(0,180),category:"Overig",quantity:1,unit:"aanvraag",employeeId:input.employeeId,jobId:"",needBy:"",urgency:"Normaal",partNumber:"",notes:input.text,context:input.context};
+}
+export type OrderDetails=OrderRequest & {employeeName:string;jobNumber:string;machine:string;context?:string};
 export interface WorkshopOrder {
   id:string;details:OrderDetails;status:typeof orderStatuses[number];version:number;
   manager_note:string;supplier:string;reference:string;created_at:string;updated_at:string;

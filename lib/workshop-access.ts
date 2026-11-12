@@ -15,6 +15,7 @@ export function isWorkshopViewer(user: Account) {
 }
 
 export function workshopViewerRequestAllowed(path: string, method: string) {
+  if(path === "/api/werkplaats/werkbon")return method==="POST";
   if(path === "/api/werkplaats/bestellingen")return ["GET","HEAD","POST"].includes(method);
   if (method === "DELETE" && path === "/api/werkplaats/session") return true;
   if (method !== "GET" && method !== "HEAD") return false;

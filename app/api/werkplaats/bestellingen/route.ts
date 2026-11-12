@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { hasSupabaseConfig } from "@/lib/env";
 import { canManageWorkshopTablet } from "@/lib/workshop-access";
 import { applyRateLimit,validateCsrf,validateOrigin } from "@/lib/security";
-import { orderRequestSchema,orderUpdateSchema } from "@/lib/workshop-orders";
+import { orderSubmissionSchema,normalizeOrderRequest,orderUpdateSchema } from "@/lib/workshop-orders";
 
 export const dynamic="force-dynamic";
 const columns="id,details,status,version,manager_note,supplier,reference,created_at,updated_at";
@@ -28,7 +28,8 @@ export async function GET(request:NextRequest){
 export async function POST(request:NextRequest){
   try{const gate=await access(request,true);if(gate.denied)return gate.denied;
     let raw:unknown;try{raw=await body(request);}catch{return json({message:"Ongeldig verzoek."},400);}
-    const parsed=orderRequestSchema.safeParse(raw);if(!parsed.success)return json({message:parsed.error.issues[0]?.message||"Controleer de aanvraag."},400);
+    const submission=orderSubmissionSchema.safeParse(raw);if(!submission.success)return json({message:"Vul je naam en de bestelling in (maximaal 3.000 tekens)."},400);
+    const parsed={data:normalizeOrderRequest(submission.data)};
     const client=admin();
     // A retry with the same ID returns the original request; it never creates a duplicate.
     const existing=await client.from("workshop_orders").select(columnsWithCreator).eq("id",parsed.data.id).maybeSingle();
@@ -37,7 +38,7 @@ export async function POST(request:NextRequest){
     const planning=await client.from("workshop_planning").select("state").eq("id",1).single();
     if(planning.error)return json({message:"Medewerkers konden niet worden geladen."},503);
     const employee=planning.data.state.employees.find((e:{id:string;name:string})=>e.id===parsed.data.employeeId);
-    const job=planning.data.state.jobs.find((j:{id:string})=>j.id===parsed.data.jobId);
+    const job=planning.data.state.jobs.find((j:{id:string;number:string})=>parsed.data.jobId?j.id===parsed.data.jobId:parsed.data.context?.toLowerCase()===j.number.toLowerCase());
     if(!employee)return json({message:"Kies een bestaande medewerker."},400);
     if(parsed.data.jobId&&!job)return json({message:"De gekozen werkbon bestaat niet meer."},400);
     const details={...parsed.data,employeeName:employee.name,jobNumber:job?.number||"",machine:job?.machine||""};
