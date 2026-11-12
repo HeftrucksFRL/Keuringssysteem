@@ -1,3 +1,4 @@
+import {isPublicAssetPath} from "@/lib/public-assets";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { hasSupabaseConfig } from "@/lib/env";
@@ -5,6 +6,7 @@ import { ensureCsrfCookie } from "@/lib/security";
 import { isWorkshopViewer, workshopViewerRequestAllowed } from "@/lib/workshop-access";
 
 export async function middleware(request: NextRequest) {
+  if(["GET","HEAD"].includes(request.method)&&isPublicAssetPath(request.nextUrl.pathname))return NextResponse.next();
   let response = ensureCsrfCookie(request, NextResponse.next());
 
   if (!hasSupabaseConfig()) {

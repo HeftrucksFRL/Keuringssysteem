@@ -89,18 +89,13 @@ export default async function HomePage({
   const user = await requireUser();
   const showActivityLog = canViewActivityLog(user);
   const params = await searchParams;
-  const [dashboard, planningRows, recentMachines, failedMailAlerts, todoItems, activityLogs] = await Promise.all([
-    getDashboardData(),
-    getPlanningPreview(100),
-    getRecentMachineSummaries(4),
-    getFailedMailAlerts(),
+  const planningPromise=getPlanningPreview(100),machinesPromise=getRecentMachineSummaries(4);
+  const customersPromise=Promise.all([planningPromise,machinesPromise]).then(([planningRows,recentMachines])=>getCustomerSummaries({ids:[...new Set([...planningRows.map(item=>item.customerId),...recentMachines.map(item=>item.customerId)])]}));
+  const [dashboard, planningRows, recentMachines, failedMailAlerts, todoItems, activityLogs,customers] = await Promise.all([
+    getDashboardData(),planningPromise,machinesPromise,getFailedMailAlerts(),
     getTodoItems(String(user?.id ?? "demo-user")),
-    showActivityLog ? getRecentActivityLogs(8) : Promise.resolve([])
+    showActivityLog ? getRecentActivityLogs(8) : Promise.resolve([]),customersPromise
   ]);
-  const customerIds = Array.from(
-    new Set([...planningRows.map((item) => item.customerId), ...recentMachines.map((item) => item.customerId)])
-  );
-  const customers = await getCustomerSummaries({ ids: customerIds });
   const customerById = new Map(customers.map((customer) => [customer.id, customer]));
   const routeRows = Array.from(
     planningRows.reduce((groups, item) => {

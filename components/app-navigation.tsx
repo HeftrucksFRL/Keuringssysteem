@@ -41,15 +41,10 @@ export function AppNavigation({ variant = "desktop", workshopOnly = false }: { v
     document.addEventListener("pointerdown", closeOutside);
     return () => document.removeEventListener("pointerdown", closeOutside);
   }, []);
-  useEffect(() => {
-    if (variant !== "desktop") return;
-    const timer = setTimeout(() => links.filter(l => !workshopOnly || l.href === "/werkplaats").forEach(l => prefetch(l.href)), 500);
-    return () => clearTimeout(timer);
-  }, [variant, workshopOnly, prefetch]);
   function renderLink(link: NavLink, sub = false) {
     const Icon = link.icon;
     return <Link key={link.href} className={`${sub ? "app-subnav-link" : "app-nav-link"} ${isActive(pathname, link.href) ? "active" : ""}`}
-      aria-current={isActive(pathname, link.href) ? "page" : undefined} href={link.href}
+      prefetch={false} aria-current={isActive(pathname, link.href) ? "page" : undefined} href={link.href}
       onFocus={() => prefetch(link.href)} onPointerEnter={() => prefetch(link.href)}
       onClick={() => nav.current?.querySelectorAll("details[open]").forEach(el => el.removeAttribute("open"))}>
       <Icon size={16}/><span>{link.label}</span>

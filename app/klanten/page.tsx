@@ -1,8 +1,10 @@
 import {
-  getArchivedCustomers,
-  getInspectionSummaries,
-  getMachineSummaries,
-  getVisibleCustomers
+  getCustomers,
+  isCustomerArchived,
+  isRentalStockCustomer,
+  isMachineHistoryCustomer,
+  getInspectionCustomerDates,
+  getMachineSummaries
 } from "@/lib/inspection-service";
 import { CustomersTable } from "@/components/customers-table";
 import Link from "next/link";
@@ -13,12 +15,15 @@ export default async function CustomersPage({
   searchParams?: Promise<{ deleted?: string }>;
 }) {
   const query = await searchParams;
-  const [customers, archivedCustomers, inspections, machines] = await Promise.all([
-    getVisibleCustomers(),
-    getArchivedCustomers(),
-    getInspectionSummaries(),
+  const [allCustomers, inspections, machines] = await Promise.all([
+    getCustomers(),
+    getInspectionCustomerDates(),
     getMachineSummaries()
   ]);
+
+  const visibleCustomers=allCustomers.filter(customer=>!isRentalStockCustomer(customer)&&!isMachineHistoryCustomer(customer));
+  const customers=visibleCustomers.filter(customer=>!isCustomerArchived(customer));
+  const archivedCustomers=visibleCustomers.filter(isCustomerArchived);
 
   return (
     <section className="panel">
@@ -33,7 +38,7 @@ export default async function CustomersPage({
           Archiefbak ({archivedCustomers.length})
         </Link>
       </div>
-      <CustomersTable customers={customers} machines={machines} inspections={inspections} />
+      <CustomersTable customers={customers} machines={machines.map(({customerId})=>({customerId}))} inspections={inspections} />
     </section>
   );
 }

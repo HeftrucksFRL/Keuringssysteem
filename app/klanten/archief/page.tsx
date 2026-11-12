@@ -2,7 +2,7 @@ import Link from "next/link";
 import { CustomersTable } from "@/components/customers-table";
 import {
   getArchivedCustomers,
-  getInspectionSummaries,
+  getInspectionCustomerDates,
   getMachineSummaries
 } from "@/lib/inspection-service";
 
@@ -14,7 +14,7 @@ export default async function CustomerArchivePage({
   const query = await searchParams;
   const [customers, inspections, machines] = await Promise.all([
     getArchivedCustomers(),
-    getInspectionSummaries(),
+    getInspectionCustomerDates(),
     getMachineSummaries({ includeArchived: true })
   ]);
 
@@ -33,7 +33,7 @@ export default async function CustomerArchivePage({
       </div>
       <CustomersTable
         customers={customers}
-        machines={machines}
+        machines={machines.map(({customerId})=>({customerId}))}
         inspections={inspections}
         emptyTitle="De archiefbak is leeg"
         emptyDescription="Gearchiveerde klanten verschijnen hier."

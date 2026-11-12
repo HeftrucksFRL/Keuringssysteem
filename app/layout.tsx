@@ -56,7 +56,6 @@ export default async function RootLayout({
                   width={196}
                   height={54}
                   priority
-                  unoptimized
                 />
               </Link>
               <span>{workshopOnly ? "Werkplaats" : "Keuringssysteem"}</span>

@@ -1,10 +1,16 @@
+import {unwrapLazyModule} from "@/lib/lazy-module";
+import {fetchTargetedRows} from "@/lib/targeted-rows";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import { buildCustomerMail, buildInternalMail } from "@/lib/mail";
-import { sendInspectionEmails } from "@/lib/mailer";
-import { storeInspectionPhotos } from "@/lib/attachments";
+// Load report/mail/photo libraries only when performing those operations.
+const sendInspectionEmails = async (...args: Parameters<typeof import("@/lib/mailer")["sendInspectionEmails"]>) =>
+  unwrapLazyModule(await import("@/lib/mailer")).sendInspectionEmails(...args);
+// Load report/mail/photo libraries only when performing those operations.
+const storeInspectionPhotos = async (...args: Parameters<typeof import("@/lib/attachments")["storeInspectionPhotos"]>) =>
+  unwrapLazyModule(await import("@/lib/attachments")).storeInspectionPhotos(...args);
 import {
   findMatchingContact,
   hasMeaningfulContactDetails
@@ -13,7 +19,9 @@ import { appConfig, hasSupabaseConfig } from "@/lib/env";
 import { demoData } from "@/lib/demo-data";
 import { readAppData, writeAppData } from "@/lib/file-store";
 import { addTwelveMonths, formatDisplayDate, formatLocalDateInput, parseLocalDateInput, todayLocalIso } from "@/lib/utils";
-import { generateInspectionDocuments } from "@/lib/documents";
+// Load report/mail/photo libraries only when performing those operations.
+const generateInspectionDocuments = async (...args: Parameters<typeof import("@/lib/documents")["generateInspectionDocuments"]>) =>
+  unwrapLazyModule(await import("@/lib/documents")).generateInspectionDocuments(...args);
 import { getYearSequenceStart } from "@/lib/inspection-number";
 import {
   canonicalInspectionActor,
@@ -2498,31 +2506,17 @@ export async function getCustomerSummaries(options: {
     const supabase = createSupabaseAdmin();
     const orderedCustomerSummaries = (query: ReturnType<typeof supabase.from>) =>
       query.select(CUSTOMER_SUMMARY_SELECT).order("company_name", { ascending: true });
-    let query = orderedCustomerSummaries(supabase.from("customers"));
-    const filterLocally = Boolean(options.ids && options.ids.length > 100);
-
-    if (options.ids?.length && !filterLocally) {
-      query = query.in("id", options.ids);
-    }
-
-    let rows: Record<string, unknown>[];
-    if (filterLocally || !options.ids?.length) {
-      rows = await fetchAllSupabaseRows(async (from, to) => {
-        const { data, error } = await orderedCustomerSummaries(supabase.from("customers")).range(from, to);
-        return { data: data as unknown as Record<string, unknown>[] | null, error };
-      });
-    } else {
-      const { data, error } = await query;
-      if (error) {
-        throw new Error(`Klanten ophalen mislukt: ${error.message}`);
-      }
-      rows = ((data ?? []) as unknown as Record<string, unknown>[]);
-    }
-    let customers = rows.map((row) => mapCustomerRow(row));
-    if (options.ids?.length && filterLocally) {
-      const wantedIds = new Set(options.ids);
-      customers = customers.filter((customer) => wantedIds.has(customer.id));
-    }
+    const rows=options.ids?.length
+      ? await fetchTargetedRows<Record<string,unknown>>(options.ids,async ids=>{
+          const {data,error}=await orderedCustomerSummaries(supabase.from("customers")).in("id",ids);
+          return {data:data as unknown as Record<string,unknown>[]|null,error};
+        })
+      : await fetchAllSupabaseRows(async(from,to)=>{
+          const {data,error}=await orderedCustomerSummaries(supabase.from("customers")).range(from,to);
+          return {data:data as unknown as Record<string,unknown>[]|null,error};
+        });
+    const customers=rows.map(row=>mapCustomerRow(row));
+    if(options.ids&&options.ids.length>100)customers.sort((left,right)=>left.companyName.localeCompare(right.companyName,"nl"));
 
     return options.visibleOnly
       ? customers.filter(
@@ -2668,44 +2662,24 @@ export async function getMachineSummaries(options: {
       );
     };
 
-    let query = orderedMachineSummaries(supabase.from("machines"));
-    const filterLocally = Boolean(options.ids && options.ids.length > 100);
-
-    if (options.ids?.length && !filterLocally) {
-      query = query.in("id", options.ids);
-    }
-
-    if (options.limit && !filterLocally) {
-      query = query.limit(options.limit);
-    }
-
-    let rows: Record<string, unknown>[];
-    if (filterLocally || (!options.ids?.length && !options.limit)) {
-      rows = await fetchAllSupabaseRows(async (from, to) => {
-        const { data, error } = await orderedMachineSummaries(supabase.from("machines")).range(from, to);
-        return { data: data as unknown as Record<string, unknown>[] | null, error };
+    let rows:Record<string,unknown>[];
+    if(options.ids?.length){
+      rows=await fetchTargetedRows<Record<string,unknown>>(options.ids,async ids=>{
+        const {data,error}=await orderedMachineSummaries(supabase.from("machines")).in("id",ids);
+        return {data:data as unknown as Record<string,unknown>[]|null,error};
       });
-    } else {
-      const { data, error } = await query;
-      if (error) {
-        throw new Error(`Machines ophalen mislukt: ${error.message}`);
-      }
-      rows = ((data ?? []) as unknown as Record<string, unknown>[]);
+    }else if(options.limit){
+      const {data,error}=await orderedMachineSummaries(supabase.from("machines")).limit(options.limit);
+      if(error)throw new Error(`Machines ophalen mislukt: ${error.message}`);
+      rows=(data??[]) as unknown as Record<string,unknown>[];
+    }else{
+      rows=await fetchAllSupabaseRows(async(from,to)=>{
+        const {data,error}=await orderedMachineSummaries(supabase.from("machines")).range(from,to);
+        return {data:data as unknown as Record<string,unknown>[]|null,error};
+      });
     }
-    let machines = rows
-      .map((row) => mapMachineRow(row))
-      .sort((left, right) =>
-        options.orderBy === "updated_at_desc"
-          ? right.updatedAt.localeCompare(left.updatedAt)
-          : left.machineNumber.localeCompare(right.machineNumber, "nl")
-      );
-    if (options.ids?.length && filterLocally) {
-      const wantedIds = new Set(options.ids);
-      machines = machines.filter((machine) => wantedIds.has(machine.id));
-    }
-    if (options.limit && filterLocally) {
-      machines = machines.slice(0, options.limit);
-    }
+    let machines=rows.map(row=>mapMachineRow(row)).sort((left,right)=>options.orderBy==="updated_at_desc"?right.updatedAt.localeCompare(left.updatedAt):left.machineNumber.localeCompare(right.machineNumber,"nl"));
+    if(options.limit)machines=machines.slice(0,options.limit);
 
     return includeArchived ? machines : machines.filter((machine) => !isMachineArchived(machine));
   }
@@ -2829,6 +2803,16 @@ export async function getInspectionNumberSeeds(years?: number[]) {
     }
     return seeds;
   }, {});
+}
+
+// Customer lists only need the latest inspection date, not every machine snapshot.
+export async function getInspectionCustomerDates():Promise<Pick<InspectionRecord,"customerId"|"inspectionDate">[]>{
+  if(hasSupabaseConfig()){
+    const supabase=createSupabaseAdmin();
+    const rows=await fetchAllSupabaseRows((from,to)=>supabase.from("inspections").select("customer_id, inspection_date").order("id").range(from,to));
+    return rows.map(row=>({customerId:String(row.customer_id),inspectionDate:String(row.inspection_date??"")}));
+  }
+  return (await listDemoData()).inspections.map(({customerId,inspectionDate})=>({customerId,inspectionDate}));
 }
 
 export async function getInspectionSummaries() {

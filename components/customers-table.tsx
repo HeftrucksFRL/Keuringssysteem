@@ -7,8 +7,8 @@ import { formatDisplayDate } from "@/lib/utils";
 
 interface CustomersTableProps {
   customers: CustomerRecord[];
-  machines: MachineRecord[];
-  inspections: InspectionRecord[];
+  machines: Pick<MachineRecord,"customerId">[];
+  inspections: Pick<InspectionRecord,"customerId"|"inspectionDate">[];
   emptyTitle?: string;
   emptyDescription?: string;
 }

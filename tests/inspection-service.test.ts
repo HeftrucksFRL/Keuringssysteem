@@ -49,3 +49,13 @@ test("een koppeling van een ander machinetype wordt niet overgenomen", () => {
 
   assert.deepEqual(configuration, { location: "Leeuwarden" });
 });
+
+import {getInspectionCustomerDates,getInspectionSummaries} from "../lib/inspection-service";
+test("light customer history retains every customer/date pair without machine snapshots",async()=>{
+ const previous=process.env.LOCAL_TEST_MODE;process.env.LOCAL_TEST_MODE="1";
+ try{
+  const [dates,inspections]=await Promise.all([getInspectionCustomerDates(),getInspectionSummaries()]);
+  assert.deepEqual(dates,inspections.map(({customerId,inspectionDate})=>({customerId,inspectionDate})));
+  assert.ok(dates.every(row=>Object.keys(row).length===2));
+ }finally{if(previous===undefined)delete process.env.LOCAL_TEST_MODE;else process.env.LOCAL_TEST_MODE=previous;}
+});
