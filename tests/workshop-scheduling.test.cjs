@@ -22,3 +22,12 @@ test('week navigation crosses year boundaries and starts on Monday',()=>{
   assert.equal(weekStart('2026-11-12'),'2026-11-09');
   assert.equal(addDays('2026-12-28',7),'2027-01-04');
 });
+
+test('end times preserve existing durations and reject backwards ranges through negative duration',()=>{
+  const {endTime,durationUntil}=require('../modules/werkplaats/assets/planning.js');
+  for(const [start,duration,end] of [['08:00',120,'10:00'],['08:15',195,'11:30'],['23:00',60,'00:00']]){
+    assert.equal(endTime(start,duration),end);assert.equal(durationUntil(start,end),duration);
+  }
+  assert.equal(durationUntil('10:00','09:00'),-60);
+  assert.equal(durationUntil('08:00','08:00'),0);
+});

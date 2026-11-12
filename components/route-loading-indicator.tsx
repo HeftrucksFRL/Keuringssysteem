@@ -47,7 +47,7 @@ export function RouteLoadingIndicator() {
       }
 
       const submitButton = target.closest("button[type='submit']") as HTMLButtonElement | null;
-      if (submitButton && !submitButton.disabled) {
+      if (submitButton && !submitButton.disabled && !target.closest("[data-client-interaction]")) {
         setLoading(true);
       }
     }

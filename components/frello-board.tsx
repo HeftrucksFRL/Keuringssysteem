@@ -1,5 +1,5 @@
 "use client";
-import { Fragment,useCallback,useEffect,useLayoutEffect,useRef,useState,type FormEvent,type DragEvent } from "react";
+import { Fragment,useCallback,useEffect,useLayoutEffect,useRef,useState,type FormEvent,type PointerEvent as ReactPointerEvent } from "react";
 import { initialFrelloState,moveFrelloCard,frelloDropBefore,persistFrelloOptimistically,validateFrelloUpload,type FrelloBoard,type FrelloCard,type FrelloState,type FrelloFile } from "@/lib/frello";
 import "./frello-board.css";
 
@@ -16,7 +16,7 @@ export function FrelloBoardView({demo,author,userId}:{demo:boolean;author:string
   const [boardMenu,setBoardMenu]=useState(false);
   const [search,setSearch]=useState(""),[assigned,setAssigned]=useState(""),[archives,setArchives]=useState(false),[dragging,setDragging]=useState<string|null>(null);
   const [dropTarget,setDropTarget]=useState<{columnId:string;beforeId?:string}|null>(null),[dragHeight,setDragHeight]=useState(120),[landed,setLanded]=useState<string|null>(null);
-  const root=useRef<HTMLDivElement>(null),dragId=useRef<string|null>(null),target=useRef<typeof dropTarget>(null),ghost=useRef<HTMLElement|null>(null),positions=useRef(new Map<string,DOMRect>()),interaction=useRef(0),landingTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
+  const root=useRef<HTMLDivElement>(null),dragId=useRef<string|null>(null),target=useRef<typeof dropTarget>(null),ghost=useRef<HTMLElement|null>(null),positions=useRef(new Map<string,DOMRect>()),interaction=useRef(0),landingTimer=useRef<ReturnType<typeof setTimeout>|null>(null),pointerCleanup=useRef<(()=>void)|null>(null),suppressClickUntil=useRef(0);
   const modal=useRef<HTMLDialogElement>(null),fileInput=useRef<HTMLInputElement>(null),lock=useRef(false),selectedId=useRef<string|null>(null);
   const personId=demo?`demo-${author.toLowerCase()}`:userId;
   const isOpen=Boolean(card||creatingBoard||editingColumns||boardMenu);
@@ -59,32 +59,48 @@ export function FrelloBoardView({demo,author,userId}:{demo:boolean;author:string
     root.current?.querySelectorAll<HTMLElement>('[data-frello-card]').forEach(el=>{const id=el.dataset.frelloCard!,before=positions.current.get(id),after=el.getBoundingClientRect();if(before&&id!==dragId.current&&id!==landed&&(before.x!==after.x||before.y!==after.y))el.animate([{transform:`translate(${before.x-after.x}px,${before.y-after.y}px)`},{transform:'translate(0,0)'}],{duration:170,easing:'cubic-bezier(.2,.8,.2,1)'});});
     positions.current.clear();
   },[dropTarget,board,landed]);
-  useEffect(()=>()=>{ghost.current?.remove();if(landingTimer.current)clearTimeout(landingTimer.current);},[]);
-  function beginDrag(e:DragEvent<HTMLButtonElement>,id:string){
-    if(lock.current||archives){e.preventDefault();return;}
-    interaction.current++;dragId.current=id;target.current=null;
-    const rect=e.currentTarget.getBoundingClientRect();setDragHeight(rect.height);rememberPositions();
-    const image=e.currentTarget.cloneNode(true) as HTMLElement;image.removeAttribute('data-frello-card');image.setAttribute('aria-hidden','true');image.classList.add('fr-drag-preview');image.style.width=`${rect.width}px`;image.style.height=`${rect.height}px`;root.current?.appendChild(image);ghost.current=image;
-    e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',id);e.dataTransfer.setDragImage(image,Math.min(rect.width-1,e.clientX-rect.left),Math.min(rect.height-1,e.clientY-rect.top));
-    setDragging(id);setLanded(null);setDropTarget(null);
-    // The browser snapshots the tilted clone, then owns the pointer-following image.
-    setTimeout(()=>{image.remove();if(ghost.current===image)ghost.current=null;},0);
+  useEffect(()=>()=>{pointerCleanup.current?.();ghost.current?.remove();if(landingTimer.current)clearTimeout(landingTimer.current);},[]);
+  function beginDrag(e:ReactPointerEvent<HTMLButtonElement>,id:string){
+    if(lock.current||loading||archives||e.button!==0)return;
+    pointerCleanup.current?.();
+    const source=e.currentTarget,rect=source.getBoundingClientRect(),sx=e.clientX,sy=e.clientY,pointer=e.pointerId;
+    let x=sx,y=sy,active=false,frame=0;
+    const tick=()=>{
+      if(!active)return;
+      if(ghost.current)ghost.current.style.transform=`translate3d(${x-(sx-rect.left)}px,${y-(sy-rect.top)}px,0) rotate(-4deg)`;
+      const column=document.elementFromPoint(x,y)?.closest<HTMLElement>('[data-frello-column]');
+      if(column&&root.current?.contains(column)){
+        const columnId=column.dataset.frelloColumn!;
+        const cards=Array.from(column.querySelectorAll<HTMLElement>('[data-frello-card]')).filter(el=>el.dataset.frelloCard!==id).map(el=>{const r=el.getBoundingClientRect();return {id:el.dataset.frelloCard!,top:r.top,height:r.height};});
+        const slot=column.querySelector<HTMLElement>(".fr-drop-slot")?.getBoundingClientRect();
+        const beforeId=target.current?.columnId===columnId&&slot&&y>=slot.top&&y<=slot.bottom?target.current.beforeId:frelloDropBefore(cards,y);
+        if(target.current?.columnId!==columnId||target.current.beforeId!==beforeId){rememberPositions();target.current={columnId,beforeId};setDropTarget(target.current);}
+      }else if(target.current){rememberPositions();target.current=null;setDropTarget(null);}
+      const scroll=root.current?.querySelector<HTMLElement>('.fr-columns');if(scroll){const r=scroll.getBoundingClientRect();if(y>=r.top&&y<=r.bottom){if(x>r.right-45)scroll.scrollLeft+=12;else if(x<r.left+45)scroll.scrollLeft-=12;}}
+      if(y>innerHeight-60)window.scrollBy(0,12);else if(y<60)window.scrollBy(0,-12);
+      frame=requestAnimationFrame(tick);
+    };
+    const move=(ev:PointerEvent)=>{if(ev.pointerId!==pointer)return;x=ev.clientX;y=ev.clientY;
+      if(!active&&Math.hypot(x-sx,y-sy)>=5){active=true;interaction.current++;dragId.current=id;target.current=null;setDragHeight(rect.height);rememberPositions();
+        const image=source.cloneNode(true) as HTMLElement;image.removeAttribute('data-frello-card');image.setAttribute('aria-hidden','true');image.classList.add('fr-drag-preview');image.style.width=rect.width+'px';image.style.height=rect.height+'px';root.current?.appendChild(image);ghost.current=image;
+        setDragging(id);setLanded(null);setDropTarget(null);frame=requestAnimationFrame(tick);
+      }if(active)ev.preventDefault();
+    };
+    const cleanup=()=>{cancelAnimationFrame(frame);document.removeEventListener('pointermove',move);document.removeEventListener('pointerup',up);document.removeEventListener('pointercancel',cancel);document.removeEventListener('keydown',key);window.removeEventListener('blur',cancel);pointerCleanup.current=null;endDrag();};
+    const cancel=()=>{if(active)suppressClickUntil.current=Date.now()+350;active=false;cleanup();};
+    const key=(ev:KeyboardEvent)=>{if(ev.key==='Escape')cancel();};
+    const up=(ev:PointerEvent)=>{if(ev.pointerId!==pointer)return;const column=document.elementFromPoint(ev.clientX,ev.clientY)?.closest<HTMLElement>('[data-frello-column]');
+      let destination=target.current;
+      if(!column||!root.current?.contains(column))destination=null;
+      else if(destination?.columnId!==column.dataset.frelloColumn){const cards=Array.from(column.querySelectorAll<HTMLElement>('[data-frello-card]')).filter(el=>el.dataset.frelloCard!==id).map(el=>{const r=el.getBoundingClientRect();return {id:el.dataset.frelloCard!,top:r.top,height:r.height};});destination={columnId:column.dataset.frelloColumn!,beforeId:frelloDropBefore(cards,ev.clientY)};}
+      const wasActive=active;active=false;if(wasActive){suppressClickUntil.current=Date.now()+350;ev.preventDefault();}rememberPositions();cleanup();if(wasActive&&destination)void drop(id,destination);};
+    pointerCleanup.current=cancel;document.addEventListener('pointermove',move,{passive:false});document.addEventListener('pointerup',up);document.addEventListener('pointercancel',cancel);document.addEventListener('keydown',key);window.addEventListener('blur',cancel);
   }
   function endDrag(){ghost.current?.remove();ghost.current=null;dragId.current=null;target.current=null;setDragging(null);setDropTarget(null);}
-  function hoverColumn(e:DragEvent<HTMLElement>,columnId:string){
-    if(!dragId.current||lock.current)return;e.preventDefault();e.dataTransfer.dropEffect='move';
-    const cards=Array.from(e.currentTarget.querySelectorAll<HTMLElement>('[data-frello-card]')).filter(el=>el.dataset.frelloCard!==dragId.current).map(el=>{const r=el.getBoundingClientRect();return {id:el.dataset.frelloCard!,top:r.top,height:r.height};});
-    const beforeId=frelloDropBefore(cards,e.clientY),next={columnId,beforeId};
-    // Keep distant columns reachable without dragging the board scrollbar first.
-    const scroll=root.current?.querySelector<HTMLElement>('.fr-columns');if(scroll){const r=scroll.getBoundingClientRect();if(e.clientX>r.right-50)scroll.scrollBy({left:65,behavior:'smooth'});else if(e.clientX<r.left+50)scroll.scrollBy({left:-65,behavior:'smooth'});}
-    if(target.current?.columnId===columnId&&target.current.beforeId===beforeId)return;
-    rememberPositions();target.current=next;setDropTarget(next);
-  }
-  async function drop(e:DragEvent,columnId:string){
-    e.preventDefault();e.stopPropagation();const id=dragId.current;if(!id||!board?.state||lock.current){endDrag();return;}
-    const before=target.current?.columnId===columnId?target.current.beforeId:undefined,next=moveFrelloCard(board.state,id,columnId,before);
-    rememberPositions();endDrag();if(next===board.state)return;
-    setLanded(id);if(landingTimer.current)clearTimeout(landingTimer.current);landingTimer.current=setTimeout(()=>setLanded(null),240);
+  async function drop(id:string,destination:{columnId:string;beforeId?:string}){
+    if(!board?.state||lock.current)return;
+    const next=moveFrelloCard(board.state,id,destination.columnId,destination.beforeId);if(next===board.state)return;
+    setLanded(id);if(landingTimer.current)clearTimeout(landingTimer.current);landingTimer.current=setTimeout(()=>setLanded(null),200);
     await save(next,board.title,true);
   }
   function dropSlot(){return <div className="fr-drop-slot" style={{height:dragHeight}} aria-hidden="true"><span>Hier neerzetten</span></div>;}
@@ -95,10 +111,10 @@ export function FrelloBoardView({demo,author,userId}:{demo:boolean;author:string
   function download(file:FrelloFile){if(!demo){window.open('/api/frello/bijlagen?id='+encodeURIComponent(file.id),'_blank','noopener');return;}const stored=demoData().files.find(f=>f.id===file.id);if(stored){const a=document.createElement('a');a.href=stored.data;a.download=file.name;a.click();}}
   const current=board?.state;
   const shown=current?.cards.filter(c=>c.archived===archives&&(!assigned||c.assignee===assigned)&&`${c.title} ${c.company} ${c.contact} ${c.labels.join(' ')}`.toLowerCase().includes(search.toLowerCase()))||[];
-  return <div ref={root} className={`fr ${dragging ? "fr-dragging" : ""}`}>
+  return <div data-client-interaction ref={root} className={`fr ${dragging ? "fr-dragging" : ""}`}>
     <header className="fr-compact-header"><div><div className="fr-eyebrow">FRELLOBORD{demo?` · PROEFVERSIE ALS ${author.toUpperCase()}`:''}</div><h1>{board?.title||'Frellobord'}</h1><div className="fr-board-meta"><span>{board?.visibility==='private'?'🔒 Alleen voor jou':'Gezamenlijk bord'}</span><span>{shown.length} {archives?'gearchiveerde ':''}kaarten</span>{(assigned||search||archives)&&<button className="fr-clear-filter" onClick={()=>{setAssigned('');setSearch('');setArchives(false);}}>Filters wissen ×</button>}</div></div><div className="fr-compact-actions"><div className="fr-owner-legend" aria-label="Kaartkleuren"><span className="fr-legend-age">Age</span><span className="fr-legend-renze">Renze</span></div><button disabled={busy} onClick={()=>{setError('');setBoardMenu(true);}}>Bord bewerken</button></div></header>
     {!isOpen&&error&&<p role="alert" className="fr-error">{error}</p>}{notice&&<p role="status" className="fr-notice">{notice}</p>}
-    {loading&&!board?<p>Frellobord laden…</p>:current?<div className="fr-columns">{current.columns.map(column=><section key={column.id} className={`fr-column ${dropTarget?.columnId===column.id?'fr-drop-target':''}`} onDragOver={e=>hoverColumn(e,column.id)} onDrop={e=>void drop(e,column.id)} aria-label={column.name}><h3>{column.name}<span>{shown.filter(c=>c.columnId===column.id).length}</span></h3>{shown.filter(c=>c.columnId===column.id).map(c=><Fragment key={c.id}>{dropTarget?.columnId===column.id&&dropTarget.beforeId===c.id&&dropSlot()}<button data-frello-card={c.id} className={`fr-card ${dragging===c.id ? "fr-is-dragging" : ""} ${landed===c.id ? "fr-just-dropped" : ""} ${c.assignee === "Age" ? "fr-owner-age" : c.assignee === "Renze" ? "fr-owner-renze" : ""}`} draggable={!busy&&!loading&&!archives} onDragStart={e=>beginDrag(e,c.id)} onDragEnd={endDrag} onClick={()=>{if(dragId.current)return;setError('');setNewCard(false);setCard(structuredClone(c));}}><div className="fr-labels">{c.labels.map(l=><span key={l}>{l}</span>)}</div><strong>{c.title}</strong>{c.company&&<p>{c.company}</p>}<div className="fr-card-foot">{c.assignee&&<span className="fr-assignee">{c.assignee}</span>}{c.dueDate&&<span className={new Date(c.dueDate+'T23:59:59')<new Date()?'fr-overdue':''}>◷ {pretty(c.dueDate)}</span>}{c.checklist.length>0&&<span>☑ {c.checklist.filter(i=>i.done).length}/{c.checklist.length}</span>}{files.some(f=>f.card_id===c.id)&&<span>📎 {files.filter(f=>f.card_id===c.id).length}</span>}{c.comments.length>0&&<span>☷ {c.comments.length}</span>}</div></button></Fragment>)}{dropTarget?.columnId===column.id&&!dropTarget.beforeId&&dropSlot()}{!archives&&<button className="fr-add" onClick={()=>startCard(column.id)}>＋ Kaart toevoegen</button>}</section>)}</div>:!error&&<p>Maak je eerste bord aan.</p>}
+    {loading&&!board?<p>Frellobord laden…</p>:current?<div className="fr-columns">{current.columns.map(column=><section key={column.id} className={`fr-column ${dropTarget?.columnId===column.id?'fr-drop-target':''}`} data-frello-column={column.id} aria-label={column.name}><h3>{column.name}<span>{shown.filter(c=>c.columnId===column.id).length}</span></h3>{shown.filter(c=>c.columnId===column.id).map(c=><Fragment key={c.id}>{dropTarget?.columnId===column.id&&dropTarget.beforeId===c.id&&dropSlot()}<button data-frello-card={c.id} className={`fr-card ${dragging===c.id ? "fr-is-dragging" : ""} ${landed===c.id ? "fr-just-dropped" : ""} ${c.assignee === "Age" ? "fr-owner-age" : c.assignee === "Renze" ? "fr-owner-renze" : ""}`} draggable={false} onPointerDown={e=>beginDrag(e,c.id)} onClick={()=>{if(dragId.current||Date.now()<suppressClickUntil.current)return;setError('');setNewCard(false);setCard(structuredClone(c));}}><div className="fr-labels">{c.labels.map(l=><span key={l}>{l}</span>)}</div><strong>{c.title}</strong>{c.company&&<p>{c.company}</p>}<div className="fr-card-foot">{c.assignee&&<span className="fr-assignee">{c.assignee}</span>}{c.dueDate&&<span className={new Date(c.dueDate+'T23:59:59')<new Date()?'fr-overdue':''}>◷ {pretty(c.dueDate)}</span>}{c.checklist.length>0&&<span>☑ {c.checklist.filter(i=>i.done).length}/{c.checklist.length}</span>}{files.some(f=>f.card_id===c.id)&&<span>📎 {files.filter(f=>f.card_id===c.id).length}</span>}{c.comments.length>0&&<span>☷ {c.comments.length}</span>}</div></button></Fragment>)}{dropTarget?.columnId===column.id&&!dropTarget.beforeId&&dropSlot()}{!archives&&<button className="fr-add" onClick={()=>startCard(column.id)}>＋ Kaart toevoegen</button>}</section>)}</div>:!error&&<p>Maak je eerste bord aan.</p>}
     {isOpen&&<dialog ref={modal} className="fr-modal" onCancel={e=>{e.preventDefault();close();}} aria-labelledby="fr-title">
       <div className="fr-modal-top"><h2 id="fr-title">{boardMenu?'Bord bewerken':creatingBoard?'Nieuw Frellobord':editingColumns?'Bord & kolommen':newCard?'Nieuwe lead':card?.title}</h2><button type="button" disabled={busy} onClick={close} aria-label="Sluiten">✕</button></div>
       {boardMenu&&<div className="fr-settings"><label>Bord kiezen<select value={board?.id||''} onChange={e=>void load(e.target.value)} disabled={busy||loading}>{boards.map(b=><option key={b.id} value={b.id}>{b.visibility==='private'?'🔒 ':''}{b.title}</option>)}</select></label><div className="fr-fields"><label>Verantwoordelijke<select value={assigned} onChange={e=>setAssigned(e.target.value)}><option value="">Iedereen</option><option>Age</option><option>Renze</option></select></label><label>Zoeken<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Lead, bedrijf, label…"/></label></div><label className="fr-archive-toggle"><input type="checkbox" checked={archives} onChange={e=>setArchives(e.target.checked)}/>Gearchiveerde kaarten tonen</label><div className="fr-settings-buttons"><button onClick={()=>{setBoardMenu(false);setCreatingBoard(true);}}>＋ Nieuw bord</button><button disabled={!board||loading} onClick={()=>{setBoardMenu(false);setEditingColumns(true);}}>Bordnaam & kolommen</button><button disabled={loading} onClick={()=>void load()}>Vernieuwen</button></div><p>Kaarten van Age zijn blauw, kaarten van Renze zijn paars. De naam blijft ook op de kaart zichtbaar.</p>{error&&<p role="alert" className="fr-error">{error}</p>}<div className="fr-actions"><button className="fr-primary" onClick={close}>Toon bord</button></div></div>}

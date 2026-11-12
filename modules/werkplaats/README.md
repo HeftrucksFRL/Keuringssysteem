@@ -27,13 +27,13 @@ Bij een bestaand werkplaatsaccount kan Age/Renze via dezelfde pagina expliciet *
 De agenda staat rechtstreeks in de app, zonder iframe met een tweede verticale schuifbalk. De pagina zelf verzorgt het scrollen; alleen voor de brede weekindeling kan horizontaal worden geschoven. Bij een geopend venster wordt de achtergrond vastgezet. **Medewerkers** opent een compact formulier met Naam en Functie, zonder lange lijst van bestaande namen. De bestaande namen blijven in de agenda en keuzelijsten beschikbaar.
 
 - Voeg monteurs en chauffeurs toe via **Medewerkers**. Dit zijn planningsmedewerkers; zij krijgen hiermee geen inlogaccount.
-- Klik op **Werkbon** in een dagvak om direct een bon voor die monteur en datum aan te maken. Begintijd en duur staan op de bon. Nieuwe bonnen kunnen ook ongepland blijven.
+- Klik op **Werkbon** in een dagvak om direct een bon voor die monteur en datum aan te maken. Begin- en eindtijd staan op de bon; bestaande bonnen behouden hun tijdsduur. Nieuwe bonnen kunnen ook ongepland blijven.
 - Sleep een bon naar een andere medewerker of dag. De begintijd blijft behouden; pas die aan door de bon te openen. Overlappende opdrachten voor dezelfde medewerker worden geweigerd. Aansluitende opdrachten zijn toegestaan.
 - Statussen: Nieuw, Ingepland, Mee bezig, Wachten op onderdelen, Wachten op goedkeuring, Pauze, Klaar voor transport.
 - Rond de drie werkplaatscontroles af en kies Klaar voor transport. Je kunt daarna **Opnemen in chauffeursplanning** aanvinken. Chauffeur, transportdatum, tijd, ritduur, ophaaladres, afleveradres en contact zijn verplicht. De rit verschijnt na opslaan bij de chauffeur.
 - Ritten zijn ook versleepbaar. Ritstatussen: Gepland, Onderweg en Afgeleverd. Bij Afgeleverd is een ontvangstnotitie verplicht.
 - Print een geopende bon met **Print werkbon**. De bon bevat geen prijzen. De normale browser geeft ook de mogelijkheid om als PDF op te slaan.
-- Op een touchscreen kun je altijd datum, tijd en medewerker in de bon aanpassen; native slepen hangt af van het apparaat.
+- Slepen gebruikt pointerbewegingen voor muis en aanraking. De kaart volgt de aanwijzer, een gemarkeerd vak toont de bestemming en de verplaatsing verschijnt direct. Opslaan gebeurt op de achtergrond; bij een fout wordt de bon teruggezet. Escape annuleert het slepen. Datum, tijd en medewerker blijven ook in de bon aanpasbaar.
 
 ## Installatie in deze keuringsapp
 

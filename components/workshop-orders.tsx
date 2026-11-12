@@ -53,7 +53,7 @@ export function WorkshopOrders({demo,manager}:{demo:boolean;manager:boolean}){
     }catch(e){setError(e instanceof Error?e.message:"Wijzigen is niet gelukt.");}finally{setBusy(false);}
   }
   const shown=orders.filter(o=>filter==="all"||orderIsOpen(o.status));
-  return <div className="wo">
+  return <div data-client-interaction className="wo">
     <div className="wo-banner">{demo?"PROEFVERSIE · Alleen in deze browser opgeslagen":"WERKPLAATS · Gedeelde bestellijst"}<span>Aanvragen zonder prijzen</span></div>
     <header className="wo-heading"><div><Link href="/werkplaats">← Werkplaatsagenda</Link><h1>Onderdelen & gereedschap</h1><p>Schrijf op wat nodig is. Age en Renze zien het in hun overzicht.</p></div></header>
     <form className="wo-compose" onSubmit={create}>

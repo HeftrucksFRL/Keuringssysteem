@@ -6,6 +6,8 @@
   const weekStart = s => { const d = new Date(s+'T12:00:00'); return addDays(s, -(d.getDay()+6)%7); };
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const minutes = t => Number(t.slice(0,2))*60+Number(t.slice(3));
+  const endTime = (time,duration) => {const n=(minutes(time)+duration)%1440;return String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0');};
+  const durationUntil = (start,end) => (end==='00:00'?1440:minutes(end))-minutes(start);
   const uid = () => crypto.randomUUID();
   const pretty = s => s ? new Date(s+'T12:00:00').toLocaleDateString('nl-NL',{day:'numeric',month:'short'}) : 'Niet gepland';
   const options = (values, selected) => values.map(v => `<option value="${esc(v.id ?? v)}" ${(v.id ?? v) === selected ? 'selected' : ''}>${esc(v.name ?? v)}</option>`).join('');
@@ -33,17 +35,19 @@
     });
   }
   // Expose deterministic scheduling rules for verification and integrations.
-  if (typeof module !== 'undefined' && module.exports) module.exports = {collision,weekStart,addDays};
+  if (typeof module !== 'undefined' && module.exports) module.exports = {collision,weekStart,addDays,endTime,durationUntil};
   if (typeof document === 'undefined') return;
   window.HFWorkshopMount=init;
   document.querySelectorAll('[data-workshop-planner]:not([data-workshop-inline])').forEach(root=>void init(root));
   async function init(root, mountConfig) {
+    root.dataset.clientInteraction="";
     const config = mountConfig || window.HFWorkshopConfig || {};
     const demo = !config.api;
     let canEdit = config.readOnly!==true && new URLSearchParams(location.search).get('tablet')!=='1';
     let dialogCount=0,previousOverflow='';
     let state = demo ? seed() : {employees:[],jobs:[]}, version = 0, busy = false;
     let mode='workshop', week=weekStart(localDate(new Date())), filter='', search='', message='', dragging=null;
+    let stopPointerDrag=null,suppressClickUntil=0;
     const storageKey='hf-workshop-agenda-v2';
     if (demo) { try { const saved = JSON.parse(localStorage.getItem(storageKey)); if (saved && Array.isArray(saved.jobs) && Array.isArray(saved.employees)) state=saved; } catch { message='Eerdere proefgegevens konden niet worden geladen.'; } }
     async function request(method, body, endpoint=config.api) {
@@ -55,17 +59,19 @@
     }
     if (!demo) { root.innerHTML='<p class="hf-loading">Planning laden…</p>'; try { const result=await request('GET'); state=result.state;version=result.version;canEdit=result.canEdit===true; } catch(e) {root.innerHTML=`<p role="alert">${esc(e.message)} Vernieuw de pagina om opnieuw te proberen.</p>`;return;} }
     if(config.isActive&&!config.isActive())return;
-    async function commit(next) {
+    async function commit(next, optimistic=false) {
       if(!canEdit){message='Dit werkplaatsaccount heeft alleen kijkrechten.';return false;}
       if (busy) return false;
-      busy=true;
+      const previous=state;busy=true;
+      if(optimistic){state=next;message='Verplaatsing opslaan…';render();}
       root.setAttribute('aria-busy','true');
       try {
         if (demo) localStorage.setItem(storageKey,JSON.stringify(next));
         else { const result=await request('PUT',{state:next,version}); version=result.version; }
         state=next; message='Opgeslagen'; return true;
       } catch(e) {
-        message=e.message;
+        if(optimistic)state=previous;
+        message=(optimistic?'Niet opgeslagen; de bon is teruggezet. ':'')+e.message;
         if (e.conflict) { try {const latest=await request('GET');state=latest.state;version=latest.version;message='Een collega heeft de planning gewijzigd. De nieuwste planning is geladen; voer je wijziging opnieuw uit.';} catch { message='De planning is intussen gewijzigd. Vernieuw de pagina voordat je verdergaat.'; } }
         return false;
       } finally {busy=false;root.removeAttribute('aria-busy');render();}
@@ -83,7 +89,7 @@
     const personnel=()=>state.employees.filter(e=>e.role===(mode==='driver'?'driver':'mechanic') && (!filter || e.id===filter));
     function card(j) {
       const info=mode==='driver'?j.transport:j;
-      return `<button type="button" draggable="${canEdit}" data-job="${j.id}" class="hf-job hf-status-${STATUSES.indexOf(j.status)} ${info?.state==='Afgeleverd'?'hf-done':''}" aria-label="Open ${esc(j.number)} ${esc(j.machine)}"><span class="hf-job-meta">${esc(j.number)} <span>${esc(info?.time || '')} · ${info?.duration || 120} min</span></span><strong>${esc(j.machine)}</strong><span>${esc(j.customer)}</span><span class="hf-badge">${esc(mode==='driver'?info?.state||j.status:j.status)}</span></button>`;
+      return `<button type="button" draggable="${canEdit}" data-job="${j.id}" class="hf-job hf-status-${STATUSES.indexOf(j.status)} ${info?.state==='Afgeleverd'?'hf-done':''}" aria-label="Open ${esc(j.number)} ${esc(j.machine)}"><span class="hf-job-meta">${esc(j.number)} <span>${esc(info?.time || '')}–${esc(endTime(info?.time||'08:00',info?.duration||120))}</span></span><strong>${esc(j.machine)}</strong><span>${esc(j.customer)}</span><span class="hf-badge">${esc(mode==='driver'?info?.state||j.status:j.status)}</span></button>`;
     }
     function render() {
       if(config.isActive&&!config.isActive())return;
@@ -119,31 +125,49 @@
       root.querySelector('#hf-search').onchange=e=>{search=e.target.value;render();};
       root.querySelector('#hf-search').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();search=e.target.value;render();}};
       root.querySelectorAll('[data-job]').forEach(el=>{
-        el.onclick=()=>edit(state.jobs.find(j=>j.id===el.dataset.job));
-        el.ondragstart=e=>{if(!canEdit){e.preventDefault();return;}dragging=el.dataset.job;e.dataTransfer.setData('text/plain',dragging);e.dataTransfer.effectAllowed='move';};
-        el.ondragend=()=>{dragging=null;root.querySelectorAll('.hf-over').forEach(c=>c.classList.remove('hf-over'));};
+        el.onclick=()=>{if(Date.now()<suppressClickUntil)return;edit(state.jobs.find(j=>j.id===el.dataset.job));};
+        el.draggable=false;
+        el.onpointerdown=e=>beginPointerDrag(e,el);
       });
       root.querySelectorAll('[data-create-date]').forEach(el=>el.onclick=()=>{
         if(mode==='driver')transportPicker(el.dataset.createDate,el.dataset.createPerson);
         else edit(null,{date:el.dataset.createDate,employee:el.dataset.createPerson,status:'Ingepland'});
       });
-      root.querySelectorAll('.hf-cell').forEach(el=>{
-        el.ondragover=e=>{e.preventDefault();e.dataTransfer.dropEffect='move';el.classList.add('hf-over');};
-        el.ondragleave=()=>el.classList.remove('hf-over');
-        el.ondrop=async e=>{
-          if(!canEdit)return;
-          e.preventDefault();el.classList.remove('hf-over');
-          const id=dragging;dragging=null;if(!id||busy)return;
-          const old=state.jobs.find(j=>j.id===id);if(!old)return;
-          if(mode==='driver'&&!old.transport){edit(old,{}, {date:el.dataset.date,driver:el.dataset.person});return;}
-          if(mode==='driver'&&old.transport.state==='Afgeleverd'){message='Een afgeleverde rit kan niet worden verplaatst.';render();return;}
-          const next=structuredClone(old);
-          if(mode==='driver'){next.transport.date=el.dataset.date;next.transport.driver=el.dataset.person;}
-          else{next.date=el.dataset.date;next.employee=el.dataset.person;if(next.status==='Nieuw')next.status='Ingepland';}
-          if(collision(state.jobs,next,mode==='driver'?'driver':'workshop')){message='Deze medewerker heeft op dat tijdstip al een bon. Open de bon en kies een andere begintijd.';render();return;}
-          await commit({...state,jobs:state.jobs.map(j=>j.id===id?next:j)});
-        };
-      });
+    }
+
+    function beginPointerDrag(e,el){
+      if(!canEdit||busy||e.button!==0)return;
+      const id=el.dataset.job,rect=el.getBoundingClientRect(),startX=e.clientX,startY=e.clientY;
+      let x=startX,y=startY,active=false,frame=0,ghost=null,slot=null,cell=null;
+      stopPointerDrag?.();
+      const move=ev=>{if(ev.pointerId!==e.pointerId)return;x=ev.clientX;y=ev.clientY;if(!active&&Math.hypot(x-startX,y-startY)>=5){active=true;dragging=id;ghost=el.cloneNode(true);ghost.removeAttribute('data-job');ghost.classList.add('hf-pointer-ghost');ghost.style.width=rect.width+'px';ghost.style.height=rect.height+'px';root.appendChild(ghost);el.classList.add('hf-drag-source');slot=document.createElement('div');slot.className='hf-drop-slot';slot.style.height=rect.height+'px';slot.textContent='Hier neerzetten';frame=requestAnimationFrame(tick);}if(active)ev.preventDefault();};
+      const tick=()=>{
+        if(!active)return;
+        ghost.style.transform='translate3d('+(x-(startX-rect.left))+'px,'+(y-(startY-rect.top))+'px,0) rotate(-3deg)';
+        const over=document.elementFromPoint(x,y)?.closest('.hf-cell');
+        const next=over&&root.contains(over)?over:null;
+        if(next!==cell){cell?.classList.remove('hf-over');cell=next;if(cell){cell.classList.add('hf-over');cell.insertBefore(slot,cell.querySelector('.hf-add'));}else slot.remove();}
+        if(y>innerHeight-60)window.scrollBy(0,12);else if(y<60)window.scrollBy(0,-12);
+        const scroller=root.querySelector('.hf-agenda-wrap'),r=scroller?.getBoundingClientRect();if(r&&y>r.top&&y<r.bottom){if(x>r.right-35)scroller.scrollLeft+=12;else if(x<r.left+35)scroller.scrollLeft-=12;}
+        frame=requestAnimationFrame(tick);
+      };
+      const cleanup=()=>{cancelAnimationFrame(frame);document.removeEventListener('pointermove',move);document.removeEventListener('pointerup',up);document.removeEventListener('pointercancel',cancel);document.removeEventListener('keydown',key);window.removeEventListener('blur',cancel);ghost?.remove();slot?.remove();cell?.classList.remove('hf-over');el.classList.remove('hf-drag-source');dragging=null;stopPointerDrag=null;};
+      const cancel=()=>{if(active)suppressClickUntil=Date.now()+350;active=false;cleanup();};
+      const key=ev=>{if(ev.key==='Escape')cancel();};
+      const up=ev=>{if(ev.pointerId!==e.pointerId)return;const hit=document.elementFromPoint(ev.clientX,ev.clientY)?.closest(".hf-cell"),destination=hit&&root.contains(hit)?hit:null,wasActive=active;if(active){suppressClickUntil=Date.now()+350;ev.preventDefault();}active=false;cleanup();if(wasActive&&destination)void dropJob(id,destination);};
+      stopPointerDrag=cancel;document.addEventListener('pointermove',move,{passive:false});document.addEventListener('pointerup',up);document.addEventListener('pointercancel',cancel);document.addEventListener('keydown',key);window.addEventListener('blur',cancel);
+    }
+    async function dropJob(id,el){
+      if(busy)return;const old=state.jobs.find(j=>j.id===id);if(!old)return;
+      if(mode==='driver'&&!old.transport){edit(old,{}, {date:el.dataset.date,driver:el.dataset.person});return;}
+      if(mode==='driver'&&old.transport.state==='Afgeleverd'){message='Een afgeleverde rit kan niet worden verplaatst.';render();return;}
+      const next=structuredClone(old);
+      if(mode==='driver'){next.transport.date=el.dataset.date;next.transport.driver=el.dataset.person;}
+      else{next.date=el.dataset.date;next.employee=el.dataset.person;if(next.status==='Nieuw')next.status='Ingepland';}
+      if(JSON.stringify(next)===JSON.stringify(old))return;
+      if(collision(state.jobs,next,mode==='driver'?'driver':'workshop')){message='Deze medewerker heeft op dat tijdstip al een bon. Open de bon en kies een andere begintijd.';render();return;}
+      const saving=commit({...state,jobs:state.jobs.map(j=>j.id===id?next:j)},true);
+      root.querySelectorAll('[data-job]').forEach(card=>{if(card.dataset.job===id)card.animate([{transform:'rotate(-3deg) scale(1.03)'},{transform:'none'}],{duration:170});});await saving;
     }
     function dialog(html) {
       const previous=document.activeElement;
@@ -173,13 +197,13 @@
       const j={id:uid(),number:'Nieuwe bon',customer:'',machine:'',serial:'',task:'',notes:'',employee:'',date:'',time:'08:00',duration:120,status:'Nieuw',checks:[false,false,false],transport:null,...existing,...preset};
       const t={driver:'',date:'',time:'08:00',duration:60,pickup:'Eigen werkplaats',address:'',contact:'',instructions:'',state:'Gepland',confirmation:'',...j.transport,...transportPreset};
       const checks=['Werkzaamheden uitgevoerd','Veiligheid en werking gecontroleerd','Machine en accessoires klaar voor transport'];
-      const d=dialog(`<form class="hf-job-form"><div class="hf-dialog-title"><div><div class="hf-eyebrow">WERKBON ZONDER PRIJZEN</div><h2>${esc(j.number)}</h2></div><button type="button" data-close aria-label="Sluiten">✕</button></div><div class="hf-form-grid"><section><h3>Werkplaats</h3><div class="hf-fields">${field('Klant','customer',j.customer,'text','required maxlength="180"')}${field('Machine / vlootnummer','machine',j.machine,'text','required maxlength="180"')}${field('Serienummer','serial',j.serial)}<label>Medewerker<select name="employee"><option value="">Nog toewijzen</option>${options(state.employees.filter(p=>p.role==='mechanic'),j.employee)}</select></label>${field('Datum','date',j.date,'date')}${field('Begintijd','time',j.time,'time','required step="900"')}${field('Duur in minuten','duration',j.duration,'number','required min="15" max="1440" step="15"')}<label>Status<select name="status">${options(STATUSES,j.status)}</select></label></div><label>Werkzaamheden<textarea name="task" required rows="4" maxlength="6000">${esc(j.task)}</textarea></label><div class="hf-checklist">${checks.map((c,i)=>`<label><input type="checkbox" name="check${i}" ${j.checks[i]?'checked':''}>${c}</label>`).join('')}</div><label>Terugkoppeling / onderdelen<textarea name="notes" rows="3" maxlength="6000">${esc(j.notes)}</textarea></label>${activityHtml(j)}</section>
+      const d=dialog(`<form class="hf-job-form"><div class="hf-dialog-title"><div><div class="hf-eyebrow">WERKBON ZONDER PRIJZEN</div><h2>${esc(j.number)}</h2></div><button type="button" data-close aria-label="Sluiten">✕</button></div><div class="hf-form-grid"><section><h3>Werkplaats</h3><div class="hf-fields">${field('Klant','customer',j.customer,'text','required maxlength="180"')}${field('Machine / vlootnummer','machine',j.machine,'text','required maxlength="180"')}${field('Serienummer','serial',j.serial)}<label>Medewerker<select name="employee"><option value="">Nog toewijzen</option>${options(state.employees.filter(p=>p.role==='mechanic'),j.employee)}</select></label>${field('Datum','date',j.date,'date')}${field('Begintijd','time',j.time,'time','required step="900"')}${field('Eindtijd','endTime',endTime(j.time,j.duration),'time','required step="900"')}<label>Status<select name="status">${options(STATUSES,j.status)}</select></label></div><label>Werkzaamheden<textarea name="task" required rows="4" maxlength="6000">${esc(j.task)}</textarea></label><div class="hf-checklist">${checks.map((c,i)=>`<label><input type="checkbox" name="check${i}" ${j.checks[i]?'checked':''}>${c}</label>`).join('')}</div><label>Terugkoppeling / onderdelen<textarea name="notes" rows="3" maxlength="6000">${esc(j.notes)}</textarea></label>${activityHtml(j)}</section>
       <section class="hf-transport"><h3>Transport naar de chauffeur</h3><p>Beschikbaar zodra de status <strong>Klaar voor transport</strong> is. Met ingevulde gegevens verschijnt de rit in de chauffeursplanning.</p><fieldset class="hf-transport-fields" ${j.status!=='Klaar voor transport'?'disabled':''}><label class="hf-publish"><input type="checkbox" name="publish" ${j.transport || transportPreset.driver?'checked':''}>Opnemen in chauffeursplanning</label><div class="hf-fields"><label>Chauffeur<select name="driver"><option value="">Kies chauffeur</option>${options(state.employees.filter(p=>p.role==='driver'),t.driver)}</select></label>${field('Transportdatum','transportDate',t.date,'date')}${field('Vertrektijd','transportTime',t.time,'time','step="900"')}${field('Ritduur in minuten','transportDuration',t.duration,'number','min="15" max="1440" step="15"')}</div>${field('Ophaaladres','pickup',t.pickup)}${field('Afleveradres','address',t.address)}${field('Contactpersoon en telefoon','contact',t.contact)}<label>Laad- en afleverinstructies<textarea name="instructions" rows="3" maxlength="6000">${esc(t.instructions)}</textarea></label><label>Ritstatus<select name="transportState">${options(['Gepland','Onderweg','Afgeleverd'],t.state)}</select></label><label>Aflevernotitie / ontvangen door<textarea name="confirmation" rows="2" maxlength="2000">${esc(t.confirmation)}</textarea></label></fieldset></section></div><p role="alert" class="hf-form-error"></p><div class="hf-form-actions">${!isNew?'<button type="button" data-print>Print werkbon</button>':''}<button type="button" data-close>Annuleren</button><button class="hf-primary" type="submit">${isNew?'Werkbon maken':'Wijzigingen opslaan'}</button></div></form>`);
       const form=d.querySelector('form'), transportFields=d.querySelector('fieldset');
       form.elements.status.onchange=()=>{transportFields.disabled=form.elements.status.value!=='Klaar voor transport';};
       function read() {
         const f=new FormData(form), val=n=>String(f.get(n)||'').trim();
-        const updated={...j,customer:val('customer'),machine:val('machine'),serial:val('serial'),task:val('task'),notes:val('notes'),employee:val('employee'),date:val('date'),time:val('time'),duration:Number(val('duration')),status:val('status'),checks:checks.map((_,i)=>f.has('check'+i))};
+        const updated={...j,customer:val('customer'),machine:val('machine'),serial:val('serial'),task:val('task'),notes:val('notes'),employee:val('employee'),date:val('date'),time:val('time'),duration:durationUntil(val('time'),val('endTime')),status:val('status'),checks:checks.map((_,i)=>f.has('check'+i))};
         if(updated.status==='Klaar voor transport'&&f.has('publish')) updated.transport={driver:val('driver'),date:val('transportDate'),time:val('transportTime'),duration:Number(val('transportDuration')),pickup:val('pickup'),address:val('address'),contact:val('contact'),instructions:val('instructions'),state:val('transportState'),confirmation:val('confirmation')};
         else updated.transport=null;
         return updated;
@@ -192,6 +216,7 @@
         if(updated.status!=='Nieuw'&&(!updated.employee||!updated.date))return fail('Kies een monteur en datum voor deze status.');
         if(Boolean(updated.employee)!==Boolean(updated.date))return fail('Vul zowel een monteur als een datum in, of laat beide leeg voor een nieuwe bon.');
         if(updated.status==='Klaar voor transport'&&!updated.checks.every(Boolean))return fail('Vink eerst alle drie de werkplaatscontroles af.');
+        if(!Number.isFinite(updated.duration)||updated.duration<15||updated.duration%15)return fail('Kies een eindtijd na de begintijd, in stappen van 15 minuten. 00:00 betekent einde van de dag.');
         if(minutes(updated.time)+updated.duration>1440)return fail('De werkplaatsopdracht moet binnen dezelfde dag vallen.');
         if(collision(state.jobs,updated,'workshop'))return fail('Deze monteur heeft op dat tijdstip al een bon. Kies een andere begintijd.');
         if(updated.transport){const tr=updated.transport;if(!tr.driver||!tr.date||!tr.time||!tr.pickup||!tr.address||!tr.contact)return fail('Vul chauffeur, transportdatum, vertrektijd, ophaaladres, afleveradres en contactpersoon in.');if(tr.duration<15||tr.duration>1440||tr.duration%15||minutes(tr.time)+tr.duration>1440)return fail('Vul een geldige ritduur in die binnen dezelfde dag valt.');if(tr.state==='Afgeleverd'&&!tr.confirmation)return fail('Noteer bij aflevering wie de machine heeft ontvangen.');if(collision(state.jobs,updated,'driver'))return fail('Deze chauffeur heeft op dat tijdstip al een rit.');}
@@ -231,12 +256,12 @@
     }
     function printJob(j) {
       const print=document.createElement('article');print.className='hf-print';
-      print.innerHTML=`<header><strong>HEFTRUCKS FRIESLAND</strong><span>${esc(j.number)} · WERKBON</span></header><h1>${esc(j.machine)}</h1><h2>${esc(j.customer)}</h2><p>Serienummer: ${esc(j.serial)}<br>Monteur: ${esc(personName(j.employee))}<br>Planning: ${pretty(j.date)} ${esc(j.time)} · ${j.duration} minuten<br>Status: ${esc(j.status)}</p><h3>Werkplaatsinstructie</h3><p>${esc(j.task)}</p>${['Werkzaamheden uitgevoerd','Veiligheid en werking gecontroleerd','Machine en accessoires transportklaar'].map((c,i)=>`<p>${j.checks[i]?'☑':'☐'} ${c}</p>`).join('')}<h3>Terugkoppeling / onderdelen</h3><p>${esc(j.notes)||'___________________________________________________'}</p>${activityHtml(j)}<h3>Transport en aflevering</h3>${j.transport?`<p>Chauffeur: ${esc(personName(j.transport.driver))}<br>Vertrek: ${pretty(j.transport.date)} ${esc(j.transport.time)}<br>Ophalen: ${esc(j.transport.pickup)}<br>Afleveren: ${esc(j.transport.address)}<br>Contact: ${esc(j.transport.contact)}</p><p>${esc(j.transport.instructions)}</p><p>Ritstatus: ${esc(j.transport.state)}<br>${esc(j.transport.confirmation)}</p>`:'<p>Transport nog niet ingepland.</p>'}<p class="hf-sign">Datum: __________________ Naam / handtekening: __________________</p><footer>Werkbon zonder prijzen ${demo?'· Proefversie':''}</footer>`;
+      print.innerHTML=`<header><strong>HEFTRUCKS FRIESLAND</strong><span>${esc(j.number)} · WERKBON</span></header><h1>${esc(j.machine)}</h1><h2>${esc(j.customer)}</h2><p>Serienummer: ${esc(j.serial)}<br>Monteur: ${esc(personName(j.employee))}<br>Planning: ${pretty(j.date)} ${esc(j.time)}–${endTime(j.time,j.duration)}<br>Status: ${esc(j.status)}</p><h3>Werkplaatsinstructie</h3><p>${esc(j.task)}</p>${['Werkzaamheden uitgevoerd','Veiligheid en werking gecontroleerd','Machine en accessoires transportklaar'].map((c,i)=>`<p>${j.checks[i]?'☑':'☐'} ${c}</p>`).join('')}<h3>Terugkoppeling / onderdelen</h3><p>${esc(j.notes)||'___________________________________________________'}</p>${activityHtml(j)}<h3>Transport en aflevering</h3>${j.transport?`<p>Chauffeur: ${esc(personName(j.transport.driver))}<br>Vertrek: ${pretty(j.transport.date)} ${esc(j.transport.time)}<br>Ophalen: ${esc(j.transport.pickup)}<br>Afleveren: ${esc(j.transport.address)}<br>Contact: ${esc(j.transport.contact)}</p><p>${esc(j.transport.instructions)}</p><p>Ritstatus: ${esc(j.transport.state)}<br>${esc(j.transport.confirmation)}</p>`:'<p>Transport nog niet ingepland.</p>'}<p class="hf-sign">Datum: __________________ Naam / handtekening: __________________</p><footer>Werkbon zonder prijzen ${demo?'· Proefversie':''}</footer>`;
       document.body.appendChild(print);document.body.classList.add('hf-printing');
       const cleanup=()=>{print.remove();document.body.classList.remove('hf-printing');};
       window.addEventListener('afterprint',cleanup,{once:true});try{window.print();}finally{cleanup();}
     }
     render();
-    return ()=>{if(refreshTimer)window.clearInterval(refreshTimer);root.querySelectorAll('dialog').forEach(d=>{if(d.open)d.close();d.remove();});if(dialogCount>0){dialogCount=0;document.body.style.overflow=previousOverflow;}};
+    return ()=>{stopPointerDrag?.();if(refreshTimer)window.clearInterval(refreshTimer);root.querySelectorAll('dialog').forEach(d=>{if(d.open)d.close();d.remove();});if(dialogCount>0){dialogCount=0;document.body.style.overflow=previousOverflow;}};
   }
 })();

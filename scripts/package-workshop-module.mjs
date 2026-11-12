@@ -12,7 +12,7 @@ const zip=new AdmZip();
 files.push('app/werkplaats/tablet/page.tsx','app/api/werkplaats/session/route.ts','app/api/werkplaats/tablet-account/route.ts','lib/workshop-access.ts','components/workshop-sign-out.tsx','components/workshop-tablet-setup.tsx','supabase/workshop-tablet-access.sql','tests/workshop-access.test.ts');
 files.push('app/werkplaats/bestellingen/page.tsx','app/api/werkplaats/bestellingen/route.ts','components/workshop-orders.tsx','components/workshop-orders.css','components/workshop-order-alert.tsx','lib/workshop-orders.ts','supabase/workshop-orders.sql','tests/workshop-orders.test.ts');
 files.push('components/app-navigation.css','app/frello/page.tsx','app/api/frello/route.ts','app/api/frello/bijlagen/route.ts','components/frello-board.tsx','components/frello-board.css','lib/frello.ts','supabase/frello.sql','tests/frello.test.ts','docs/frello-module.md');
-files.push('components/workshop-planner.tsx');
+files.push('components/workshop-planner.tsx','components/route-loading-indicator.tsx','app/api/werkplaats/werkbon/route.ts');
 for(const file of files)zip.addFile(file,fs.readFileSync(path.join(root,file)));
 const patch=execFileSync('git',['diff','b12f3ec','--','components/app-navigation.tsx','components/auth-status.tsx','components/login-form.tsx','app/login/actions.ts','app/login/page.tsx','app/layout.tsx','app/page.tsx','middleware.ts'],{cwd:root});
 zip.addFile('navigation.patch',patch);
