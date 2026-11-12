@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const workshopStatuses = ["Nieuw", "Ingepland", "Mee bezig", "Wachten op onderdelen", "Wachten op goedkeuring", "Pauze", "Werkbon-controle", "On hold", "Klaar voor transport"] as const;
-export const workshopActivitySchema=z.object({requestId:z.string().uuid(),jobId:z.string().min(1).max(80),employeeId:z.string().min(1).max(80),action:z.enum(["start","pause","parts","review","hold","note"]),text:z.string().trim().max(3000)}).strict().refine(v=>v.action!=="note"||v.text.length>0,{message:"Vul een notitie in."});
+export const workshopActivitySchema=z.object({requestId:z.string().uuid(),jobId:z.string().min(1).max(80),employeeId:z.string().min(1).max(80),action:z.enum(["start","pause","parts","review","hold","note","time"]),text:z.string().trim().max(3000),actualMinutes:z.number().int().min(0).max(600000).optional()}).strict().refine(v=>v.action!=="note"||v.text.length>0,{message:"Vul een notitie in."}).refine(v=>v.action!=="time"||v.actualMinutes!==undefined,{message:"Vul de werkelijk bestede tijd in."});
 export type WorkshopActivityInput=z.infer<typeof workshopActivitySchema>;
 const text = z.string().trim().max(6000);
 const name = z.string().trim().min(1).max(180);
@@ -21,8 +21,8 @@ const jobSchema = z.object({
   id, number: z.string().regex(/^WB-\d{4,}$/), customer: name, machine: name,
   serial: text, task: text.min(1), notes: text, employee: z.union([id, z.literal("")]),
   date: z.union([date, z.literal("")]), time, duration, status: z.enum(workshopStatuses),
-  checks: z.tuple([z.boolean(), z.boolean(), z.boolean()]), transport: transportSchema.nullable()
-  ,updates:z.array(z.object({id:z.string().uuid(),employeeId:z.string().max(80),employeeName:z.string().max(180),action:z.enum(["start","pause","parts","review","hold","note"]),text:z.string().max(3000),at:z.string().datetime()}).strict()).max(500).optional()
+  checks: z.tuple([z.boolean(), z.boolean(), z.boolean()]), transport: transportSchema.nullable(), actualMinutes:z.number().int().min(0).max(600000).optional(),
+  updates:z.array(z.object({id:z.string().uuid(),employeeId:z.string().max(80),employeeName:z.string().max(180),action:z.enum(["start","pause","parts","review","hold","note","time"]),text:z.string().max(3000),at:z.string().datetime(),actualMinutes:z.number().int().min(0).max(600000).optional()}).strict()).max(500).optional()
 }).strict();
 export type WorkshopJob = z.infer<typeof jobSchema>;
 export const workshopStateSchema = z.object({
@@ -66,9 +66,9 @@ export function applyWorkshopActivity(state:WorkshopState,input:WorkshopActivity
   if(!employee)throw new Error("Kies je naam uit de medewerkerslijst.");
   if(job.updates?.some(u=>u.id===input.requestId))return state;
   if((job.updates?.length||0)>=500)throw new Error("Deze bon heeft het maximale aantal updates. Vraag Age of Renze om hulp.");
-  if(input.action!=="note"&&(job.transport||job.status==="Klaar voor transport"))throw new Error("Deze bon is vrijgegeven voor transport. Vraag Age of Renze om de status aan te passen.");
-  if(input.action!=="note"&&(!job.employee||!job.date))throw new Error("Deze bon is nog niet ingepland. Je kunt wel een notitie toevoegen.");
+  if(!["note","time"].includes(input.action)&&(job.transport||job.status==="Klaar voor transport"))throw new Error("Deze bon is vrijgegeven voor transport. Vraag Age of Renze om de status aan te passen.");
+  if(!["note","time"].includes(input.action)&&(!job.employee||!job.date))throw new Error("Deze bon is nog niet ingepland. Je kunt wel een notitie toevoegen.");
   const statuses={start:"Mee bezig",pause:"Pauze",parts:"Wachten op onderdelen",review:"Werkbon-controle",hold:"On hold"} as const;
-  const changed={...job,status:input.action==="note"?job.status:statuses[input.action],updates:[...(job.updates||[]),{id:input.requestId,employeeId:employee.id,employeeName:employee.name,action:input.action,text:input.text,at}]};
+  const changed={...job,status:input.action==="note"||input.action==="time"?job.status:statuses[input.action],...(input.actualMinutes!==undefined?{actualMinutes:input.actualMinutes}:{}),updates:[...(job.updates||[]),{id:input.requestId,employeeId:employee.id,employeeName:employee.name,action:input.action,text:input.text,at,...(input.actualMinutes!==undefined?{actualMinutes:input.actualMinutes}:{})}]};
   return {...state,jobs:state.jobs.map(j=>j.id===job.id?changed:j)};
 }

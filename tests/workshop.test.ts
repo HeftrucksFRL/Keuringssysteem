@@ -49,3 +49,26 @@ test("tablet cannot schedule or release transport, but may leave notes on unplan
     assert.equal(applyWorkshopActivity(current,{...activity,action:"note"}).jobs[0].status,changed.status);
   }
 });
+
+test("actual work time is independent of planning and records the mechanic and timestamp",()=>{
+ const state=parse([job]);if(!state.success)throw new Error("fixture");
+ const input=workshopActivitySchema.parse({...activity,action:"time",text:"",actualMinutes:135});
+ const next=applyWorkshopActivity(state.data.state,input,"2026-11-12T14:00:00.000Z");
+ assert.equal(next.jobs[0].actualMinutes,135);assert.equal(next.jobs[0].duration,120);assert.equal(next.jobs[0].time,"08:00");assert.equal(next.jobs[0].status,"Ingepland");
+ assert.equal(next.jobs[0].updates?.[0].actualMinutes,135);assert.equal(next.jobs[0].updates?.[0].employeeName,"Jelle");
+ assert.equal(workshopSaveSchema.safeParse({state:next,version:1}).success,true);
+ assert.equal(applyWorkshopActivity(next,input),next);
+ const correction=applyWorkshopActivity(next,{...input,requestId:"d3e82ffa-f8c2-41e1-9c8c-c4f07cb92399",actualMinutes:150});
+ assert.equal(correction.jobs[0].actualMinutes,150);assert.equal(correction.jobs[0].updates?.[0].actualMinutes,135);
+});
+test("time validation rejects missing, negative, fractional and extreme time; review may include actual time",()=>{
+ for(const actualMinutes of [undefined,-1,1.5,600001])assert.equal(workshopActivitySchema.safeParse({...activity,action:"time",actualMinutes}).success,false);
+ const state={employees,jobs:[job]} as WorkshopState;
+ const next=applyWorkshopActivity(state,{...activity,action:"review",actualMinutes:95});
+ assert.equal(next.jobs[0].status,"Werkbon-controle");assert.equal(next.jobs[0].actualMinutes,95);
+ for(const changed of [{...job,status:"Nieuw",employee:"",date:""},{...job,status:"Klaar voor transport",checks:[true,true,true]}]){
+   const current={employees,jobs:[changed]} as WorkshopState;
+   const result=applyWorkshopActivity(current,{...activity,action:"time",actualMinutes:60});
+   assert.equal(result.jobs[0].status,changed.status);assert.equal(result.jobs[0].actualMinutes,60);
+ }
+});
