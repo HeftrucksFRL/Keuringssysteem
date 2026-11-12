@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import {courseOccurrences,type CourseAgendaItem} from "@/lib/course-agenda";
+import "./course-agenda.css";
 import { CheckCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import {
@@ -33,11 +35,12 @@ interface PlanningCalendarProps {
   agendaEventItems: AgendaEventRecord[];
   customers: CustomerRecord[];
   machines: MachineRecord[];
+  externalCourses?: boolean;
   initialMonth?: string;
   children?: ReactNode;
 }
 
-type ViewFilter = "all" | "inspections" | "rentals" | "appointments";
+type ViewFilter = "all" | "inspections" | "rentals" | "appointments" | "courses";
 
 type AgendaEvent =
   | {
@@ -72,7 +75,7 @@ type AgendaEvent =
       kind: "appointment";
       dueDate: string;
       place: string;
-      appointment: AgendaEventRecord;
+      appointment: AgendaEventRecord & {course?:CourseAgendaItem};
       machineList: [];
     };
 
@@ -234,19 +237,19 @@ function eventMatchesFilter(event: AgendaEvent, filter: ViewFilter) {
   if (filter === "rentals") {
     return event.kind === "rental";
   }
-  return event.kind === "appointment";
+  return event.kind === "appointment" && (filter==="courses"?Boolean(event.appointment.course):!event.appointment.course);
 }
 
 function mobileDaySummary(events: AgendaEvent[]) {
   const counts = {
     inspection: 0,
     rental: 0,
-    appointment: 0
+    appointment: 0, course: 0
   };
   let inspectionTone: PlanningDisplayState = "upcoming";
 
   for (const event of events) {
-    counts[event.kind] += 1;
+    if(event.kind==="appointment"&&event.appointment.course)counts.course++;else counts[event.kind] += 1;
     if (event.kind === "inspection") {
       if (event.state === "overdue") {
         inspectionTone = "overdue";
@@ -257,6 +260,7 @@ function mobileDaySummary(events: AgendaEvent[]) {
   }
 
   return ([
+    counts.course ? {kind:"course" as const,tone:"course" as const,label:`${counts.course} cursus`} : null,
     counts.inspection
       ? {
           kind: "inspection" as const,
@@ -269,8 +273,8 @@ function mobileDaySummary(events: AgendaEvent[]) {
       ? { kind: "appointment" as const, tone: "appointment" as const, label: `${counts.appointment} vrij` }
       : null
   ].filter(Boolean) as Array<{
-    kind: "inspection" | "rental" | "appointment";
-    tone: PlanningDisplayState | "rental" | "appointment";
+    kind: "inspection" | "rental" | "appointment" | "course";
+    tone: PlanningDisplayState | "rental" | "appointment" | "course";
     label: string;
   }>).slice(0, 3);
 }
@@ -313,8 +317,11 @@ export function PlanningCalendar({
   customers,
   machines,
   initialMonth,
+  externalCourses=false,
   children
 }: PlanningCalendarProps) {
+  const [courseItems,setCourseItems]=useState<CourseAgendaItem[]>([]);
+  const [courseMessage,setCourseMessage]=useState(""),[courseError,setCourseError]=useState(false),[courseRefresh,setCourseRefresh]=useState(0);
   const [anchorDate, setAnchorDate] = useState(() => parseMonthKey(initialMonth));
   const [query, setQuery] = useState("");
   const [sortByPlace, setSortByPlace] = useState(true);
@@ -364,6 +371,17 @@ export function PlanningCalendar({
   const monthStart = startOfMonth(anchorDate);
   const monthStartIso = formatLocalDateInput(monthStart);
   const monthEndIso = formatLocalDateInput(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0));
+
+  useEffect(()=>{
+    if(!externalCourses)return;
+    let active=true;const controller=new AbortController();
+    const load=async()=>{setCourseMessage('Cursusagenda van Age laden…');
+      try{const response=await fetch('/api/planning/cursussen?'+new URLSearchParams({from:monthStartIso,to:monthEndIso}),{cache:'no-store',signal:controller.signal});const data=await response.json();if(!response.ok)throw new Error(data.message||'Cursusagenda ophalen mislukt.');if(!active)return;setCourseItems(data.courses);setCourseError(false);setCourseMessage('Cursusagenda Age · alleen lezen · bijgewerkt '+new Date(data.fetchedAt).toLocaleTimeString('nl-NL',{timeZone:'Europe/Amsterdam',hour:'2-digit',minute:'2-digit'}));}
+      catch(e){if(active&&!controller.signal.aborted){setCourseError(true);setCourseMessage((e instanceof Error?e.message:'Cursusagenda ophalen mislukt.')+' Eerder geladen cursussen kunnen verouderd zijn.');}}
+    };
+    void load();const timer=setInterval(()=>{if(!document.hidden)void load();},300000);
+    return()=>{active=false;controller.abort();clearInterval(timer);};
+  },[externalCourses,monthStartIso,monthEndIso,courseRefresh]);
 
   const calendarEvents = useMemo(() => {
     const groupedPlanning = new Map<string, AgendaEvent>();
@@ -455,7 +473,8 @@ export function PlanningCalendar({
         machineList: []
       }));
 
-    const allEvents = [...Array.from(groupedPlanning.values()), ...rentalEvents, ...manualEvents];
+    const externalEvents:AgendaEvent[]=courseOccurrences(externalCourses?courseItems:[],monthStartIso,monthEndIso).map(item=>({key:item.id,kind:"appointment",dueDate:item.eventDate,place:item.course.location,appointment:item,machineList:[]}));
+    const allEvents = [...Array.from(groupedPlanning.values()), ...rentalEvents, ...manualEvents,...externalEvents];
     const needle = query.trim().toLowerCase();
 
     return allEvents
@@ -525,6 +544,8 @@ export function PlanningCalendar({
       });
   }, [
     agendaEventItems,
+    courseItems,
+    externalCourses,
     customerById,
     items,
     machineById,
@@ -694,7 +715,7 @@ export function PlanningCalendar({
               {groups.map((event) => (
                 <button
                   key={event.key}
-                  className={`agenda-row ${event.kind === "appointment" ? "appointment" : event.kind === "rental" ? "rental" : event.state}`}
+                  className={`agenda-row ${event.kind === "appointment" ? (event.appointment.course?"course":"appointment") : event.kind === "rental" ? "rental" : event.state}`}
                   type="button"
                   onClick={() => setSelectedEventKey(event.key)}
                 >
@@ -702,7 +723,7 @@ export function PlanningCalendar({
                     {event.kind === "rental"
                       ? planningMachineLabel(event.machineList[0])
                       : event.kind === "appointment"
-                        ? "Afspraak"
+                        ? (event.appointment.course?"Cursus · Age":"Afspraak")
                         : event.routeName
                           ? "Route"
                         : event.place}
@@ -723,7 +744,7 @@ export function PlanningCalendar({
                       </span>
                     )}
                     {event.kind === "appointment" ? (
-                      <span>Afspraak</span>
+                      <span>{event.appointment.course?"Uit cursusplanning · alleen lezen":"Afspraak"}</span>
                     ) : (
                       <span>
                         {event.kind === "rental"
@@ -765,7 +786,7 @@ export function PlanningCalendar({
                   {visibleDayEvents.map((event) => (
                     <button
                       key={event.key}
-                      className={`month-event ${event.kind === "appointment" ? "appointment" : event.kind === "rental" ? "rental" : event.state} ${eventHasBatteryAccessory(event) ? "battery-accessory-event" : ""}`}
+                      className={`month-event ${event.kind === "appointment" ? (event.appointment.course?"course":"appointment") : event.kind === "rental" ? "rental" : event.state} ${eventHasBatteryAccessory(event) ? "battery-accessory-event" : ""}`}
                       type="button"
                       onClick={() => setSelectedEventKey(event.key)}
                     >
@@ -780,7 +801,7 @@ export function PlanningCalendar({
                         {event.kind === "rental"
                           ? rentalMomentLabel(event.rentalMoment)
                           : event.kind === "appointment"
-                            ? "Afspraak"
+                            ? (event.appointment.course?"Cursus · Age":"Afspraak")
                             : "Keuring"}
                       </span>
                       <span className="month-event-meta">
@@ -811,7 +832,9 @@ export function PlanningCalendar({
         </div>
       </div>
 
+      {externalCourses&&<div className={courseError?"course-sync course-sync-error":"course-sync"} role="status"><span>{courseMessage}</span><button type="button" className="button-secondary" onClick={()=>setCourseRefresh(v=>v+1)}>Cursussen verversen</button></div>}
       <div className="calendar-filter-row">
+        {externalCourses&&<button className={`button-secondary calendar-filter-button ${viewFilter==="courses"?"active-toggle":""}`} type="button" onClick={()=>setViewFilter("courses")}>Cursussen Age</button>}
         <button
           className={`button-secondary calendar-filter-button ${viewFilter === "all" ? "active-toggle" : ""}`}
           type="button"
@@ -893,7 +916,7 @@ export function PlanningCalendar({
               {selectedEvent.kind === "rental"
                 ? "Verhuur"
                 : selectedEvent.kind === "appointment"
-                  ? "Afspraak"
+                  ? (selectedEvent.appointment.course?"Cursus · alleen lezen":"Afspraak")
                   : selectedEvent.routeName
                     ? "Route"
                   : selectedInspectionTone === "Gepland"
@@ -916,7 +939,7 @@ export function PlanningCalendar({
                   </div>
                   <div className="list-item static-list-item">
                     <span>Type</span>
-                    <strong>Vrije afspraak</strong>
+                    <strong>{selectedEvent.appointment.course?"Cursus · alleen lezen":"Vrije afspraak"}</strong>
                   </div>
                 </>
               ) : selectedEvent.kind === "rental" ? (
@@ -1059,6 +1082,8 @@ export function PlanningCalendar({
                     </button>
                   </div>
                 </form>
+              ) : selectedEvent.kind === "appointment" && selectedEvent.appointment.course ? (
+                <div className="course-readonly"><p>Uit de cursusplanning van heftruckopleiding.frl. Wijzigingen en annuleringen worden bij verversen overgenomen. Bewerken kan alleen op de opleidingswebsite.</p><a className="button-secondary" href="https://heftruckopleiding.frl/planning/" target="_blank" rel="noopener noreferrer">Open cursusplanning</a></div>
               ) : selectedEvent.kind === "appointment" ? (
                 <>
                   <form

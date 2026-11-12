@@ -1,6 +1,8 @@
 import { NewAgendaWorkspace } from "@/components/new-agenda-workspace";
 import { PlanningCalendar } from "@/components/planning-calendar";
 import { PlanningCreateForm } from "@/components/planning-create-form";
+import {hasSupabaseConfig} from "@/lib/env";
+import {canManageWorkshopTablet} from "@/lib/workshop-access";
 import { requireUser } from "@/lib/auth";
 import {
   getAgendaEvents,
@@ -63,6 +65,7 @@ export default async function PlanningPage({
         }}
       >
         <PlanningCalendar
+          externalCourses={!hasSupabaseConfig()||canManageWorkshopTablet(user)}
           items={planningItems}
           rentals={rentals}
           agendaEventItems={agendaEvents}
