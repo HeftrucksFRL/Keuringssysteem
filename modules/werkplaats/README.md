@@ -24,6 +24,8 @@ Bij een bestaand werkplaatsaccount kan Age/Renze via dezelfde pagina expliciet *
 
 ## Gebruik
 
+De agenda staat rechtstreeks in de app, zonder iframe met een tweede verticale schuifbalk. De pagina zelf verzorgt het scrollen; alleen voor de brede weekindeling kan horizontaal worden geschoven. Bij een geopend venster wordt de achtergrond vastgezet. **Medewerkers** opent een compact formulier met Naam en Functie, zonder lange lijst van bestaande namen. De bestaande namen blijven in de agenda en keuzelijsten beschikbaar.
+
 - Voeg monteurs en chauffeurs toe via **Medewerkers**. Dit zijn planningsmedewerkers; zij krijgen hiermee geen inlogaccount.
 - Klik op **Werkbon** in een dagvak om direct een bon voor die monteur en datum aan te maken. Begintijd en duur staan op de bon. Nieuwe bonnen kunnen ook ongepland blijven.
 - Sleep een bon naar een andere medewerker of dag. De begintijd blijft behouden; pas die aan door de bon te openen. Overlappende opdrachten voor dezelfde medewerker worden geweigerd. Aansluitende opdrachten zijn toegestaan.

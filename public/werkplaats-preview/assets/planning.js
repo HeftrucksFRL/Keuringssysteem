@@ -35,11 +35,13 @@
   // Expose deterministic scheduling rules for verification and integrations.
   if (typeof module !== 'undefined' && module.exports) module.exports = {collision,weekStart,addDays};
   if (typeof document === 'undefined') return;
-  document.querySelectorAll('[data-workshop-planner]').forEach(init);
-  async function init(root) {
-    const config = window.HFWorkshopConfig || {};
+  window.HFWorkshopMount=init;
+  document.querySelectorAll('[data-workshop-planner]:not([data-workshop-inline])').forEach(root=>void init(root));
+  async function init(root, mountConfig) {
+    const config = mountConfig || window.HFWorkshopConfig || {};
     const demo = !config.api;
-    let canEdit = new URLSearchParams(location.search).get('tablet')!=='1';
+    let canEdit = config.readOnly!==true && new URLSearchParams(location.search).get('tablet')!=='1';
+    let dialogCount=0,previousOverflow='';
     let state = demo ? seed() : {employees:[],jobs:[]}, version = 0, busy = false;
     let mode='workshop', week=weekStart(localDate(new Date())), filter='', search='', message='', dragging=null;
     const storageKey='hf-workshop-agenda-v2';
@@ -52,6 +54,7 @@
       return data;
     }
     if (!demo) { root.innerHTML='<p class="hf-loading">Planning laden…</p>'; try { const result=await request('GET'); state=result.state;version=result.version;canEdit=result.canEdit===true; } catch(e) {root.innerHTML=`<p role="alert">${esc(e.message)} Vernieuw de pagina om opnieuw te proberen.</p>`;return;} }
+    if(config.isActive&&!config.isActive())return;
     async function commit(next) {
       if(!canEdit){message='Dit werkplaatsaccount heeft alleen kijkrechten.';return false;}
       if (busy) return false;
@@ -74,7 +77,7 @@
       catch{message='Verbinding met de planning onderbroken. Vernieuw voordat je wijzigingen maakt.';render();}
       finally{busy=false;}
     }
-    if(!demo)window.setInterval(()=>{if(!document.hidden)void refresh();},30000);
+    const refreshTimer=!demo?window.setInterval(()=>{if(!document.hidden)void refresh();},30000):null;
     const personName=id=>state.employees.find(e=>e.id===id)?.name || 'Nog toewijzen';
     const visible=j=>`${j.number} ${j.customer} ${j.machine} ${personName(j.employee)}`.toLowerCase().includes(search.toLowerCase());
     const personnel=()=>state.employees.filter(e=>e.role===(mode==='driver'?'driver':'mechanic') && (!filter || e.id===filter));
@@ -83,6 +86,7 @@
       return `<button type="button" draggable="${canEdit}" data-job="${j.id}" class="hf-job hf-status-${STATUSES.indexOf(j.status)} ${info?.state==='Afgeleverd'?'hf-done':''}" aria-label="Open ${esc(j.number)} ${esc(j.machine)}"><span class="hf-job-meta">${esc(j.number)} <span>${esc(info?.time || '')} · ${info?.duration || 120} min</span></span><strong>${esc(j.machine)}</strong><span>${esc(j.customer)}</span><span class="hf-badge">${esc(mode==='driver'?info?.state||j.status:j.status)}</span></button>`;
     }
     function render() {
+      if(config.isActive&&!config.isActive())return;
       let viewRoot=root.querySelector('.hf-view');
       if(!viewRoot){viewRoot=document.createElement('div');viewRoot.className='hf-view';root.replaceChildren(viewRoot);}
       const days=Array.from({length:7},(_,i)=>addDays(week,i));
@@ -143,8 +147,10 @@
     }
     function dialog(html) {
       const previous=document.activeElement;
-      const d=document.createElement('dialog');d.className='hf-dialog';d.innerHTML=html;root.appendChild(d);d.showModal();
-      d.addEventListener('close',()=>{d.remove();if(previous?.isConnected)previous.focus();});
+      const d=document.createElement('dialog');d.className='hf-dialog';d.innerHTML=html;root.appendChild(d);
+      if(dialogCount===0){previousOverflow=document.body.style.overflow;document.body.style.overflow='hidden';}dialogCount++;
+      d.showModal();
+      d.addEventListener('close',()=>{d.remove();dialogCount=Math.max(0,dialogCount-1);if(dialogCount===0)document.body.style.overflow=previousOverflow;if(previous?.isConnected)previous.focus();});
       d.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>d.close());return d;
     }
     function transportPicker(date, driver) {
@@ -153,7 +159,8 @@
       d.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>{d.close();edit(state.jobs.find(j=>j.id===b.dataset.pick),{}, {date,driver});});
     }
     function employeesDialog() {
-      const d=dialog(`<h2>Medewerkers</h2><p>Elke medewerker krijgt een eigen rij in de agenda.</p><ul>${state.employees.map(e=>`<li>${esc(e.name)} <span>${e.role==='driver'?'Chauffeur':'Monteur'}</span></li>`).join('')}</ul><form><h3>Medewerker toevoegen</h3>${field('Naam','name','','text','required maxlength="100"')}<label>Functie<select name="role"><option value="mechanic">Monteur</option><option value="driver">Chauffeur</option></select></label><p class="hf-form-error" role="alert"></p><div class="hf-form-actions"><button type="button" data-close>Sluiten</button><button class="hf-primary">Toevoegen</button></div></form>`);
+      const d=dialog(`<h2>Medewerker toevoegen</h2><form>${field('Naam','name','','text','required maxlength="100" autofocus')}<label>Functie<select name="role"><option value="mechanic">Monteur</option><option value="driver">Chauffeur</option></select></label><p class="hf-form-error" role="alert"></p><div class="hf-form-actions"><button type="button" data-close>Sluiten</button><button class="hf-primary">Toevoegen</button></div></form>`);
+      d.classList.add('hf-employee-dialog');
       d.querySelector('form').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target),name=f.get('name').trim();if(!name)return;
         if(state.employees.some(p=>p.name.toLowerCase()===name.toLowerCase()&&p.role===f.get('role'))){d.querySelector('.hf-form-error').textContent='Deze medewerker bestaat al met deze functie.';return;}
         if(await commit({...state,employees:[...state.employees,{id:uid(),name,role:f.get('role')}]}))d.close();else d.querySelector('.hf-form-error').textContent=message;
@@ -207,5 +214,6 @@
       window.addEventListener('afterprint',cleanup,{once:true});try{window.print();}finally{cleanup();}
     }
     render();
+    return ()=>{if(refreshTimer)window.clearInterval(refreshTimer);root.querySelectorAll('dialog').forEach(d=>{if(d.open)d.close();d.remove();});if(dialogCount>0){dialogCount=0;document.body.style.overflow=previousOverflow;}};
   }
 })();

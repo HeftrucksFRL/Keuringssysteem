@@ -2,6 +2,7 @@ import { hasSupabaseConfig } from "@/lib/env";
 import { getCurrentUser } from "@/lib/auth";
 import { isWorkshopViewer, canManageWorkshopTablet } from "@/lib/workshop-access";
 import Link from "next/link";
+import { WorkshopPlanner } from "@/components/workshop-planner";
 
 export const dynamic = "force-dynamic";
 export default async function WorkshopPage() {
@@ -9,10 +10,7 @@ export default async function WorkshopPage() {
   const user = await getCurrentUser();
   const viewer = isWorkshopViewer(user);
   return <>
-    <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><Link className="button-secondary" href="/werkplaats/bestellingen">Onderdelen & gereedschap aanvragen</Link></div>
-    {(!connected || canManageWorkshopTablet(user)) && <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><Link className="button-secondary" href="/werkplaats/tablet">Werkplaatstablet instellen</Link></div>}
-    <iframe title="Werkplaatsagenda en chauffeursplanning"
-    src={`/werkplaats-preview/index.html${connected ? `?connected=1${viewer ? "&tablet=1" : ""}` : ""}`}
-    style={{width:"100%",height:"calc(100vh - 150px)",minHeight:650,border:0,borderRadius:12,background:"#f1f6fa"}} />
+    {(!connected || canManageWorkshopTablet(user)) && <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}><Link className="button-secondary" style={{fontSize:12,padding:"8px 12px",minHeight:36}} href="/werkplaats/tablet">Tablet instellen</Link></div>}
+    <WorkshopPlanner connected={connected} readOnly={viewer}/>
   </>;
 }
