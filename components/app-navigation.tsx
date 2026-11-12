@@ -30,7 +30,8 @@ const links: Array<{
   { href: "/planning", label: "Planning", icon: FolderKanban },
   { href: "/keuringen", label: "Keuringen", icon: Wrench },
   { href: "/verhuur", label: "Verhuur", icon: PackageCheck },
-  { href: "/werkplaats", label: "Werkplaatsagenda", icon: Wrench }
+  { href: "/werkplaats", label: "Werkplaatsagenda", icon: Wrench },
+  { href: "/frello", label: "Frellobord", icon: FolderKanban }
 ];
 
 function isActive(pathname: string, href: string) {
