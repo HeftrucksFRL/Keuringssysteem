@@ -20,6 +20,10 @@ test("tablet is read-only and cannot invoke server actions through allowed pages
     assert.equal(workshopViewerRequestAllowed(p,"GET"),false);
   assert.equal(workshopViewerRequestAllowed("/api/werkplaats/session","DELETE"),true);
   assert.equal(workshopViewerRequestAllowed("/api/werkplaats/session","POST"),false);
+  assert.equal(workshopViewerRequestAllowed("/werkplaats/bestellingen","GET"),true);
+  assert.equal(workshopViewerRequestAllowed("/api/werkplaats/bestellingen","POST"),true);
+  assert.equal(workshopViewerRequestAllowed("/api/werkplaats/bestellingen","PATCH"),false);
+  assert.equal(workshopViewerRequestAllowed("/api/werkplaats/bestellingen","DELETE"),false);
 });
 test("workshop uses a username without a mailbox; existing accounts keep their login",()=>{
   assert.equal(resolveLoginIdentifier(" Werkplaats "),"werkplaats@accounts.invalid");

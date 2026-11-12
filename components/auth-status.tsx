@@ -22,7 +22,7 @@ export async function AuthStatus() {
 
   const displayName = String(user.email ?? "").trim() || "Keurmeester";
 
-  if (isWorkshopViewer(user)) return <div className="inline-meta"><span className="badge blue">Werkplaats · alleen kijken</span><WorkshopSignOut /></div>;
+  if (isWorkshopViewer(user)) return <div className="inline-meta"><span className="badge blue">Werkplaats · tablet</span><WorkshopSignOut /></div>;
 
   return (
     <div className="inline-meta">

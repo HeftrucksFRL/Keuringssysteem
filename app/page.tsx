@@ -18,6 +18,9 @@ import {
 } from "@/lib/inspection-service";
 import { formatMachineKindBrandType } from "@/lib/machine-presentation";
 import { formatDisplayDate, formatDisplayDateTime } from "@/lib/utils";
+import { WorkshopOrderAlert } from "@/components/workshop-order-alert";
+import { canManageWorkshopTablet } from "@/lib/workshop-access";
+import { hasSupabaseConfig } from "@/lib/env";
 
 function buildTodoNote(title: string, description?: string | null) {
   const trimmedTitle = title.trim();
@@ -153,6 +156,7 @@ export default async function HomePage({
 
   return (
     <>
+      {(!hasSupabaseConfig() || canManageWorkshopTablet(user)) && <WorkshopOrderAlert demo={!hasSupabaseConfig()}/>}
       <section className="hero">
         <div className="eyebrow">Dashboard</div>
         <h1>Welkom terug</h1>

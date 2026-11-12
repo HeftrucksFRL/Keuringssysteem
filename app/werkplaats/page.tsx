@@ -9,6 +9,7 @@ export default async function WorkshopPage() {
   const user = await getCurrentUser();
   const viewer = isWorkshopViewer(user);
   return <>
+    <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><Link className="button-secondary" href="/werkplaats/bestellingen">Onderdelen & gereedschap aanvragen</Link></div>
     {(!connected || canManageWorkshopTablet(user)) && <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><Link className="button-secondary" href="/werkplaats/tablet">Werkplaatstablet instellen</Link></div>}
     <iframe title="Werkplaatsagenda en chauffeursplanning"
     src={`/werkplaats-preview/index.html${connected ? `?connected=1${viewer ? "&tablet=1" : ""}` : ""}`}
