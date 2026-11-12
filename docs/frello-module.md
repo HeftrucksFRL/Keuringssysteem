@@ -9,6 +9,7 @@ Een gezamenlijk leadbord voor de bestaande accounts van Age en Renze op `/frello
 - Open een kaart om titel, omschrijving, klant/contactgegevens, verantwoordelijke, opvolgdatum en labels bij te werken. Labels worden met komma’s gescheiden.
 - Een kaart bevat een checklist, reacties en bijlagen. Reacties worden bij opslaan aan de huidige gebruiker gekoppeld. Een leeg checklistpunt wordt bij opslaan verwijderd.
 - Sleep kaarten tussen kolommen of vóór een andere kaart. Op een touchscreen kan de kolom ook in de geopende kaart worden gekozen.
+- Tijdens slepen kantelt de sleepweergave en markeert een open plek waar de kaart zal landen. Kaarten schuiven op rond die plek; de bovenste/onderste helft van een kaart bepaalt de invoegpositie. Na loslaten wordt de verplaatsing direct getoond en op de achtergrond opgeslagen. Bij een opslagfout of versieconflict gaat de kaart terug naar de vorige positie met een foutmelding. Ongewijzigd terugplaatsen veroorzaakt geen opslagverzoek. Verminderde beweging wordt gerespecteerd bij de animaties.
 - **Bord bewerken → Bordnaam & kolommen** laat de bordnaam en kolomnamen aanpassen en een nieuwe kolom toevoegen. Bord kiezen, zoeken, filteren en het archief staan eveneens in de popup, zodat het bord direct zichtbaar is.
 - Kaarten kleuren automatisch op verantwoordelijke: Age lichtblauw en Renze lichtpaars. De naam blijft zichtbaar; niet-toegewezen kaarten zijn neutraal.
 - Kaarten kunnen worden gearchiveerd en via Archief weer worden teruggezet. Er worden geen kaarten definitief verwijderd.
@@ -30,7 +31,7 @@ Met `LOCAL_TEST_MODE=1` gebruikt `/frello` voorbeeldgegevens in browseropslag. `
 
 ## Controle
 
-`npx tsx --test tests/frello.test.ts` controleert verplaatsen, rangschikken, geldige kaartgegevens, onbevoegde privacywijzigingen, tablettoegang en uploadgrenzen. `npm run build` controleert de integratie met de app.
+`npx tsx --test tests/frello.test.ts` controleert verplaatsen, rangschikken, invoeggrenzen, direct tonen bij een vertraagd opslagverzoek, terugdraaien na mislukken, geldige kaartgegevens, onbevoegde privacywijzigingen, tablettoegang en uploadgrenzen. `npm run build` controleert de integratie met de app. Verplaatsen naar een gevulde kolom en opnieuw rangschikken zijn ook via echte browserdragacties getest, gevolgd door herladen om de opgeslagen volgorde te controleren.
 
 Op 12 november 2026 is de migratie uitgevoerd in het aangesloten Supabase-project. Een transactie met de twee echte accountrollen heeft gecontroleerd dat beiden het gezamenlijke bord zien en alleen hun eigen privébord/bijlagemetadata. Een wijziging van het privébord van de ander wordt geweigerd; wijzigen van zichtbaarheid heeft geen tabelrecht. De tabletrol ziet geen bord- of bijlageregels. De tijdelijke testregels zijn met ROLLBACK verwijderd. De proefinterface is gecontroleerd op verslepen, kaartbewerking, checklist/reacties, privéborden en upload van een tekstbijlage. Er is geen proefbestand in productie opgeslagen.
 

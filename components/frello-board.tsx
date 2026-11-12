@@ -1,6 +1,6 @@
 "use client";
-import { useCallback,useEffect,useRef,useState,type FormEvent,type DragEvent } from "react";
-import { initialFrelloState,moveFrelloCard,validateFrelloUpload,type FrelloBoard,type FrelloCard,type FrelloState,type FrelloFile } from "@/lib/frello";
+import { Fragment,useCallback,useEffect,useLayoutEffect,useRef,useState,type FormEvent,type DragEvent } from "react";
+import { initialFrelloState,moveFrelloCard,frelloDropBefore,persistFrelloOptimistically,validateFrelloUpload,type FrelloBoard,type FrelloCard,type FrelloState,type FrelloFile } from "@/lib/frello";
 import "./frello-board.css";
 
 const demoKey="hf-frello-demo-v1";
@@ -15,28 +15,37 @@ export function FrelloBoardView({demo,author,userId}:{demo:boolean;author:string
   const [card,setCard]=useState<FrelloCard|null>(null),[newCard,setNewCard]=useState(false),[creatingBoard,setCreatingBoard]=useState(false),[editingColumns,setEditingColumns]=useState(false);
   const [boardMenu,setBoardMenu]=useState(false);
   const [search,setSearch]=useState(""),[assigned,setAssigned]=useState(""),[archives,setArchives]=useState(false),[dragging,setDragging]=useState<string|null>(null);
+  const [dropTarget,setDropTarget]=useState<{columnId:string;beforeId?:string}|null>(null),[dragHeight,setDragHeight]=useState(120),[landed,setLanded]=useState<string|null>(null);
+  const root=useRef<HTMLDivElement>(null),dragId=useRef<string|null>(null),target=useRef<typeof dropTarget>(null),ghost=useRef<HTMLElement|null>(null),positions=useRef(new Map<string,DOMRect>()),interaction=useRef(0),landingTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
   const modal=useRef<HTMLDialogElement>(null),fileInput=useRef<HTMLInputElement>(null),lock=useRef(false),selectedId=useRef<string|null>(null);
   const personId=demo?`demo-${author.toLowerCase()}`:userId;
   const isOpen=Boolean(card||creatingBoard||editingColumns||boardMenu);
   useEffect(()=>{if(isOpen&&modal.current&&!modal.current.open)modal.current.showModal();},[isOpen]);
   const load=useCallback(async(id?:string)=>{
+    if(lock.current||dragId.current)return;
+    const epoch=interaction.current;
     setLoading(true);
     try{let list:FrelloBoard[];
       if(demo){const data=demoData();list=data.boards.filter(b=>b.visibility==="shared"||b.owner_id===personId);setBoards(list);const current=list.find(b=>b.id===(id||selectedId.current))||list[0]||null;setBoard(current);selectedId.current=current?.id||null;setFiles(data.files.filter(f=>f.board_id===current?.id));}
-      else{list=(await api("GET")).boards;setBoards(list);const chosen=list.find(b=>b.id===(id||selectedId.current))||list[0];if(chosen){const data=await api("GET",undefined,chosen.id);setBoard(data.board);selectedId.current=chosen.id;setFiles(data.files);}else{setBoard(null);setFiles([]);}}
+      else{list=(await api("GET")).boards;const chosen=list.find(b=>b.id===(id||selectedId.current))||list[0];const data=chosen?await api("GET",undefined,chosen.id):null;if(epoch!==interaction.current||lock.current||dragId.current)return;setBoards(list);if(data){setBoard(data.board);selectedId.current=data.board.id;setFiles(data.files);}else{setBoard(null);setFiles([]);}}
       setError("");
     }catch(e){setError(e instanceof Error?e.message:"Laden is mislukt.");}finally{setLoading(false);}
   },[demo,personId]);
   useEffect(()=>{void load();},[load]);
   useEffect(()=>{const timer=setInterval(()=>{if(!document.hidden&&!isOpen&&!dragging&&!lock.current)void load();},30000);return()=>clearInterval(timer);},[load,isOpen,dragging]);
   function close(){if(busy)return;setCard(null);setNewCard(false);setCreatingBoard(false);setEditingColumns(false);setBoardMenu(false);setError("");}
-  async function save(state:FrelloState,title=board?.title){
+  async function save(state:FrelloState,title=board?.title,optimistic=false){
     if(!board||lock.current)return false;lock.current=true;setBusy(true);setError("");
-    try{let updated:FrelloBoard;
+    interaction.current++;
+    if(optimistic)setNotice("Verplaatsing opslaan…");
+    const persist=async()=>{let updated:FrelloBoard;
       if(demo){const data=demoData(),current=data.boards.find(b=>b.id===board.id);if(!current||current.version!==board.version)throw new Error("Bord is intussen gewijzigd. Sluit het concept en vernieuw eerst.");updated={...current,state,title:title||current.title,version:current.version+1,updated_at:new Date().toISOString()};localStorage.setItem(demoKey,JSON.stringify({...data,boards:data.boards.map(b=>b.id===updated.id?updated:b)}));}
       else updated=(await api("PUT",{id:board.id,version:board.version,title,state})).board;
-      setBoard(updated);setBoards(all=>all.map(b=>b.id===updated.id?updated:b));setNotice("Opgeslagen");return true;
-    }catch(e){setError(e instanceof Error?e.message:"Opslaan mislukt.");return false;}finally{setBusy(false);lock.current=false;}
+      return updated;
+    };
+    try{const updated=optimistic?await persistFrelloOptimistically(board,{...board,state},persist,setBoard):await persist();
+      if(!optimistic)setBoard(updated);setBoards(all=>all.map(b=>b.id===updated.id?updated:b));setNotice("Opgeslagen");return true;
+    }catch(e){if(optimistic)setNotice("");setError((optimistic?"Niet opgeslagen: de kaart is teruggezet. ":"")+(e instanceof Error?e.message:"Opslaan mislukt."));return false;}finally{setBusy(false);lock.current=false;}
   }
   function startCard(columnId:string){setError("");setNewCard(true);setCard({id:crypto.randomUUID(),columnId,title:"",description:"",company:"",contact:"",email:"",phone:"",assignee:"",dueDate:"",labels:[],checklist:[],comments:[],archived:false});}
   async function saveCard(event:FormEvent<HTMLFormElement>){event.preventDefault();if(!card||!board?.state)return;const f=new FormData(event.currentTarget),str=(name:string)=>String(f.get(name)||"").trim();const comment=str("comment");const next:FrelloCard={...card,title:str("title"),columnId:str("columnId"),description:str("description"),company:str("company"),contact:str("contact"),email:str("email"),phone:str("phone"),assignee:str("assignee") as FrelloCard["assignee"],dueDate:str("dueDate"),labels:Array.from(new Set(str("labels").split(',').map(s=>s.trim()).filter(Boolean))),checklist:card.checklist.map(i=>({...i,text:str('check-'+i.id),done:f.has('done-'+i.id)})).filter(i=>i.text),comments:comment?[...card.comments,{id:crypto.randomUUID(),text:comment,author,createdAt:new Date().toISOString()}]:card.comments};
@@ -44,7 +53,41 @@ export function FrelloBoardView({demo,author,userId}:{demo:boolean;author:string
     const ok=await save({...board.state,cards:newCard?[...board.state.cards,next]:board.state.cards.map(c=>c.id===card.id?next:c)});if(ok){setCard(null);setNewCard(false);}
   }
   async function createBoard(e:FormEvent<HTMLFormElement>){e.preventDefault();if(lock.current)return;lock.current=true;setBusy(true);setError("");const f=new FormData(e.currentTarget),title=String(f.get('title')||'').trim(),visibility=String(f.get('visibility')) as 'private'|'shared';try{let created:FrelloBoard;if(demo){created={id:crypto.randomUUID(),title,visibility,owner_id:personId,version:0,updated_at:new Date().toISOString(),state:initialFrelloState()};const data=demoData();localStorage.setItem(demoKey,JSON.stringify({...data,boards:[...data.boards,created]}));}else created=(await api("POST",{title,visibility})).board;setBoards(all=>[...all,created]);setBoard(created);selectedId.current=created.id;setFiles([]);setCreatingBoard(false);setNotice(visibility==='private'?"Privébord gemaakt. Alleen jij ziet dit bord.":"Gezamenlijk bord gemaakt.");}catch(e){setError(e instanceof Error?e.message:"Bord maken is mislukt.");}finally{lock.current=false;setBusy(false);}}
-  async function drop(e:DragEvent,id:string,before?:string){e.preventDefault();e.stopPropagation();if(!dragging||!board?.state)return;const next=moveFrelloCard(board.state,dragging,id,before);setDragging(null);if(next!==board.state)await save(next);}
+  function rememberPositions(){positions.current=new Map(Array.from(root.current?.querySelectorAll<HTMLElement>('[data-frello-card]')||[]).map(el=>[el.dataset.frelloCard!,el.getBoundingClientRect()]));}
+  useLayoutEffect(()=>{
+    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){positions.current.clear();return;}
+    root.current?.querySelectorAll<HTMLElement>('[data-frello-card]').forEach(el=>{const id=el.dataset.frelloCard!,before=positions.current.get(id),after=el.getBoundingClientRect();if(before&&id!==dragId.current&&id!==landed&&(before.x!==after.x||before.y!==after.y))el.animate([{transform:`translate(${before.x-after.x}px,${before.y-after.y}px)`},{transform:'translate(0,0)'}],{duration:170,easing:'cubic-bezier(.2,.8,.2,1)'});});
+    positions.current.clear();
+  },[dropTarget,board,landed]);
+  useEffect(()=>()=>{ghost.current?.remove();if(landingTimer.current)clearTimeout(landingTimer.current);},[]);
+  function beginDrag(e:DragEvent<HTMLButtonElement>,id:string){
+    if(lock.current||archives){e.preventDefault();return;}
+    interaction.current++;dragId.current=id;target.current=null;
+    const rect=e.currentTarget.getBoundingClientRect();setDragHeight(rect.height);rememberPositions();
+    const image=e.currentTarget.cloneNode(true) as HTMLElement;image.removeAttribute('data-frello-card');image.setAttribute('aria-hidden','true');image.classList.add('fr-drag-preview');image.style.width=`${rect.width}px`;image.style.height=`${rect.height}px`;root.current?.appendChild(image);ghost.current=image;
+    e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',id);e.dataTransfer.setDragImage(image,Math.min(rect.width-1,e.clientX-rect.left),Math.min(rect.height-1,e.clientY-rect.top));
+    setDragging(id);setLanded(null);setDropTarget(null);
+    // The browser snapshots the tilted clone, then owns the pointer-following image.
+    setTimeout(()=>{image.remove();if(ghost.current===image)ghost.current=null;},0);
+  }
+  function endDrag(){ghost.current?.remove();ghost.current=null;dragId.current=null;target.current=null;setDragging(null);setDropTarget(null);}
+  function hoverColumn(e:DragEvent<HTMLElement>,columnId:string){
+    if(!dragId.current||lock.current)return;e.preventDefault();e.dataTransfer.dropEffect='move';
+    const cards=Array.from(e.currentTarget.querySelectorAll<HTMLElement>('[data-frello-card]')).filter(el=>el.dataset.frelloCard!==dragId.current).map(el=>{const r=el.getBoundingClientRect();return {id:el.dataset.frelloCard!,top:r.top,height:r.height};});
+    const beforeId=frelloDropBefore(cards,e.clientY),next={columnId,beforeId};
+    // Keep distant columns reachable without dragging the board scrollbar first.
+    const scroll=root.current?.querySelector<HTMLElement>('.fr-columns');if(scroll){const r=scroll.getBoundingClientRect();if(e.clientX>r.right-50)scroll.scrollBy({left:65,behavior:'smooth'});else if(e.clientX<r.left+50)scroll.scrollBy({left:-65,behavior:'smooth'});}
+    if(target.current?.columnId===columnId&&target.current.beforeId===beforeId)return;
+    rememberPositions();target.current=next;setDropTarget(next);
+  }
+  async function drop(e:DragEvent,columnId:string){
+    e.preventDefault();e.stopPropagation();const id=dragId.current;if(!id||!board?.state||lock.current){endDrag();return;}
+    const before=target.current?.columnId===columnId?target.current.beforeId:undefined,next=moveFrelloCard(board.state,id,columnId,before);
+    rememberPositions();endDrag();if(next===board.state)return;
+    setLanded(id);if(landingTimer.current)clearTimeout(landingTimer.current);landingTimer.current=setTimeout(()=>setLanded(null),240);
+    await save(next,board.title,true);
+  }
+  function dropSlot(){return <div className="fr-drop-slot" style={{height:dragHeight}} aria-hidden="true"><span>Hier neerzetten</span></div>;}
   async function upload(file:File){if(!card||newCard||!board||busy)return;if(!validateFrelloUpload(file.name,file.size)){setError("Kies een ondersteund bestand van maximaal 4 MB.");return;}setBusy(true);lock.current=true;setError("");try{let attachment:FrelloFile;if(demo){const encoded=await new Promise<string>((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result));r.onerror=reject;r.readAsDataURL(file);});attachment={id:crypto.randomUUID(),board_id:board.id,card_id:card.id,name:file.name,size:file.size,created_at:new Date().toISOString()};const data=demoData();localStorage.setItem(demoKey,JSON.stringify({...data,files:[...data.files,{...attachment,data:encoded}]}));}
     else{const data=new FormData();data.set('boardId',board.id);data.set('cardId',card.id);data.set('file',file);const csrf=document.cookie.split('; ').find(c=>c.startsWith('ks_csrf='))?.slice(8)||'';const r=await fetch('/api/frello/bijlagen',{method:'POST',headers:{'x-csrf-token':decodeURIComponent(csrf)},body:data});const result=await r.json();if(!r.ok)throw new Error(result.message||'Upload mislukt.');attachment=result.file;}
     setFiles(all=>[...all,attachment]);setNotice("Bijlage toegevoegd.");
@@ -52,10 +95,10 @@ export function FrelloBoardView({demo,author,userId}:{demo:boolean;author:string
   function download(file:FrelloFile){if(!demo){window.open('/api/frello/bijlagen?id='+encodeURIComponent(file.id),'_blank','noopener');return;}const stored=demoData().files.find(f=>f.id===file.id);if(stored){const a=document.createElement('a');a.href=stored.data;a.download=file.name;a.click();}}
   const current=board?.state;
   const shown=current?.cards.filter(c=>c.archived===archives&&(!assigned||c.assignee===assigned)&&`${c.title} ${c.company} ${c.contact} ${c.labels.join(' ')}`.toLowerCase().includes(search.toLowerCase()))||[];
-  return <div className="fr">
-    <header className="fr-compact-header"><div><div className="fr-eyebrow">FRELLOBORD{demo?` · PROEFVERSIE ALS ${author.toUpperCase()}`:''}</div><h1>{board?.title||'Frellobord'}</h1><div className="fr-board-meta"><span>{board?.visibility==='private'?'🔒 Alleen voor jou':'Gezamenlijk bord'}</span><span>{shown.length} {archives?'gearchiveerde ':''}kaarten</span>{(assigned||search||archives)&&<button className="fr-clear-filter" onClick={()=>{setAssigned('');setSearch('');setArchives(false);}}>Filters wissen ×</button>}</div></div><div className="fr-compact-actions"><div className="fr-owner-legend" aria-label="Kaartkleuren"><span className="fr-legend-age">Age</span><span className="fr-legend-renze">Renze</span></div><button onClick={()=>{setError('');setBoardMenu(true);}}>Bord bewerken</button></div></header>
+  return <div ref={root} className={`fr ${dragging ? "fr-dragging" : ""}`}>
+    <header className="fr-compact-header"><div><div className="fr-eyebrow">FRELLOBORD{demo?` · PROEFVERSIE ALS ${author.toUpperCase()}`:''}</div><h1>{board?.title||'Frellobord'}</h1><div className="fr-board-meta"><span>{board?.visibility==='private'?'🔒 Alleen voor jou':'Gezamenlijk bord'}</span><span>{shown.length} {archives?'gearchiveerde ':''}kaarten</span>{(assigned||search||archives)&&<button className="fr-clear-filter" onClick={()=>{setAssigned('');setSearch('');setArchives(false);}}>Filters wissen ×</button>}</div></div><div className="fr-compact-actions"><div className="fr-owner-legend" aria-label="Kaartkleuren"><span className="fr-legend-age">Age</span><span className="fr-legend-renze">Renze</span></div><button disabled={busy} onClick={()=>{setError('');setBoardMenu(true);}}>Bord bewerken</button></div></header>
     {!isOpen&&error&&<p role="alert" className="fr-error">{error}</p>}{notice&&<p role="status" className="fr-notice">{notice}</p>}
-    {loading&&!board?<p>Frellobord laden…</p>:current?<div className="fr-columns">{current.columns.map(column=><section key={column.id} className={`fr-column ${dragging?'fr-drop-target':''}`} onDragOver={e=>{if(dragging)e.preventDefault();}} onDrop={e=>void drop(e,column.id)} aria-label={column.name}><h3>{column.name}<span>{shown.filter(c=>c.columnId===column.id).length}</span></h3>{shown.filter(c=>c.columnId===column.id).map(c=><button key={c.id} className={`fr-card ${c.assignee === "Age" ? "fr-owner-age" : c.assignee === "Renze" ? "fr-owner-renze" : ""}`} draggable={!busy&&!archives} onDragStart={()=>setDragging(c.id)} onDragEnd={()=>setDragging(null)} onDragOver={e=>{if(dragging)e.preventDefault();}} onDrop={e=>void drop(e,column.id,c.id)} onClick={()=>{setError('');setNewCard(false);setCard(structuredClone(c));}}><div className="fr-labels">{c.labels.map(l=><span key={l}>{l}</span>)}</div><strong>{c.title}</strong>{c.company&&<p>{c.company}</p>}<div className="fr-card-foot">{c.assignee&&<span className="fr-assignee">{c.assignee}</span>}{c.dueDate&&<span className={new Date(c.dueDate+'T23:59:59')<new Date()?'fr-overdue':''}>◷ {pretty(c.dueDate)}</span>}{c.checklist.length>0&&<span>☑ {c.checklist.filter(i=>i.done).length}/{c.checklist.length}</span>}{files.some(f=>f.card_id===c.id)&&<span>📎 {files.filter(f=>f.card_id===c.id).length}</span>}{c.comments.length>0&&<span>☷ {c.comments.length}</span>}</div></button>)}{!archives&&<button className="fr-add" onClick={()=>startCard(column.id)}>＋ Kaart toevoegen</button>}</section>)}</div>:!error&&<p>Maak je eerste bord aan.</p>}
+    {loading&&!board?<p>Frellobord laden…</p>:current?<div className="fr-columns">{current.columns.map(column=><section key={column.id} className={`fr-column ${dropTarget?.columnId===column.id?'fr-drop-target':''}`} onDragOver={e=>hoverColumn(e,column.id)} onDrop={e=>void drop(e,column.id)} aria-label={column.name}><h3>{column.name}<span>{shown.filter(c=>c.columnId===column.id).length}</span></h3>{shown.filter(c=>c.columnId===column.id).map(c=><Fragment key={c.id}>{dropTarget?.columnId===column.id&&dropTarget.beforeId===c.id&&dropSlot()}<button data-frello-card={c.id} className={`fr-card ${dragging===c.id ? "fr-is-dragging" : ""} ${landed===c.id ? "fr-just-dropped" : ""} ${c.assignee === "Age" ? "fr-owner-age" : c.assignee === "Renze" ? "fr-owner-renze" : ""}`} draggable={!busy&&!loading&&!archives} onDragStart={e=>beginDrag(e,c.id)} onDragEnd={endDrag} onClick={()=>{if(dragId.current)return;setError('');setNewCard(false);setCard(structuredClone(c));}}><div className="fr-labels">{c.labels.map(l=><span key={l}>{l}</span>)}</div><strong>{c.title}</strong>{c.company&&<p>{c.company}</p>}<div className="fr-card-foot">{c.assignee&&<span className="fr-assignee">{c.assignee}</span>}{c.dueDate&&<span className={new Date(c.dueDate+'T23:59:59')<new Date()?'fr-overdue':''}>◷ {pretty(c.dueDate)}</span>}{c.checklist.length>0&&<span>☑ {c.checklist.filter(i=>i.done).length}/{c.checklist.length}</span>}{files.some(f=>f.card_id===c.id)&&<span>📎 {files.filter(f=>f.card_id===c.id).length}</span>}{c.comments.length>0&&<span>☷ {c.comments.length}</span>}</div></button></Fragment>)}{dropTarget?.columnId===column.id&&!dropTarget.beforeId&&dropSlot()}{!archives&&<button className="fr-add" onClick={()=>startCard(column.id)}>＋ Kaart toevoegen</button>}</section>)}</div>:!error&&<p>Maak je eerste bord aan.</p>}
     {isOpen&&<dialog ref={modal} className="fr-modal" onCancel={e=>{e.preventDefault();close();}} aria-labelledby="fr-title">
       <div className="fr-modal-top"><h2 id="fr-title">{boardMenu?'Bord bewerken':creatingBoard?'Nieuw Frellobord':editingColumns?'Bord & kolommen':newCard?'Nieuwe lead':card?.title}</h2><button type="button" disabled={busy} onClick={close} aria-label="Sluiten">✕</button></div>
       {boardMenu&&<div className="fr-settings"><label>Bord kiezen<select value={board?.id||''} onChange={e=>void load(e.target.value)} disabled={busy||loading}>{boards.map(b=><option key={b.id} value={b.id}>{b.visibility==='private'?'🔒 ':''}{b.title}</option>)}</select></label><div className="fr-fields"><label>Verantwoordelijke<select value={assigned} onChange={e=>setAssigned(e.target.value)}><option value="">Iedereen</option><option>Age</option><option>Renze</option></select></label><label>Zoeken<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Lead, bedrijf, label…"/></label></div><label className="fr-archive-toggle"><input type="checkbox" checked={archives} onChange={e=>setArchives(e.target.checked)}/>Gearchiveerde kaarten tonen</label><div className="fr-settings-buttons"><button onClick={()=>{setBoardMenu(false);setCreatingBoard(true);}}>＋ Nieuw bord</button><button disabled={!board||loading} onClick={()=>{setBoardMenu(false);setEditingColumns(true);}}>Bordnaam & kolommen</button><button disabled={loading} onClick={()=>void load()}>Vernieuwen</button></div><p>Kaarten van Age zijn blauw, kaarten van Renze zijn paars. De naam blijft ook op de kaart zichtbaar.</p>{error&&<p role="alert" className="fr-error">{error}</p>}<div className="fr-actions"><button className="fr-primary" onClick={close}>Toon bord</button></div></div>}

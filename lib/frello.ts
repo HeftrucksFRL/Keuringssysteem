@@ -33,7 +33,17 @@ export function moveFrelloCard(state:FrelloState,cardId:string,columnId:string,b
   const cards=state.cards.filter(c=>c.id!==cardId),moved={...card,columnId};
   const before=cards.findIndex(c=>c.id===beforeId&&c.columnId===columnId);
   if(before<0)cards.push(moved);else cards.splice(before,0,moved);
+  if(card.columnId===columnId&&cards.every((c,i)=>c.id===state.cards[i].id))return state;
   return {...state,cards};
+}
+// Pick the insertion boundary, rather than always dropping before the hovered card.
+export function frelloDropBefore(cards:{id:string;top:number;height:number}[],pointerY:number){
+  return cards.find(c=>pointerY<c.top+c.height/2)?.id;
+}
+export async function persistFrelloOptimistically<T>(previous:T,next:T,persist:()=>Promise<T>,display:(value:T)=>void):Promise<T>{
+  display(next);
+  try{const confirmed=await persist();display(confirmed);return confirmed;}
+  catch(error){display(previous);throw error;}
 }
 export const frelloFileExtensions=new Set(["pdf","png","jpg","jpeg","webp","gif","doc","docx","xls","xlsx","ppt","pptx","txt","csv","zip"]);
 export function validateFrelloUpload(name:string,size:number){const ext=name.split(".").pop()?.toLowerCase()||"";return size>0&&size<=4*1024*1024&&frelloFileExtensions.has(ext);}
