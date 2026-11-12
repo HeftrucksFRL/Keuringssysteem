@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import type { Route } from "next";
 import { hasSupabaseConfig } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
+import { isWorkshopViewer, resolveLoginIdentifier } from "@/lib/workshop-access";
 
 export interface LoginState {
   status: "idle" | "error";
@@ -18,11 +19,11 @@ export async function signInAction(
     redirect("/");
   }
 
-  const email = String(formData.get("email") || "");
+  const email = resolveLoginIdentifier(String(formData.get("email") || ""));
   const password = String(formData.get("password") || "");
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password
   });
@@ -34,7 +35,7 @@ export async function signInAction(
     };
   }
 
-  redirect("/");
+  redirect(isWorkshopViewer(data.user) ? "/werkplaats" : "/");
 }
 
 export async function signOutAction() {

@@ -29,7 +29,8 @@ const links: Array<{
   { href: "/machines", label: "Machines", icon: Forklift },
   { href: "/planning", label: "Planning", icon: FolderKanban },
   { href: "/keuringen", label: "Keuringen", icon: Wrench },
-  { href: "/verhuur", label: "Verhuur", icon: PackageCheck }
+  { href: "/verhuur", label: "Verhuur", icon: PackageCheck },
+  { href: "/werkplaats", label: "Werkplaatsagenda", icon: Wrench }
 ];
 
 function isActive(pathname: string, href: string) {
@@ -40,7 +41,7 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function AppNavigation({ variant = "desktop" }: { variant?: "desktop" | "mobile" }) {
+export function AppNavigation({ variant = "desktop", workshopOnly = false }: { variant?: "desktop" | "mobile"; workshopOnly?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const prefetchRoute = useCallback((href: Route) => router.prefetch(href), [router]);
@@ -50,7 +51,7 @@ export function AppNavigation({ variant = "desktop" }: { variant?: "desktop" | "
       return;
     }
 
-    const prefetchAll = () => links.forEach((link) => prefetchRoute(link.href));
+    const prefetchAll = () => links.filter(link => !workshopOnly || link.href === "/werkplaats").forEach((link) => prefetchRoute(link.href));
     const idleWindow = window as Window & {
       requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
       cancelIdleCallback?: (id: number) => void;
@@ -66,12 +67,12 @@ export function AppNavigation({ variant = "desktop" }: { variant?: "desktop" | "
         globalThis.clearTimeout(idleId);
       }
     };
-  }, [prefetchRoute, variant]);
+  }, [prefetchRoute, variant, workshopOnly]);
 
   if (variant === "mobile") {
     return (
       <nav className="mobile-topnav" aria-label="Hoofdnavigatie mobiel">
-        {links.map((link) => {
+        {links.filter(link => !workshopOnly || link.href === "/werkplaats").map((link) => {
           const Icon = link.icon;
           return (
             <Link
@@ -93,7 +94,7 @@ export function AppNavigation({ variant = "desktop" }: { variant?: "desktop" | "
 
   return (
     <nav className="topnav" aria-label="Hoofdnavigatie">
-      {links.map((link) => {
+      {links.filter(link => !workshopOnly || link.href === "/werkplaats").map((link) => {
         const Icon = link.icon;
         return (
           <Link

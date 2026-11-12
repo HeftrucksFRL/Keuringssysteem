@@ -7,6 +7,8 @@ import brandLogo from "../Logo Heftrucks.frl.png";
 import { AuthStatus } from "@/components/auth-status";
 import { AppNavigation } from "@/components/app-navigation";
 import { RouteLoadingIndicator } from "@/components/route-loading-indicator";
+import { getCurrentUser } from "@/lib/auth";
+import { isWorkshopViewer } from "@/lib/workshop-access";
 
 export const metadata: Metadata = {
   title: "Keuringssysteem | Heftrucks Friesland",
@@ -33,9 +35,10 @@ export const viewport: Viewport = {
   themeColor: "#005ea8"
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children
 }: Readonly<{ children: React.ReactNode }>) {
+  const workshopOnly = isWorkshopViewer(await getCurrentUser());
   return (
     <html lang="nl">
       <body>
@@ -45,7 +48,7 @@ export default function RootLayout({
           </Suspense>
           <header className="topbar">
             <div className="brand">
-              <Link className="brand-link" href="/">
+              <Link className="brand-link" href={workshopOnly ? "/werkplaats" : "/"}>
                 <Image
                   className="brand-logo"
                   src={brandLogo}
@@ -56,9 +59,9 @@ export default function RootLayout({
                   unoptimized
                 />
               </Link>
-              <span>Keuringssysteem</span>
+              <span>{workshopOnly ? "Werkplaats" : "Keuringssysteem"}</span>
             </div>
-            <AppNavigation variant="desktop" />
+            <AppNavigation variant="desktop" workshopOnly={workshopOnly} />
             <div className="auth-slot">
               <AuthStatus />
             </div>
@@ -66,7 +69,7 @@ export default function RootLayout({
           <div className="mobile-auth-slot">
             <AuthStatus />
           </div>
-          <AppNavigation variant="mobile" />
+          <AppNavigation variant="mobile" workshopOnly={workshopOnly} />
           <main className="page">{children}</main>
         </div>
       </body>

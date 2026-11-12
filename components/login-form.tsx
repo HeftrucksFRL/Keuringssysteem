@@ -12,8 +12,8 @@ export function LoginForm() {
   return (
     <form action={action} className="panel" autoComplete="on">
       <div className="field">
-        <label htmlFor="email">E-mailadres</label>
-        <input id="email" name="email" type="email" autoComplete="username" autoCapitalize="none" spellCheck={false} required placeholder="age@heftrucks.frl" />
+        <label htmlFor="email">E-mailadres of gebruikersnaam</label>
+        <input id="email" name="email" type="text" autoComplete="username" autoCapitalize="none" spellCheck={false} required placeholder="Je e-mailadres of werkplaats" />
       </div>
       <div className="field">
         <label htmlFor="password">Wachtwoord</label>

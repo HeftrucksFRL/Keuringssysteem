@@ -2,6 +2,8 @@ import Link from "next/link";
 import { signOutAction } from "@/app/login/actions";
 import { getCurrentUser } from "@/lib/auth";
 import { hasSupabaseConfig } from "@/lib/env";
+import { isWorkshopViewer } from "@/lib/workshop-access";
+import { WorkshopSignOut } from "@/components/workshop-sign-out";
 
 export async function AuthStatus() {
   if (!hasSupabaseConfig()) {
@@ -19,6 +21,8 @@ export async function AuthStatus() {
   }
 
   const displayName = String(user.email ?? "").trim() || "Keurmeester";
+
+  if (isWorkshopViewer(user)) return <div className="inline-meta"><span className="badge blue">Werkplaats · alleen kijken</span><WorkshopSignOut /></div>;
 
   return (
     <div className="inline-meta">

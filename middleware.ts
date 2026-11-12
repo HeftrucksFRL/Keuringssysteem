@@ -2,6 +2,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { hasSupabaseConfig } from "@/lib/env";
 import { ensureCsrfCookie } from "@/lib/security";
+import { isWorkshopViewer, workshopViewerRequestAllowed } from "@/lib/workshop-access";
 
 export async function middleware(request: NextRequest) {
   let response = ensureCsrfCookie(request, NextResponse.next());
@@ -49,9 +50,19 @@ export async function middleware(request: NextRequest) {
 
   if (user && isLoginRoute) {
     const homeUrl = request.nextUrl.clone();
-    homeUrl.pathname = "/";
+    homeUrl.pathname = isWorkshopViewer(user) ? "/werkplaats" : "/";
     homeUrl.search = "";
     return ensureCsrfCookie(request, NextResponse.redirect(homeUrl));
+  }
+
+  if (isWorkshopViewer(user) && !workshopViewerRequestAllowed(pathname, request.method)) {
+    if (isApiRoute || !["GET", "HEAD"].includes(request.method)) {
+      return NextResponse.json({message:"Dit werkplaatsaccount mag alleen de werkplaatsplanning bekijken."},{status:403});
+    }
+    const workshopUrl = request.nextUrl.clone();
+    workshopUrl.pathname = "/werkplaats";
+    workshopUrl.search = "";
+    return ensureCsrfCookie(request, NextResponse.redirect(workshopUrl));
   }
 
   return response;

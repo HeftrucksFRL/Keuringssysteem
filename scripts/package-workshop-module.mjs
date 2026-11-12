@@ -1,0 +1,19 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import AdmZip from 'adm-zip';
+
+const root=process.cwd();
+fs.mkdirSync(path.join(root,'public/werkplaats-preview/assets'),{recursive:true});
+for(const file of ['planning.js','planning.css'])fs.copyFileSync(path.join(root,'modules/werkplaats/assets',file),path.join(root,'public/werkplaats-preview/assets',file));
+fs.copyFileSync(path.join(root,'modules/werkplaats/preview.html'),path.join(root,'public/werkplaats-preview/index.html'));
+const files=['app/werkplaats/page.tsx','app/api/werkplaats/route.ts','lib/workshop.ts','supabase/workshop-module.sql','public/werkplaats-preview/index.html','public/werkplaats-preview/assets/planning.js','public/werkplaats-preview/assets/planning.css','modules/werkplaats/README.md','modules/werkplaats/preview.html','modules/werkplaats/assets/planning.js','modules/werkplaats/assets/planning.css','tests/workshop-scheduling.test.cjs','tests/workshop.test.ts','scripts/package-workshop-module.mjs'];
+const zip=new AdmZip();
+files.push('app/werkplaats/tablet/page.tsx','app/api/werkplaats/session/route.ts','app/api/werkplaats/tablet-account/route.ts','lib/workshop-access.ts','components/workshop-sign-out.tsx','components/workshop-tablet-setup.tsx','supabase/workshop-tablet-access.sql','tests/workshop-access.test.ts');
+for(const file of files)zip.addFile(file,fs.readFileSync(path.join(root,file)));
+const patch=execFileSync('git',['diff','--','components/app-navigation.tsx','components/auth-status.tsx','components/login-form.tsx','app/login/actions.ts','app/login/page.tsx','app/layout.tsx','middleware.ts'],{cwd:root});
+zip.addFile('navigation.patch',patch);
+zip.addFile('module.json',Buffer.from(JSON.stringify({name:'Heftrucks Friesland Werkplaatsagenda',version:'1.1.0',route:'/werkplaats',framework:'Next.js 15 / React 19',databaseMigrations:['supabase/workshop-module.sql','supabase/workshop-tablet-access.sql'],files},null,2)));
+fs.mkdirSync(path.join(root,'generated'),{recursive:true});
+const output=path.join(root,'generated/werkplaatsagenda-module-v1.1.0.zip');zip.writeZip(output);
+console.log(output);

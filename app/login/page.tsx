@@ -6,7 +6,7 @@ export default function LoginPage() {
     <section className="hero" style={{ maxWidth: "560px", margin: "0 auto" }}>
       <h1>Keuringssysteem</h1>
       <p>
-        Log in met je keurmeester-account om klanten, machines en keuringen te beheren.
+        Log in met je eigen account. Gebruik op de werkplaatstablet de gebruikersnaam ‘werkplaats’ en het afgesproken wachtwoord.
       </p>
       {!hasSupabaseConfig() ? (
         <div className="panel" style={{ marginTop: "1rem" }}>
