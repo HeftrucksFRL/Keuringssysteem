@@ -151,10 +151,9 @@ export default async function HomePage({
 
   return (
     <>
-      {(!hasSupabaseConfig() || canManageWorkshopTablet(user)) && <WorkshopOrderAlert demo={!hasSupabaseConfig()}/>}
       <section className="hero">
         <div className="eyebrow">Dashboard</div>
-        <h1>Welkom terug</h1>
+        <div className="dashboard-welcome-bar"><h1>Welkom terug</h1>{(!hasSupabaseConfig() || canManageWorkshopTablet(user)) && <WorkshopOrderAlert demo={!hasSupabaseConfig()}/>}</div>
         <p>Kies hieronder wat je vandaag wilt doen.</p>
         {params?.saved ? (
           <p className="form-message success">Keuring {params.saved} is opgeslagen.</p>
