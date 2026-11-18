@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarRange, ExternalLink, Search } from "lucide-react";
+import { ExternalLink, Search } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 import type { Route } from "next";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -287,13 +287,7 @@ export function NewAgendaWorkspace({
       </div>
 
       <section className="panel new-agenda-search-panel">
-        <div className="new-agenda-results-head">
-          <div>
-            <div className="eyebrow">Filter</div>
-            <h2>Agenda doorzoeken</h2>
-          </div>
-          <CalendarRange size={20} />
-        </div>
+        <div className="new-agenda-filter-title"><Search size={14}/><strong>Filters</strong></div>
         <form
           className="new-agenda-filters"
           onSubmit={(event) => {
@@ -388,8 +382,7 @@ export function NewAgendaWorkspace({
               placeholder="Klant, machine, serienummer"
             />
           </div>
-          <div className="field">
-            <label>&nbsp;</label>
+          <div className="field new-agenda-filter-submit">
             <button className="button" type="submit">
               Zoeken
             </button>

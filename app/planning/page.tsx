@@ -19,6 +19,7 @@ export default async function PlanningPage({
   searchParams
 }: {
   searchParams?: Promise<{
+    month?: string;
     customer?: string;
     error?: string;
     from?: string;
@@ -65,6 +66,7 @@ export default async function PlanningPage({
         }}
       >
         <PlanningCalendar
+          initialMonth={params?.month}
           externalCourses={!hasSupabaseConfig()||canManageWorkshopTablet(user)}
           items={planningItems}
           rentals={rentals}
@@ -72,7 +74,7 @@ export default async function PlanningPage({
           customers={customers}
           machines={machines}
         >
-          <PlanningCreateForm customers={customers} machines={machines} />
+          <PlanningCreateForm customers={customers} machines={machines} initialMonth={params?.month} />
         </PlanningCalendar>
       </NewAgendaWorkspace>
     </>

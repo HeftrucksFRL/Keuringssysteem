@@ -30,7 +30,7 @@ De agenda staat rechtstreeks in de app, zonder iframe met een tweede verticale s
 - Klik op **Werkbon** in een dagvak om direct een bon voor die monteur en datum aan te maken. De begintijd en een optionele richttijd staan op de bon; de werkelijk gewerkte uren worden apart ingevuld. Nieuwe bonnen kunnen ook ongepland blijven.
 - Sleep een bon naar een andere medewerker of dag. De begintijd blijft behouden; pas die aan door de bon te openen. Overlappende opdrachten voor dezelfde medewerker worden geweigerd. Aansluitende opdrachten zijn toegestaan.
 - Statussen: Nieuw, Ingepland, Mee bezig, Wachten op onderdelen, Wachten op goedkeuring, Werkbon-controle, On hold, Klaar voor transport en Afgerond. Bestaande Pauze-statussen blijven leesbaar.
-- De planner selecteert per bon uit tien check-up punten. De monteur moet alle geselecteerde punten afvinken voordat hij de bon voor controle aanbiedt. De planner kan daarna Klaar voor transport kiezen. Je kunt daarna **Opnemen in chauffeursplanning** aanvinken. Chauffeur, transportdatum, tijd, ritduur, ophaaladres, afleveradres en contact zijn verplicht. De rit verschijnt na opslaan bij de chauffeur.
+- De planner selecteert per bon uit tien check-up punten. De monteur moet alle geselecteerde punten afvinken voordat hij de bon voor controle aanbiedt. Renze/Age doet daarna de laatste controle via **Controle goed · werkbon afsluiten**. De aparte transportbon kan alvast worden voorbereid en wordt planbaar na de betaalregistratie.
 - Ritten zijn ook versleepbaar. Ritstatussen: Gepland, Onderweg en Afgeleverd. Bij Afgeleverd is een ontvangstnotitie verplicht.
 - Print een geopende bon met **Print werkbon**. De bon bevat geen prijzen. De normale browser geeft ook de mogelijkheid om als PDF op te slaan.
 - Slepen gebruikt pointerbewegingen voor muis en aanraking. De kaart volgt de aanwijzer, een gemarkeerd vak toont de bestemming en de verplaatsing verschijnt direct. Opslaan gebeurt op de achtergrond; bij een fout wordt de bon teruggezet. Escape annuleert het slepen. Datum, tijd en medewerker blijven ook in de bon aanpasbaar.
@@ -93,3 +93,29 @@ De achtergrondkleur toont de status (onder meer groen voor Mee bezig en rood voo
 Deze uitbreiding gebruikt de bestaande JSON-opslag en bestaande klanten- en machinetabellen; een nieuwe SQL-migratie is niet nodig. Proefbonnen blijven in de browser; nieuw aangemaakte klanten en machines in lokale testmodus staan in de lokale demodatabase.
 
 Aanvullende verificatie: `npx tsx --test tests/workshop-workflow.test.ts`.
+
+## Agenda en transport vanaf 18 november 2026
+
+De keuringsagenda, werkplaatsagenda en transportplanning tonen ISO-weeknummers. Nederlandse feestdagen worden per jaar berekend, inclusief Goede Vrijdag, beide paasdagen, Hemelvaart, beide pinksterdagen en Koningsdag met de zondagcorrectie. De referentie is de Rijksoverheid: https://www.rijksoverheid.nl/themas/werk/arbeidsovereenkomst-en-cao/vraag-en-antwoord/arbeidsovereenkomst-en-cao/officiele-feestdagen.
+
+Vrije agenda-afspraken hebben een begin- en einddatum (inclusief) en optionele begin- en eindtijden. Een afspraak verschijnt op alle dagen van de periode, ook over maand- of jaargrenzen. De bestaande agenda-tabel blijft bruikbaar: nieuwe afspraken bewaren de periode als versiegebonden metadata in de beschrijvingskolom; de service decodeert die naar losse velden. Bestaande beschrijvingen blijven gewone tekst. Een SQL-migratie is niet nodig.
+
+Een werkbon krijgt onmiddellijk één gekoppelde transportbon. Voorbereidingsinstructies, ophaaladres en contact kunnen tegelijk met de nieuwe werkbon worden ingevuld. De tab **Transportplanning** heeft een bak voor gekoppelde werkbonnen en een aparte bak voor inkoop/losse transporten. De monteur zet de complete bon op **Afronden / te controleren**. Alleen kantoor kan daarna de laatste controle goedkeuren en de werkbon afsluiten. De factuur wordt via het bestaande facturatiesysteem verstuurd; in de app legt kantoor de referentie, verzending en betaling handmatig vast. Het is geen automatische bank- of facturatiekoppeling. Een gekoppeld transport is pas na die afsluiting en betaalregistratie planbaar. Losse inkoopritten hebben geen klantfactuurblokkade.
+
+Transport is opgeslagen als een aparte bon in het bestaande gedeelde planningsdocument, met dag, chauffeur en positie binnen die dag. Een tijdstip is optioneel en veroorzaakt geen overlapblokkade. Ritten zijn naar een andere chauffeur/dag, binnen een dagvolgorde en terug naar hun eigen transportbak te slepen. Bestaande reeds ingeplande transporten worden met hun gegevens behouden; een oude vrijgave wordt herkend zodat zij niet plotseling verdwijnen.
+
+Een geplande werkbon kan terug naar de werkplaatsbak worden gesleept. Voorraadbonnen horen uitsluitend in voorraad; de overige soorten uitsluitend in algemeen. De bon behoudt werkzaamheden en historie.
+
+Via **Medewerkers** kunnen monteurs ook als chauffeur beschikbaar worden gemaakt, bijvoorbeeld Renze. De medewerker blijft dan eveneens in de monteursagenda.
+
+**Lege werkbon afdrukken** opent een A4-formulier met klant, datum, monteur, machinenummer, serienummer, urenstand, afleveradres, schrijfruimte voor werkzaamheden, onderdelen en uren, plus dezelfde tien controlepunten met penvakjes voor te controleren/gecheckt. Digitale werkbonnen en transportbonnen kunnen eveneens worden afgedrukt.
+
+Verificatie: `npm test`, `node --test tests/workshop-scheduling.test.cjs`, `npm run build`. De tests dekken ook betaald/onbetaald transport, kantoorcontrole, behoud van oude ritten, terugplaatsen naar bakken, kalendergrenzen en feestdagen in meerdere jaren.
+
+## Werkbonnenoverzicht, compacte filters en slepen tussen weken
+
+Het menu **Relaties & materieel → Werkbonnen** opent een documentenoverzicht zonder de planningsbediening. Het overzicht toont open en afgeronde bonnen, met filters voor jaar, maand, datum, status en zoektekst. Afgeronde bonnen gebruiken hun afsluitdatum; open bonnen de plandatum. De bon blijft via de lijst te openen en af te drukken. Het keuringsmenu gebruikt het pictogram van een rapport met een pen.
+
+Het grote filterblok boven de keuringsagenda is vervangen door een smalle filterbalk; op kleinere schermen schuiven de velden naar twee regels. De richttijd op een werkbon wordt in uren ingevoerd, met stappen van 0,25 uur, bijvoorbeeld 1,5 uur. De bestaande minutengegevens blijven behouden.
+
+Tijdens slepen verschijnen zones **Vorige week** en **Volgende week**. Laat een geplande bon op een zone los om dezelfde medewerker en weekdag in de andere week te gebruiken. Bij vasthouden boven de weekzone of aan de rand gaat de agenda vanzelf over naar de andere week; je kunt de bon vervolgens op een gekozen dag laten vallen. Dezelfde bediening werkt voor transportbonnen. Boven de werkplaatsplanning staat een kleine legenda met statusvlakjes en de balkkleuren voor soort werkbon.

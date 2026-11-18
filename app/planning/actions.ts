@@ -1,5 +1,6 @@
 "use server";
 
+import { agendaRangeSchema } from "@/lib/calendar";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireActivityActor, requireUser } from "@/lib/auth";
@@ -161,7 +162,10 @@ export async function createAgendaEventAction(formData: FormData) {
     redirect(`/planning?month=${eventDate.slice(0, 7)}&error=Vul%20een%20titel%20en%20datum%20in`);
   }
 
+  const range=agendaRangeSchema.safeParse({eventDate,endDate:String(formData.get("endDate")||eventDate),startTime:String(formData.get("startTime")||""),endTime:String(formData.get("endTime")||"")});
+  if(!range.success)redirect(`/planning?error=${encodeURIComponent(range.error.issues[0].message)}`);
   await addAgendaEvent({
+    ...range.data,
     ownerId: String(user?.id ?? "demo-user"),
     title,
     description,
@@ -195,7 +199,10 @@ export async function updateAgendaEventAction(formData: FormData) {
     redirect(`/planning?month=${month}&error=Vul%20een%20titel%20en%20datum%20in`);
   }
 
+  const range=agendaRangeSchema.safeParse({eventDate,endDate:String(formData.get("endDate")||eventDate),startTime:String(formData.get("startTime")||""),endTime:String(formData.get("endTime")||"")});
+  if(!range.success)redirect(`/planning?error=${encodeURIComponent(range.error.issues[0].message)}`);
   await updateAgendaEvent({
+    ...range.data,
     id,
     ownerId: String(user?.id ?? "demo-user"),
     title,

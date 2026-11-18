@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { isoWeek,dutchHolidays,agendaDays,agendaTimeLabel } from "@/lib/calendar";
+import "./calendar-additions.css";
 import {courseOccurrences,type CourseAgendaItem} from "@/lib/course-agenda";
 import "./course-agenda.css";
 import { CheckCircle, ChevronLeft, ChevronRight } from "lucide-react";
@@ -296,7 +298,7 @@ function dayPopupTitle(event: AgendaEvent) {
 
 function dayPopupSubtitle(event: AgendaEvent) {
   if (event.kind === "appointment") {
-    return event.appointment.description || "Losse agenda-afspraak";
+    return [event.appointment.course?"Cursus":agendaTimeLabel(event.appointment),event.appointment.description].filter(Boolean).join(" · ");
   }
 
   if (event.kind === "rental") {
@@ -462,16 +464,7 @@ export function PlanningCalendar({
       return result;
     });
 
-    const manualEvents: AgendaEvent[] = agendaEventItems
-      .filter((item) => item.eventDate >= monthStartIso && item.eventDate <= monthEndIso)
-      .map((item) => ({
-        key: `appointment-${item.id}`,
-        kind: "appointment" as const,
-        dueDate: item.eventDate,
-        place: "Eigen afspraak",
-        appointment: item,
-        machineList: []
-      }));
+    const manualEvents: AgendaEvent[] = agendaEventItems.flatMap(item=>agendaDays(item,monthStartIso,monthEndIso).map(date=>({key:"appointment-"+item.id+"-"+date,kind:"appointment" as const,dueDate:date,place:agendaTimeLabel(item),appointment:item,machineList:[] as []})));
 
     const externalEvents:AgendaEvent[]=courseOccurrences(externalCourses?courseItems:[],monthStartIso,monthEndIso).map(item=>({key:item.id,kind:"appointment",dueDate:item.eventDate,place:item.course.location,appointment:item,machineList:[]}));
     const allEvents = [...Array.from(groupedPlanning.values()), ...rentalEvents, ...manualEvents,...externalEvents];
@@ -595,7 +588,7 @@ export function PlanningCalendar({
         : customerDisplayName(selectedEvent?.customer);
   const selectedSubtitle =
     selectedEvent?.kind === "appointment"
-      ? selectedEvent.appointment.description || "Losse agenda-afspraak"
+      ? [selectedEvent.appointment.course?"Cursus":agendaTimeLabel(selectedEvent.appointment),selectedEvent.appointment.description].filter(Boolean).join(" · ")
       : selectedEvent?.kind === "inspection" && selectedEvent.routeName
         ? `${formatDisplayDate(selectedEvent.dueDate)} | ${selectedEvent.machineList.length} keuringen`
         : [
@@ -679,7 +672,7 @@ export function PlanningCalendar({
                 type="button"
                 onClick={() => setSelectedDayKey(dayKey)}
               >
-                <span className="mobile-month-cell-date">{dateNumber(day)}</span>
+                <span className="mobile-month-cell-date">{dateNumber(day)} {day.getDay()===1&&<small className="calendar-week-number">W{isoWeek(dayKey).week}</small>}</span><span className="calendar-holiday">{dutchHolidays(day.getFullYear()).filter(h=>h.date===dayKey).map(h=>h.name).join(" · ")}</span>
                 <div className="mobile-month-cell-events">
                   {daySummary.length === 0 ? (
                     <span className="mobile-month-cell-empty" />
@@ -707,7 +700,7 @@ export function PlanningCalendar({
           mobileDays.map(({ date, groups }) => (
             <section className="agenda-day-card" key={date}>
               <div className="agenda-day-head">
-                <strong>{dayLabel(parseLocalDateInput(date))}</strong>
+                <strong>{dayLabel(parseLocalDateInput(date))} · week {isoWeek(date).week}</strong>
                 <span>
                   {groups.length} {groups.length === 1 ? "afspraak" : "afspraken"}
                 </span>
@@ -723,7 +716,7 @@ export function PlanningCalendar({
                     {event.kind === "rental"
                       ? planningMachineLabel(event.machineList[0])
                       : event.kind === "appointment"
-                        ? (event.appointment.course?"Cursus · Age":"Afspraak")
+                        ? (event.appointment.course?"Cursus · Age":agendaTimeLabel(event.appointment))
                         : event.routeName
                           ? "Route"
                         : event.place}
@@ -781,7 +774,7 @@ export function PlanningCalendar({
                 className={`month-cell ${isCurrentMonth ? "" : "is-outside"} ${isToday ? "is-today" : ""}`}
                 key={dayKey}
               >
-                <div className="month-cell-date">{dateNumber(day)}</div>
+                <div className="month-cell-date">{dateNumber(day)} {day.getDay()===1&&<small className="calendar-week-number">Week {isoWeek(dayKey).week}</small>}</div><div className="calendar-holiday">{dutchHolidays(day.getFullYear()).filter(h=>h.date===dayKey).map(h=>h.name).join(" · ")}</div>
                 <div className="month-cell-events">
                   {visibleDayEvents.map((event) => (
                     <button
@@ -1104,7 +1097,7 @@ export function PlanningCalendar({
                         />
                       </div>
                       <div className="field">
-                        <label htmlFor="popup-agenda-date">Datum</label>
+                        <label htmlFor="popup-agenda-date">Van datum</label>
                         <input
                           id="popup-agenda-date"
                           name="eventDate"
@@ -1112,6 +1105,9 @@ export function PlanningCalendar({
                           defaultValue={selectedEvent.appointment.eventDate}
                         />
                       </div>
+                      <div className="field"><label htmlFor="popup-agenda-end-date">Tot en met datum</label><input id="popup-agenda-end-date" name="endDate" type="date" defaultValue={selectedEvent.appointment.endDate||selectedEvent.appointment.eventDate}/></div>
+                      <div className="field"><label htmlFor="popup-agenda-start-time">Van tijd</label><input id="popup-agenda-start-time" name="startTime" type="time" defaultValue={selectedEvent.appointment.startTime||""}/></div>
+                      <div className="field"><label htmlFor="popup-agenda-end-time">Tot tijd</label><input id="popup-agenda-end-time" name="endTime" type="time" defaultValue={selectedEvent.appointment.endTime||""}/></div>
                       <div className="field">
                         <label htmlFor="popup-agenda-description">Beschrijving</label>
                         <input

@@ -1,0 +1,39 @@
+import {test} from "node:test";
+import assert from "node:assert/strict";
+import {prepareWorkshopSave,workshopSaveSchema,type WorkshopState} from "../lib/workshop";
+import {normalizeWorkshopTransports,transportRelease,moveTransportTicket,returnWorkshopJob,validateTransportPlanning} from "../lib/workshop-transport";
+const job={id:"one",number:"WB-0001",customer:"Klant",machine:"Machine",serial:"123",task:"Onderhoud",notes:"",employee:"mechanic",date:"2026-11-18",time:"08:00",duration:60,status:"Ingepland" as const,checks:[false,false,false] as [boolean,boolean,boolean],transport:null,requiredChecks:Array(10).fill(false) as boolean[],checkedPoints:Array(10).fill(false) as boolean[]};
+const state:WorkshopState={employees:[{id:"mechanic",name:"Renze",role:"mechanic",canDrive:true},{id:"harm",name:"Harm",role:"driver"}],jobs:[job]};
+const at="2026-11-18T14:00:00.000Z";
+function approved(){const review={...state,jobs:[{...job,status:"Werkbon-controle" as const}]};return prepareWorkshopSave(review,{...review,jobs:[{...job,status:"Afgerond"}]},at,{canApprove:true,approvedBy:"Renze"});}
+function paid(){const closed=approved();return prepareWorkshopSave(closed,{...closed,jobs:closed.jobs.map(j=>({...j,invoiceReference:"FACT-1",invoicePaidAt:at}))},at);}
+test("each work order immediately has exactly one independent preparation ticket",()=>{
+ const next=prepareWorkshopSave({employees:state.employees,jobs:[]},state,at);assert.equal(next.transports?.length,1);assert.equal(next.transports?.[0].jobId,job.id);assert.equal(next.transports?.[0].driver,"");assert.equal(transportRelease(next.transports![0],next.jobs).allowed,false);assert.equal(normalizeWorkshopTransports(next).transports?.length,1);
+});
+test("only office can approve a checked work order, and payment is required before scheduling",()=>{
+ assert.throws(()=>prepareWorkshopSave(state,{...state,jobs:[{...job,status:"Afgerond"}]},at),/eerst op Afronden/);
+ const review={...state,jobs:[{...job,status:"Werkbon-controle" as const}]};assert.throws(()=>prepareWorkshopSave(review,{...review,jobs:[{...job,status:"Afgerond"}]},at,{canApprove:false,approvedBy:""}),/Alleen Renze/);
+ const closed=approved();assert.equal(closed.jobs[0].officeApprovedBy,"Renze");assert.equal(transportRelease(closed.transports![0],closed.jobs).label,"Wacht op betaling");
+ assert.throws(()=>moveTransportTicket(closed,closed.transports![0].id,{driver:"harm",date:"2026-11-19",position:0}),/betaling/);
+ assert.throws(()=>prepareWorkshopSave(closed,{...closed,jobs:closed.jobs.map(j=>({...j,invoicePaidAt:at}))},at),/factuurnummer/);
+ const forged={...closed,transports:closed.transports!.map(t=>({...t,legacyReleased:true}))};assert.throws(()=>prepareWorkshopSave(closed,forged,at),/vrijgave/);
+});
+test("paid transport moves between days and back to its tray, independent of appointment times",()=>{
+ let next=paid();next.transports![0].address="Klantadres";const id=next.transports![0].id;
+ next=moveTransportTicket(next,id,{driver:"harm",date:"2026-11-19",position:0});assert.equal(next.transports![0].appointmentTime,"");
+ next=moveTransportTicket(next,id,{driver:"mechanic",date:"2026-11-20",position:2});assert.equal(next.transports![0].driver,"mechanic");assert.equal(next.transports![0].date,"2026-11-20");
+ assert.equal(workshopSaveSchema.safeParse({version:0,state:next}).success,true);
+ next=moveTransportTicket(next,id,{driver:"",date:"",position:2});assert.equal(next.transports![0].state,"Nieuw");assert.equal(next.transports![0].jobId,"one");assert.equal(next.jobs[0].invoicePaidAt,at);
+});
+test("standalone purchase pickups require no customer invoice and may share a time while retaining their sequence",()=>{
+ const empty=normalizeWorkshopTransports({employees:state.employees,jobs:[]}),base={id:"pickup-one",kind:"Inkoop ophalen" as const,title:"Ingekochte truck ophalen",customer:"Leverancier",machine:"Linde",pickup:"Leveranciersadres",address:"Eigen werkplaats",contact:"",instructions:"Lader meenemen",driver:"harm",date:"2026-11-20",appointmentTime:"10:00",position:0,state:"Gepland" as const,confirmation:""};
+ const next={...empty,transports:[base,{...base,id:"pickup-two",position:1}]};assert.doesNotThrow(()=>validateTransportPlanning(next));assert.equal(workshopSaveSchema.safeParse({version:0,state:next}).success,true);
+});
+test("general and stock work orders return only to their original workshop tray, preserving history",()=>{
+ const stock={...job,kind:"Voorraadtruck" as const};assert.throws(()=>returnWorkshopJob({...state,jobs:[stock]},job.id,"general"),/Voorraadbonnen/);assert.throws(()=>returnWorkshopJob(state,job.id,"stock"),/Voorraadbonnen/);
+ const returned=returnWorkshopJob({...state,jobs:[stock]},job.id,"stock");assert.equal(returned.jobs[0].employee,"");assert.equal(returned.jobs[0].date,"");assert.equal(returned.jobs[0].status,"Nieuw");assert.equal(returned.jobs[0].kind,"Voorraadtruck");
+});
+test("legacy scheduled transport migrates without losing dates, addresses or release",()=>{
+ const legacy={...state,jobs:[{...job,status:"Klaar voor transport" as const,checks:[true,true,true] as [boolean,boolean,boolean],transport:{driver:"harm",date:"2026-11-19",time:"10:00",duration:60,pickup:"Werkplaats",address:"Klant",contact:"Jan",instructions:"Lader",state:"Gepland" as const,confirmation:""}}]};
+ const next=normalizeWorkshopTransports(legacy);assert.equal(next.transports![0].date,"2026-11-19");assert.equal(next.transports![0].address,"Klant");assert.equal(next.jobs[0].transport,null);assert.equal(transportRelease(next.transports![0],next.jobs).allowed,true);assert.doesNotThrow(()=>prepareWorkshopSave(legacy,next,at));
+});

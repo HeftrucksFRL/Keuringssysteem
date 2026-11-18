@@ -1,3 +1,4 @@
+import { agendaRangeSchema,packAgendaDescription,unpackAgendaDescription } from "@/lib/calendar";
 import {unwrapLazyModule} from "@/lib/lazy-module";
 import {fetchTargetedRows} from "@/lib/targeted-rows";
 import { randomUUID } from "node:crypto";
@@ -1461,8 +1462,7 @@ function mapAgendaEventRow(row: Record<string, unknown>): AgendaEventRecord {
     id: String(row.id),
     ownerId: String(row.owner_id),
     title: String(row.title ?? ""),
-    description: String(row.description ?? ""),
-    eventDate: String(row.event_date ?? ""),
+    ...unpackAgendaDescription(String(row.description ?? ""),String(row.event_date ?? "")),
     createdAt: String(row.created_at ?? ""),
     updatedAt: String(row.updated_at ?? "")
   };
@@ -3130,7 +3130,9 @@ export async function addAgendaEvent(input: {
   title: string;
   description?: string;
   eventDate: string;
+  endDate?:string;startTime?:string;endTime?:string;
 }) {
+  const range=agendaRangeSchema.parse({eventDate:input.eventDate,endDate:input.endDate||input.eventDate,startTime:input.startTime||"",endTime:input.endTime||""});
   const title = input.title.trim();
   if (!title) {
     throw new Error("Geef de afspraak een korte titel.");
@@ -3142,12 +3144,13 @@ export async function addAgendaEvent(input: {
 
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
-    await supabase.from("agenda_events").insert({
+    const {error}=await supabase.from("agenda_events").insert({
       owner_id: input.ownerId,
       title,
-      description: input.description?.trim() || null,
+      description: packAgendaDescription(input.description?.trim()||"",range),
       event_date: input.eventDate
     });
+    if(error)throw new Error("Afspraak opslaan is niet gelukt.");
     return;
   }
 
@@ -3157,7 +3160,7 @@ export async function addAgendaEvent(input: {
     ownerId: input.ownerId,
     title,
     description: input.description?.trim() || "",
-    eventDate: input.eventDate,
+    ...range,
     createdAt: nowIso(),
     updatedAt: nowIso()
   });
@@ -3170,7 +3173,9 @@ export async function updateAgendaEvent(input: {
   title: string;
   description?: string;
   eventDate: string;
+  endDate?:string;startTime?:string;endTime?:string;
 }) {
+  const range=agendaRangeSchema.parse({eventDate:input.eventDate,endDate:input.endDate||input.eventDate,startTime:input.startTime||"",endTime:input.endTime||""});
   const title = input.title.trim();
   if (!title) {
     throw new Error("Geef de afspraak een korte titel.");
@@ -3182,15 +3187,16 @@ export async function updateAgendaEvent(input: {
 
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
-    await supabase
+    const {error}=await supabase
       .from("agenda_events")
       .update({
         title,
-        description: input.description?.trim() || null,
+        description: packAgendaDescription(input.description?.trim()||"",range),
         event_date: input.eventDate
       })
       .eq("id", input.id)
       .eq("owner_id", input.ownerId);
+    if(error)throw new Error("Afspraak opslaan is niet gelukt.");
     return;
   }
 
@@ -3204,7 +3210,7 @@ export async function updateAgendaEvent(input: {
 
   item.title = title;
   item.description = input.description?.trim() || "";
-  item.eventDate = input.eventDate;
+  Object.assign(item,range);
   item.updatedAt = nowIso();
   await writeAppData(data);
 }

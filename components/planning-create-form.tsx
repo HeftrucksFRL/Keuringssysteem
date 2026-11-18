@@ -192,7 +192,7 @@ export function PlanningCreateForm({
                     </div>
 
                     <div className="field">
-                      <label htmlFor="agenda-date">Datum</label>
+                      <label htmlFor="agenda-date">Van datum</label>
                       <input
                         id="agenda-date"
                         name="eventDate"
@@ -202,6 +202,9 @@ export function PlanningCreateForm({
                       />
                     </div>
 
+                    <div className="field"><label htmlFor="agenda-end-date">Tot en met datum</label><input id="agenda-end-date" name="endDate" type="date" /></div>
+                    <div className="field"><label htmlFor="agenda-start-time">Van tijd (optioneel)</label><input id="agenda-start-time" name="startTime" type="time" /></div>
+                    <div className="field"><label htmlFor="agenda-end-time">Tot tijd (optioneel)</label><input id="agenda-end-time" name="endTime" type="time" /></div>
                     <div className="field">
                       <label htmlFor="agenda-description">Beschrijving</label>
                       <input id="agenda-description" name="description" placeholder="Optioneel" />

@@ -31,3 +31,9 @@ test('end times preserve existing durations and reject backwards ranges through 
   assert.equal(durationUntil('10:00','09:00'),-60);
   assert.equal(durationUntil('08:00','08:00'),0);
 });
+test('dragging carries a work order into the next or previous week across year boundaries',()=>{
+ const {weekCarryDestination}=require('../modules/werkplaats/assets/planning.js');
+ assert.deepEqual(weekCarryDestination('2026-11-19','2026-11-16',1),{week:'2026-11-23',date:'2026-11-26'});
+ assert.deepEqual(weekCarryDestination('2027-01-08','2027-01-04',-1),{week:'2026-12-28',date:'2027-01-01'});
+ assert.deepEqual(weekCarryDestination('2026-11-19','2026-11-23',1,true),{week:'2026-11-23',date:'2026-11-26'});
+});

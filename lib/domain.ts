@@ -126,6 +126,9 @@ export interface AgendaEventRecord {
   title: string;
   description: string;
   eventDate: string;
+  endDate?: string;
+  startTime?: string;
+  endTime?: string;
   createdAt: string;
   updatedAt: string;
 }

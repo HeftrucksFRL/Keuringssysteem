@@ -7,7 +7,8 @@ import { getMachineById,getCustomerById } from "@/lib/inspection-service";
 import type { WorkshopState } from "@/lib/workshop";
 import { prepareWorkshopSave,workshopSaveSchema } from "@/lib/workshop";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
-import { isWorkshopViewer } from "@/lib/workshop-access";
+import { normalizeWorkshopTransports } from "@/lib/workshop-transport";
+import { isWorkshopViewer,canManageWorkshopTablet } from "@/lib/workshop-access";
 
 export const dynamic = "force-dynamic";
 const json = (value: unknown, status = 200) => NextResponse.json(value, { status, headers: { "Cache-Control": "private, no-store" } });
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
     const {data,error} = await client.from("workshop_planning").select("state,version").eq("id",1).single();
     if (error || !data) return json({message:"Werkplaatsopslag is nog niet beschikbaar. Voer eerst supabase/workshop-module.sql uit."},503);
     const user = await requireUser();
-    return json({...data,canEdit:!isWorkshopViewer(user)});
+    return json({...data,state:normalizeWorkshopTransports(data.state),canEdit:!isWorkshopViewer(user),canApprove:canManageWorkshopTablet(user)});
   } catch { return json({message:"De planning kon niet worden geladen. Probeer opnieuw."},500); }
 }
 export async function PUT(request: NextRequest) {
@@ -51,7 +52,7 @@ export async function PUT(request: NextRequest) {
     if(current.error)return json({message:"De bestaande werkbonnen konden niet worden geladen."},503);
     if(current.data.version!==version)return json({message:"De planning is intussen door een collega gewijzigd."},409);
     const previous=current.data.state as WorkshopState;
-    try{state=prepareWorkshopSave(previous,state);}catch(e){return json({message:e instanceof Error?e.message:"Controleer de werkbonnen."},400);}
+    try{state=prepareWorkshopSave(previous,state,new Date().toISOString(),{canApprove:canManageWorkshopTablet(user),approvedBy:user?.email||"Kantoor"});}catch(e){return json({message:e instanceof Error?e.message:"Controleer de werkbonnen."},400);}
     for(const job of state.jobs){
       const old=previous.jobs.find(j=>j.id===job.id);
       if(!old&&!job.customerId)return json({message:"Koppel de nieuwe werkbon aan een klant en machine."},400);
@@ -62,6 +63,7 @@ export async function PUT(request: NextRequest) {
       }
 
     }
+    state=normalizeWorkshopTransports(state);
     const {data,error} = await client.from("workshop_planning").update({state,version:version+1,updated_at:new Date().toISOString(),updated_by:user!.id}).eq("id",1).eq("version",version).select("version").maybeSingle();
     if (error) return json({message:"Opslaan mislukt. Controleer de database-inrichting en probeer opnieuw."},503);
     if (!data) return json({message:"De planning is intussen door een collega gewijzigd."},409);

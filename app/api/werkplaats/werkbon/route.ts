@@ -3,6 +3,7 @@ import {createClient} from "@supabase/supabase-js";
 import {requireUser} from "@/lib/auth";
 import {hasSupabaseConfig} from "@/lib/env";
 import {validateCsrf,validateOrigin,applyRateLimit} from "@/lib/security";
+import {normalizeWorkshopTransports} from "@/lib/workshop-transport";
 import {workshopActivitySchema,applyWorkshopActivity,type WorkshopState} from "@/lib/workshop";
 const json=(message:string,status:number)=>NextResponse.json({message},{status,headers:{"Cache-Control":"no-store"}});
 export async function POST(req:NextRequest){
@@ -13,8 +14,9 @@ export async function POST(req:NextRequest){
     const parsed=workshopActivitySchema.safeParse(data);if(!parsed.success)return json(parsed.error.issues[0]?.message||"Controleer je naam en notitie.",400);
     const client=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.SUPABASE_SERVICE_ROLE_KEY!,{auth:{persistSession:false,autoRefreshToken:false}});
     const current=await client.from("workshop_planning").select("state,version").eq("id",1).single();if(current.error)return json("Werkbon laden is niet gelukt.",503);
-    let state:WorkshopState;try{state=applyWorkshopActivity(current.data.state as WorkshopState,parsed.data);}catch(e){return json(e instanceof Error?e.message:"Bijwerken is niet gelukt.",400);}
-    if(state===current.data.state)return NextResponse.json({state,version:current.data.version},{headers:{"Cache-Control":"no-store"}});
+    const original=normalizeWorkshopTransports(current.data.state as WorkshopState);
+    let state:WorkshopState;try{state=applyWorkshopActivity(original,parsed.data);}catch(e){return json(e instanceof Error?e.message:"Bijwerken is niet gelukt.",400);}
+    if(state===original)return NextResponse.json({state,version:current.data.version},{headers:{"Cache-Control":"no-store"}});
     if(Buffer.byteLength(JSON.stringify(state),"utf8")>5_000_000)return json("De planning is te groot. Vraag Age of Renze om hulp.",413);
     const result=await client.from("workshop_planning").update({state,version:current.data.version+1,updated_at:new Date().toISOString(),updated_by:user.id}).eq("id",1).eq("version",current.data.version).select("version").maybeSingle();
     if(result.error)return json("Opslaan is niet gelukt. Je notitie is nog niet opgeslagen.",503);

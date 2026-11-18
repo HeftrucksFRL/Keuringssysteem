@@ -1,0 +1,19 @@
+import { z } from "zod";
+import type { AgendaEventRecord } from "@/lib/domain";
+export function isoWeek(value:string){const d=new Date(value+"T00:00:00Z");d.setUTCDate(d.getUTCDate()+4-(d.getUTCDay()||7));const year=d.getUTCFullYear();return {year,week:Math.ceil(((d.getTime()-Date.UTC(year,0,1))/86400000+1)/7)};}
+const key=(d:Date)=>d.toISOString().slice(0,10);
+export function dutchHolidays(year:number):{date:string;name:string}[]{
+ const a=year%19,b=Math.floor(year/100),c=year%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),month=Math.floor((h+l-7*m+114)/31),day=(h+l-7*m+114)%31+1;
+ const easter=new Date(Date.UTC(year,month-1,day));const relative=(offset:number)=>{const date=new Date(easter);date.setUTCDate(date.getUTCDate()+offset);return key(date);};
+ const king=new Date(Date.UTC(year,3,27));if(king.getUTCDay()===0)king.setUTCDate(26);
+ return [{date:year+"-01-01",name:"Nieuwjaarsdag"},{date:relative(-2),name:"Goede Vrijdag"},{date:relative(0),name:"Eerste paasdag"},{date:relative(1),name:"Tweede paasdag"},{date:key(king),name:"Koningsdag"},{date:year+"-05-05",name:"Bevrijdingsdag"},{date:relative(39),name:"Hemelvaartsdag"},{date:relative(49),name:"Eerste pinksterdag"},{date:relative(50),name:"Tweede pinksterdag"},{date:year+"-12-25",name:"Eerste kerstdag"},{date:year+"-12-26",name:"Tweede kerstdag"}].sort((a,b)=>a.date.localeCompare(b.date));
+}
+const date=z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(s=>{const d=new Date(s+"T12:00:00Z");return !isNaN(d.getTime())&&key(d)===s;},"Kies een geldige datum.");
+const time=z.union([z.literal(""),z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)]);
+export const agendaRangeSchema=z.object({eventDate:date,endDate:date,startTime:time,endTime:time}).superRefine((v,ctx)=>{if(v.endDate<v.eventDate)ctx.addIssue({code:"custom",message:"De einddatum moet op of na de begindatum liggen."});if(Boolean(v.startTime)!==Boolean(v.endTime))ctx.addIssue({code:"custom",message:"Vul beide tijdstippen in, of laat ze allebei leeg voor hele dagen."});if(v.eventDate===v.endDate&&v.startTime&&v.endTime<=v.startTime)ctx.addIssue({code:"custom",message:"De eindtijd moet na de begintijd liggen."});});
+export function agendaDays(event:Pick<AgendaEventRecord,"eventDate"|"endDate">,from:string,to:string){const start=event.eventDate>from?event.eventDate:from,end=(event.endDate||event.eventDate)<to?(event.endDate||event.eventDate):to;const result:string[]=[];if(start>end)return result;const date=new Date(start+"T12:00:00Z");for(let day=key(date);day<=end;date.setUTCDate(date.getUTCDate()+1),day=key(date))result.push(day);return result;}
+// The existing description column carries versioned range metadata; plain legacy text remains readable.
+const prefix="KS_AGENDA_RANGE_V1:";
+export function packAgendaDescription(description:string,range:z.infer<typeof agendaRangeSchema>){return prefix+JSON.stringify({...range,description});}
+export function unpackAgendaDescription(raw:string,eventDate:string){if(raw.startsWith(prefix)){try{const value=JSON.parse(raw.slice(prefix.length));const parsed=agendaRangeSchema.safeParse({...value,eventDate});if(parsed.success&&typeof value.description==="string")return {...parsed.data,description:value.description};}catch{}}return {eventDate,endDate:eventDate,startTime:"",endTime:"",description:raw};}
+export function agendaTimeLabel(event:Pick<AgendaEventRecord,"eventDate"|"endDate"|"startTime"|"endTime">){return event.startTime?(event.eventDate===(event.endDate||event.eventDate)?event.startTime+"–"+event.endTime:event.eventDate+" "+event.startTime+" t/m "+event.endDate+" "+event.endTime):event.endDate&&event.endDate!==event.eventDate?event.eventDate+" t/m "+event.endDate:"Hele dag";}

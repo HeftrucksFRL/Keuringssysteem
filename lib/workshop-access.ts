@@ -19,8 +19,8 @@ export function workshopViewerRequestAllowed(path: string, method: string) {
   if(path === "/api/werkplaats/bestellingen")return ["GET","HEAD","POST"].includes(method);
   if (method === "DELETE" && path === "/api/werkplaats/session") return true;
   if (method !== "GET" && method !== "HEAD") return false;
-  return path === "/werkplaats" || path === "/werkplaats/bestellingen" || path === "/api/werkplaats" ||
-    ["/werkplaats-preview/index.html", "/werkplaats-preview/assets/planning.js", "/werkplaats-preview/assets/planning.css",
+  return path === "/werkplaats" || path === "/werkplaats/bestellingen" || path === "/werkplaats/werkbon/print" || path === "/api/werkplaats" ||
+    ["/werkplaats-preview/index.html", "/werkplaats-preview/assets/calendar.js", "/werkplaats-preview/assets/planning.js", "/werkplaats-preview/assets/planning.css",
       "/manifest.webmanifest", "/favicon.ico", "/favicon-32x32.png", "/app-icon-192.png", "/app-icon-512.png", "/apple-touch-icon.png"].includes(path) ||
     path.startsWith("/_next/static/") || path === "/_next/image";
 }

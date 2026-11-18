@@ -22,7 +22,7 @@ test("only selected checks are required; the planner cannot release or archive i
 });
 test("archived jobs retain IDs, timestamps, updates and learned sentences and free planning slots",()=>{
  const done={...job,status:"Afgerond" as const,checkedPoints:Array(10).fill(true),actualMinutes:75};
- const next=prepareWorkshopSave(state,{...state,jobs:[done]},"2026-11-18T14:00:00.000Z");
+ const next=prepareWorkshopSave({...state,jobs:[{...job,status:"Werkbon-controle",checkedPoints:Array(10).fill(true)}]},{...state,jobs:[done]},"2026-11-18T14:00:00.000Z");
  assert.equal(next.jobs[0].completedAt,"2026-11-18T14:00:00.000Z");assert.equal(next.jobs[0].machineId,"machine");assert.equal(next.jobs[0].customerId,"customer");assert.equal(next.jobs[0].actualMinutes,75);
  assert.deepEqual(next.taskSuggestions,["Mast controleren","Hefkettingen smeren"]);
  assert.equal(prepareWorkshopSave(next,next,"2026-11-19T14:00:00.000Z").jobs[0].completedAt,next.jobs[0].completedAt);
@@ -46,4 +46,14 @@ test("mechanics can claim stock work once; scheduling skips occupied slots and r
  assert.throws(()=>applyWorkshopActivity(next,{...claim,requestId:"d3e82ffa-f8c2-41e1-9c8c-c4f07cb92399"}),/niet meer/);
  assert.throws(()=>applyWorkshopActivity(original,{...claim,employeeId:"driver"}),/niet meer/);
  assert.throws(()=>applyWorkshopActivity({...original,jobs:[{...stock,kind:"Klantreparatie"}]},claim),/niet meer/);
+});
+import {filterWorkshopDocuments,workshopDocumentDate} from "../lib/workshop";
+test("work order archive filters by Amsterdam closing date, month, year, status and invoice",()=>{
+ const closed={...job,id:"closed",number:"WB-0002",status:"Afgerond" as const,completedAt:"2026-12-31T23:30:00.000Z",invoiceReference:"FACT-2027-01"};
+ const open={...job,date:"2026-11-18"};
+ assert.equal(workshopDocumentDate(closed),"2027-01-01");assert.equal(workshopDocumentDate(open),"2026-11-18");
+ assert.deepEqual(filterWorkshopDocuments([open,closed],{year:"2027",month:"01",date:"2027-01-01",status:"completed",query:"fact-2027"}).map(j=>j.id),["closed"]);
+ assert.deepEqual(filterWorkshopDocuments([open,closed],{year:"2026",month:"11",status:"open"}).map(j=>j.id),["one"]);
+ assert.equal(filterWorkshopDocuments([open,closed],{status:"all"}).length,2);
+ assert.equal(filterWorkshopDocuments([open,closed],{date:"2027-01-02"}).length,0);
 });
