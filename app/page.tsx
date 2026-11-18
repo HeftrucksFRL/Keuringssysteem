@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { TodoDeleteButton } from "@/components/todo-delete-button";
 import type { UrlObject } from "node:url";
 import {
   addTodoItemAction,
@@ -228,13 +229,7 @@ export default async function HomePage({
                     title="Druk op Enter om de notitie bij te werken"
                     required
                   />
-                  <button
-                    className="button-secondary todo-inline-button"
-                    formAction={deleteTodoItemAction}
-                    type="submit"
-                  >
-                    Verwijderen
-                  </button>
+                  <TodoDeleteButton action={deleteTodoItemAction} />
                 </form>
               ))
             )}
@@ -339,7 +334,7 @@ export default async function HomePage({
 
       <section className="panel" style={{ marginTop: "1rem" }}>
         <div className="eyebrow">Routes</div>
-        <h2>Geplande routes</h2>
+        <h2>Route keuringen</h2>
         <div className="table-like">
           <div className="table-row table-head">
             <span>Route</span>

@@ -1,0 +1,1 @@
+.todo-item-inline:has([data-deleting="true"]){display:none}

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect,useState,useRef,useCallback,type FormEvent } from "react";
 import Link from "next/link";
-import { normalizeOrderRequest,orderStatuses,orderIsOpen,type SimpleOrder,type WorkshopOrder } from "@/lib/workshop-orders";
+import { normalizeOrderRequest,orderStatuses,orderNeedsPurchase,type SimpleOrder,type WorkshopOrder } from "@/lib/workshop-orders";
 import "./workshop-orders.css";
 
 const demoKey="hf-workshop-orders-v1";
@@ -20,7 +20,7 @@ export function WorkshopOrders({demo,manager}:{demo:boolean;manager:boolean}){
   const [orders,setOrders]=useState<WorkshopOrder[]>([]),[planning,setPlanning]=useState<Planning>({employees:[],jobs:[]});
   const [canManage,setCanManage]=useState(manager),[error,setError]=useState(""),[notice,setNotice]=useState(""),[loading,setLoading]=useState(true);
   const [selected,setSelected]=useState<WorkshopOrder|null>(null),[requestId,setRequestId]=useState("");
-  const [busy,setBusy]=useState(false),[filter,setFilter]=useState("open"),[limited,setLimited]=useState(false);
+  const [busy,setBusy]=useState(false),[filter,setFilter]=useState("open"),[search,setSearch]=useState(""),[limited,setLimited]=useState(false);
   const modal=useRef<HTMLDialogElement>(null);
   useEffect(()=>{if(selected&&modal.current&&!modal.current.open)modal.current.showModal();},[selected]);
   useEffect(()=>{if(!selected)return;const previous=document.body.style.overflow;document.body.style.overflow="hidden";return()=>{document.body.style.overflow=previous;};},[selected]);
@@ -52,19 +52,19 @@ export function WorkshopOrders({demo,manager}:{demo:boolean;manager:boolean}){
       setOrders(all=>all.map(o=>o.id===result.id?result:o));setSelected(null);setNotice("Aanvraag bijgewerkt.");
     }catch(e){setError(e instanceof Error?e.message:"Wijzigen is niet gelukt.");}finally{setBusy(false);}
   }
-  const shown=orders.filter(o=>filter==="all"||orderIsOpen(o.status));
+  const shown=orders.filter(o=>(filter==="open"?orderNeedsPurchase(o.status):!orderNeedsPurchase(o.status))&&JSON.stringify([o.details,o.status,o.supplier,o.reference,o.manager_note]).toLocaleLowerCase("nl-NL").includes(search.toLocaleLowerCase("nl-NL")));
   return <div data-client-interaction className="wo">
     <div className="wo-banner">{demo?"PROEFVERSIE · Alleen in deze browser opgeslagen":"WERKPLAATS · Gedeelde bestellijst"}<span>Aanvragen zonder prijzen</span></div>
-    <header className="wo-heading"><div><Link href="/werkplaats">← Werkplaatsagenda</Link><h1>Onderdelen & gereedschap</h1><p>Schrijf op wat nodig is. Age en Renze zien het in hun overzicht.</p></div></header>
+    <header className="wo-heading"><div><Link href="/werkplaats">← Werkplaatsagenda</Link><h1>Onderdelen & gereedschap</h1><p>Schrijf op wat nodig is. Age en Renze zien het in hun overzicht.</p></div><Link className="button-secondary" href="/werkplaats/bestellingen/print">Lege bestelbon afdrukken</Link></header>
     <form className="wo-compose" onSubmit={create}>
       <label>Wat moet er besteld worden?<textarea name="text" required rows={3} maxLength={3000} placeholder="Bijvoorbeeld: 3 kwasten en een hydrauliekslang voor de Linde"/></label>
       <div className="wo-fields"><label>Jouw naam<select name="employeeId" required><option value="">Kies je naam</option>{planning.employees.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}</select></label><label>Werkbon / voorraad (optioneel)<input name="context" maxLength={180} placeholder="Bijvoorbeeld WB-0001 of voorraad"/></label></div>
       <button className="button" disabled={busy||loading||!planning.employees.length}>{busy?"Toevoegen…":"Toevoegen aan bestellijst"}</button><small>Datum en tijd worden automatisch vastgelegd.</small>
     </form>
     {error&&!selected&&<p className="wo-error" role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}
-    <div className="wo-toolbar"><h2>Bestellijst</h2><label><input type="checkbox" checked={filter==="all"} onChange={e=>setFilter(e.target.checked?"all":"open")}/> Ook afgehandeld tonen</label><button className="button-secondary" onClick={()=>void load()}>Vernieuwen</button></div>
+    <div className="wo-toolbar"><h2>{filter==="open"?"Bestellijst":"Archief bestelde artikelen"}</h2><button className="button-secondary" onClick={()=>{setFilter(filter==="open"?"archive":"open");setSearch("");}}>{filter==="open"?"Archief openen":"Terug naar bestellijst"}</button><label>Zoeken<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Artikel, medewerker, leverancier…"/></label><button className="button-secondary" onClick={()=>void load()}>Vernieuwen</button></div>
     {limited&&<p>De nieuwste 5.000 aanvragen worden getoond.</p>}
-    <div className="wo-list">{loading?<p>Laden…</p>:shown.length?shown.map(o=><button key={o.id} className="wo-card" onClick={()=>{setSelected(o);setError("");}}><div className="wo-card-title"><strong>{o.details.employeeName} · {o.details.context||o.details.jobNumber||"Algemeen"}</strong><time dateTime={o.created_at}>{new Date(o.created_at).toLocaleString("nl-NL",{timeZone:"Europe/Amsterdam",dateStyle:"short",timeStyle:"short"})}</time></div><p className="wo-pre">{o.details.unit==="aanvraag"?o.details.notes:o.details.quantity+" "+o.details.unit+" · "+o.details.item+(o.details.notes?"\n"+o.details.notes:"")}</p><span className="wo-status">{o.status}</span>{o.manager_note&&<p>Terugkoppeling: {o.manager_note}</p>}</button>):<p className="wo-empty">{error?"De lijst kan nu niet worden getoond.":"Nog geen open aanvragen."}</p>}</div>
+    <div className="wo-list">{loading?<p>Laden…</p>:shown.length?shown.map(o=><button key={o.id} className="wo-card" onClick={()=>{setSelected(o);setError("");}}><div className="wo-card-title"><strong>{o.details.employeeName} · {o.details.context||o.details.jobNumber||"Algemeen"}</strong><time dateTime={o.created_at}>{new Date(o.created_at).toLocaleString("nl-NL",{timeZone:"Europe/Amsterdam",dateStyle:"short",timeStyle:"short"})}</time></div><p className="wo-pre">{o.details.unit==="aanvraag"?o.details.notes:o.details.quantity+" "+o.details.unit+" · "+o.details.item+(o.details.notes?"\n"+o.details.notes:"")}</p><span className="wo-status">{o.status}</span>{o.manager_note&&<p>Terugkoppeling: {o.manager_note}</p>}</button>):<p className="wo-empty">{error?"De lijst kan nu niet worden getoond.":search?"Geen aanvragen gevonden.":filter==="archive"?"Het archief is leeg.":"Nog geen open aanvragen."}</p>}</div>
     {selected&&<dialog ref={modal} className="wo-modal" aria-labelledby="wo-dialog-title" onCancel={e=>{e.preventDefault();if(!busy){setSelected(null);setError("");}}}>
       <h2 id="wo-dialog-title">{selected.details.item}</h2>
       {selected&&<><div className="wo-details"><p>Aangevraagd door {selected.details.employeeName} · {new Date(selected.created_at).toLocaleString("nl-NL",{timeZone:"Europe/Amsterdam"})}</p><p>{selected.details.context||selected.details.jobNumber||"Algemeen"}</p>{selected.details.partNumber&&<p>Artikelnummer: {selected.details.partNumber}</p>}{selected.details.jobNumber&&<p>Werkbon: {selected.details.jobNumber} · {selected.details.machine}</p>}<p className="wo-pre">{selected.details.notes||"Geen aanvullende specificaties."}</p></div>
