@@ -1,7 +1,9 @@
 import { z } from "zod";
 
-export const workshopStatuses = ["Nieuw", "Ingepland", "Mee bezig", "Wachten op onderdelen", "Wachten op goedkeuring", "Pauze", "Werkbon-controle", "On hold", "Klaar voor transport"] as const;
-export const workshopActivitySchema=z.object({requestId:z.string().uuid(),jobId:z.string().min(1).max(80),employeeId:z.string().min(1).max(80),action:z.enum(["start","pause","parts","review","hold","note","time"]),text:z.string().trim().max(3000),actualMinutes:z.number().int().min(0).max(600000).optional()}).strict().refine(v=>v.action!=="note"||v.text.length>0,{message:"Vul een notitie in."}).refine(v=>v.action!=="time"||v.actualMinutes!==undefined,{message:"Vul de werkelijk bestede tijd in."});
+export const workshopStatuses = ["Nieuw", "Ingepland", "Mee bezig", "Wachten op onderdelen", "Wachten op goedkeuring", "Pauze", "Werkbon-controle", "On hold", "Klaar voor transport", "Afgerond"] as const;
+export const workshopCheckLabels = ["Werkzaamheden uitgevoerd", "Remmen en parkeerrem", "Stuurinrichting", "Mast en hefkettingen", "Vorken en vorkenbord", "Hydrauliek en lekkages", "Banden en wielen", "Verlichting en signalering", "Batterij / motor en vloeistoffen", "Veiligheid en eindcontrole"] as const;
+const checklistSchema=z.array(z.boolean()).length(10);
+export const workshopActivitySchema=z.object({requestId:z.string().uuid(),jobId:z.string().min(1).max(80),employeeId:z.string().min(1).max(80),action:z.enum(["start","pause","parts","review","hold","note","time","check","claim"]),text:z.string().trim().max(3000),checkedPoints:checklistSchema.optional(),actualMinutes:z.number().int().min(0).max(600000).optional()}).strict().refine(v=>v.action!=="note"||v.text.length>0,{message:"Vul een notitie in."}).refine(v=>v.action!=="time"||v.actualMinutes!==undefined,{message:"Vul de werkelijk bestede tijd in."});
 export type WorkshopActivityInput=z.infer<typeof workshopActivitySchema>;
 const text = z.string().trim().max(6000);
 const name = z.string().trim().min(1).max(180);
@@ -19,15 +21,21 @@ const transportSchema = z.object({
 }).strict();
 const jobSchema = z.object({
   id, number: z.string().regex(/^WB-\d{4,}$/), customer: name, machine: name,
+  customerId:z.string().max(80).optional(),machineId:z.string().max(80).optional(),deliveryAddress:text.optional(),
+  kind:z.enum(["Klantreparatie","Verkooptruck","Voorraadtruck"]).optional(),urgent:z.boolean().optional(),
+  estimatedMinutes:z.number().int().min(15).max(1440).multipleOf(15).optional(),
+  requiredChecks:checklistSchema.optional(),checkedPoints:checklistSchema.optional(),completedAt:z.string().datetime().optional(),
   serial: text, task: text.min(1), notes: text, employee: z.union([id, z.literal("")]),
   date: z.union([date, z.literal("")]), time, duration, status: z.enum(workshopStatuses),
   checks: z.tuple([z.boolean(), z.boolean(), z.boolean()]), transport: transportSchema.nullable(), actualMinutes:z.number().int().min(0).max(600000).optional(),
-  updates:z.array(z.object({id:z.string().uuid(),employeeId:z.string().max(80),employeeName:z.string().max(180),action:z.enum(["start","pause","parts","review","hold","note","time"]),text:z.string().max(3000),at:z.string().datetime(),actualMinutes:z.number().int().min(0).max(600000).optional()}).strict()).max(500).optional()
+  updates:z.array(z.object({id:z.string().uuid(),employeeId:z.string().max(80),employeeName:z.string().max(180),action:z.enum(["start","pause","parts","review","hold","note","time","check","claim"]),text:z.string().max(3000),at:z.string().datetime(),actualMinutes:z.number().int().min(0).max(600000).optional()}).strict()).max(500).optional()
 }).strict();
 export type WorkshopJob = z.infer<typeof jobSchema>;
 export const workshopStateSchema = z.object({
   employees: z.array(z.object({ id, name, role: z.enum(["mechanic", "driver"]) }).strict()).max(100),
-  jobs: z.array(jobSchema).max(5000)
+  jobs: z.array(jobSchema).max(5000),
+  taskSuggestions:z.array(z.string().trim().min(1).max(500)).max(2000).optional(),
+  nextJobNumber:z.number().int().positive().optional()
 }).strict().superRefine((state, ctx) => {
   const problem = (message: string) => ctx.addIssue({ code: z.ZodIssueCode.custom, message });
   if (new Set(state.employees.map(e => e.id)).size !== state.employees.length) problem("Medewerker-ID komt dubbel voor.");
@@ -42,15 +50,17 @@ export const workshopStateSchema = z.object({
   for (const j of state.jobs) {
     if (Boolean(j.employee) !== Boolean(j.date) || (j.status !== "Nieuw" && (!j.date || !j.employee))) problem(`${j.number}: kies een monteur en datum.`);
     if (j.employee && !person(j.employee, "mechanic")) problem(`${j.number}: onbekende monteur.`);
-    if (j.employee && j.date) addSlot(`m:${j.employee}:${j.date}`, minutes(j.time), j.duration, j.number);
+    if (j.status!=="Afgerond" && j.employee && j.date) addSlot(`m:${j.employee}:${j.date}`, minutes(j.time), j.duration, j.number);
+    if ((j.customerId&&!j.machineId)||(!j.customerId&&j.machineId)) problem(j.number+": kies zowel een klant als een machine.");
+    if (["Werkbon-controle","Klaar voor transport","Afgerond"].includes(j.status) && j.requiredChecks?.some((required,i)=>required&&!j.checkedPoints?.[i])) problem(j.number+": vink eerst alle geselecteerde controlepunten af.");
     if (j.status === "Klaar voor transport" && !j.checks.every(Boolean)) problem(`${j.number}: de werkplaatscontroles zijn nog niet afgerond.`);
     if (j.transport) {
       const t = j.transport;
-      if (j.status !== "Klaar voor transport") problem(`${j.number}: transport kan pas na gereedmelding.`);
+      if (!["Klaar voor transport","Afgerond"].includes(j.status)) problem(`${j.number}: transport kan pas na gereedmelding.`);
       if (!person(t.driver, "driver")) problem(`${j.number}: onbekende chauffeur.`);
       if (t.state === "Afgeleverd" && !t.confirmation.trim()) problem(`${j.number}: vul de afleverbevestiging in.`);
       if (minutes(t.time) + t.duration > 1440) problem(`${j.number}: de rit moet binnen één dag vallen.`);
-      if (t.state !== "Afgeleverd") addSlot(`d:${t.driver}:${t.date}`, minutes(t.time), t.duration, j.number);
+      if (j.status!=="Afgerond" && t.state !== "Afgeleverd") addSlot(`d:${t.driver}:${t.date}`, minutes(t.time), t.duration, j.number);
     }
   }
   for (const list of Object.values(slots)) {
@@ -64,11 +74,34 @@ export function applyWorkshopActivity(state:WorkshopState,input:WorkshopActivity
   const job=state.jobs.find(j=>j.id===input.jobId),employee=state.employees.find(e=>e.id===input.employeeId);
   if(!job)throw new Error("Deze werkbon bestaat niet meer.");
   if(!employee)throw new Error("Kies je naam uit de medewerkerslijst.");
+  if(job.status==="Afgerond")throw new Error("Deze werkbon is afgerond. Laat de planner hem eerst heropenen.");
   if(job.updates?.some(u=>u.id===input.requestId))return state;
   if((job.updates?.length||0)>=500)throw new Error("Deze bon heeft het maximale aantal updates. Vraag Age of Renze om hulp.");
-  if(!["note","time"].includes(input.action)&&(job.transport||job.status==="Klaar voor transport"))throw new Error("Deze bon is vrijgegeven voor transport. Vraag Age of Renze om de status aan te passen.");
-  if(!["note","time"].includes(input.action)&&(!job.employee||!job.date))throw new Error("Deze bon is nog niet ingepland. Je kunt wel een notitie toevoegen.");
+  if(!["note","time","check","claim"].includes(input.action)&&(job.transport||job.status==="Klaar voor transport"))throw new Error("Deze bon is vrijgegeven voor transport. Vraag Age of Renze om de status aan te passen.");
+  if(!["note","time","check","claim"].includes(input.action)&&(!job.employee||!job.date))throw new Error("Deze bon is nog niet ingepland. Je kunt wel een notitie toevoegen.");
+  if(input.action==="check"&&!input.checkedPoints)throw new Error("Vink de gecontroleerde punten aan.");
+  let claim:Partial<WorkshopJob>={};
+  if(input.action==="claim"){
+    if(job.kind!=="Voorraadtruck"||job.employee||job.date||job.status!=="Nieuw"||employee.role!=="mechanic")throw new Error("Deze voorraadbon kan niet meer worden opgepakt. Vernieuw de planning.");
+    const day=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Amsterdam",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(at));
+    const nowParts=new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Amsterdam",hour:"2-digit",minute:"2-digit",hour12:false}).format(new Date(at)).split(":").map(Number);
+    const occupied=state.jobs.filter(j=>j.status!=="Afgerond"&&j.employee===employee.id&&j.date===day);
+    const mins=(t:string)=>Number(t.slice(0,2))*60+Number(t.slice(3));
+    let start=Math.max(480,Math.ceil((nowParts[0]*60+nowParts[1])/15)*15);
+    for(;start+job.duration<=1440;start+=15)if(!occupied.some(j=>start<mins(j.time)+j.duration&&mins(j.time)<start+job.duration))break;
+    if(start+job.duration>1440)throw new Error("Vandaag is er geen ruimte meer voor deze klus. Vraag de planner om een plek.");
+    claim={employee:employee.id,date:day,time:String(Math.floor(start/60)).padStart(2,"0")+":"+String(start%60).padStart(2,"0")};
+  }
+  const checkedPoints=input.checkedPoints??job.checkedPoints;
+  if(input.action==="review"&&job.requiredChecks?.some((required,i)=>required&&!checkedPoints?.[i]))throw new Error("Vink eerst alle geselecteerde controlepunten af.");
+  if(["Werkbon-controle","Klaar voor transport"].includes(job.status)&&["note","time","check"].includes(input.action)&&job.requiredChecks?.some((required,i)=>required&&!checkedPoints?.[i]))throw new Error("Deze bon kan niet gereed blijven met onvolledige controlepunten.");
   const statuses={start:"Mee bezig",pause:"Pauze",parts:"Wachten op onderdelen",review:"Werkbon-controle",hold:"On hold"} as const;
-  const changed={...job,status:input.action==="note"||input.action==="time"?job.status:statuses[input.action],...(input.actualMinutes!==undefined?{actualMinutes:input.actualMinutes}:{}),updates:[...(job.updates||[]),{id:input.requestId,employeeId:employee.id,employeeName:employee.name,action:input.action,text:input.text,at,...(input.actualMinutes!==undefined?{actualMinutes:input.actualMinutes}:{})}]};
+  const changed={...job,...claim,...(input.checkedPoints?{checkedPoints:input.checkedPoints}:{}),status:["note","time","check"].includes(input.action)?job.status:input.action==="claim"?"Mee bezig":statuses[input.action as keyof typeof statuses],...(input.actualMinutes!==undefined?{actualMinutes:input.actualMinutes}:{}),updates:[...(job.updates||[]),{id:input.requestId,employeeId:employee.id,employeeName:employee.name,action:input.action,text:input.text,at,...(input.actualMinutes!==undefined?{actualMinutes:input.actualMinutes}:{})}]};
   return {...state,jobs:state.jobs.map(j=>j.id===job.id?changed:j)};
+}
+
+export function prepareWorkshopSave(previous:WorkshopState,next:WorkshopState,at=new Date().toISOString()):WorkshopState{
+ if(previous.jobs.some(old=>old.status==="Afgerond"&&!next.jobs.some(job=>job.id===old.id)))throw new Error("Afgeronde werkbonnen blijven bewaard in het archief.");
+ const jobs=next.jobs.map(job=>{const old=previous.jobs.find(j=>j.id===job.id);const copy={...job};if(copy.status==="Afgerond")copy.completedAt=old?.completedAt||at;else delete copy.completedAt;return copy;});
+ return {...next,jobs,taskSuggestions:Array.from(new Set([...(previous.taskSuggestions||[]),...jobs.flatMap(j=>j.task.split(/[\n.!?]+/).map(sentence=>sentence.trim()).filter(sentence=>sentence.length>=3&&sentence.length<=500))])).slice(-2000),nextJobNumber:Math.max(previous.nextJobNumber||1,...[...previous.jobs,...jobs].map(j=>Number(j.number.slice(3))+1))};
 }

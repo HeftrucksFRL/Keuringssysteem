@@ -59,3 +59,23 @@
 [data-workshop-planner] .hf-corner,[data-workshop-planner] .hf-day{padding:9px 12px}
 
 [data-workshop-planner] .hf-job.hf-pointer-ghost{min-height:30px;height:30px;padding:5px 7px;display:block}
+
+/* Rustige statusvlakken; het smalle balkje toont de soort werkbon. */
+[data-workshop-planner] .hf-job{border-left:5px solid #4b7189}
+[data-workshop-planner] .hf-job.hf-kind-1{border-left-color:#8463b5}
+[data-workshop-planner] .hf-job.hf-kind-2{border-left-color:#9b7943}
+[data-workshop-planner] .hf-job.hf-urgent{border-left-color:#c13232}
+[data-workshop-planner] .hf-job.hf-status-0{background:#f3f5f7;color:#334c60}
+[data-workshop-planner] .hf-job.hf-status-1{background:#e7effa;color:#23456d}
+[data-workshop-planner] .hf-job.hf-status-2{background:#def1e3;color:#245936}
+[data-workshop-planner] .hf-job.hf-status-3{background:#fff0d2;color:#795318}
+[data-workshop-planner] .hf-job.hf-status-4{background:#f8edda;color:#73551f}
+[data-workshop-planner] .hf-job.hf-status-5{background:#f1f3f5;color:#526477}
+[data-workshop-planner] .hf-job.hf-status-6{background:#eee6f6;color:#5a3b78}
+[data-workshop-planner] .hf-job.hf-status-7{background:#f9dddd;color:#8c2828}
+[data-workshop-planner] .hf-job.hf-status-8{background:#dbefef;color:#255d62}
+[data-workshop-planner] .hf-job.hf-status-9{background:#edf0f2;color:#485c6b}
+.hf-pools{display:grid;grid-template-columns:1fr 1fr;gap:16px}.hf-pools>section{padding:14px;background:#f5f8fa;border:1px solid #d6e2e9;border-radius:9px;min-width:0}.hf-pools h3{margin:0 0 12px;font-size:15px}.hf-backlog{margin:14px 0 20px}.hf-backlog-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:5px}
+.hf-person[draggable=true]{cursor:grab}.hf-person:focus-visible{outline:3px solid #3586ba;outline-offset:-3px}
+.hf-check-up{border:1px solid #c9dbe6;border-radius:8px;padding:14px;margin:16px 0}.hf-check-up label,.hf-flag{display:flex!important;gap:10px;align-items:center;margin:10px 0!important}.hf-check-up input[type=checkbox],.hf-flag input[type=checkbox]{width:20px!important;min-height:20px!important;height:20px!important;margin:0!important;flex-shrink:0}.hf-check-up legend{font-weight:600;font-size:14px}.hf-checklist label{font-size:13px}.hf-task-suggestions{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 16px}.hf-task-suggestions button{font-size:12px;text-align:left;background:#f2f7fa}.hf-estimate{background:#eaf3ec;border-radius:8px;padding:12px;font-size:14px!important}.hf-archive-list{display:grid;gap:10px;margin-top:20px}.hf-archive-list .hf-job{height:auto!important;min-height:52px!important;text-align:left}.hf-archive-list .hf-job-line{font-size:14px!important;white-space:normal!important}.hf-status-legend{font-size:11px;color:#536c80;margin:8px 0;line-height:1.8}
+@media(max-width:750px){.hf-pools{grid-template-columns:1fr}.hf-backlog-cards{grid-template-columns:1fr}}

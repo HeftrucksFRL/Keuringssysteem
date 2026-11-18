@@ -1,3 +1,5 @@
+import { WorkshopHistory } from "@/components/workshop-history";
+import { hasSupabaseConfig } from "@/lib/env";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Route } from "next";
@@ -855,6 +857,7 @@ export default async function MachineDetailPage({
           ))}
         </div>
       </section>
+      <WorkshopHistory machineId={id} demo={!hasSupabaseConfig()} />
     </>
   );
 }

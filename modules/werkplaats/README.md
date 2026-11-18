@@ -1,6 +1,6 @@
 # Werkplaatsagenda — module voor de keuringsapp
 
-Versie 1.2.0, 12 november 2026. Een eigen werkplaatsagenda op `/werkplaats`, los van de bestaande keuringsplanning. Dit pakket is een Next.js-uitbreidingsmodule voor deze app, geen WordPress-plugin.
+Bijgewerkt op 18 november 2026. Een eigen werkplaatsagenda op `/werkplaats`, los van de bestaande keuringsplanning. Dit pakket is een Next.js-uitbreidingsmodule voor deze app, geen WordPress-plugin.
 
 ## Bestellijst voor onderdelen, gereedschap en verbruiksmateriaal
 
@@ -27,10 +27,10 @@ Bij een bestaand werkplaatsaccount kan Age/Renze via dezelfde pagina expliciet *
 De agenda staat rechtstreeks in de app, zonder iframe met een tweede verticale schuifbalk. De pagina zelf verzorgt het scrollen; alleen voor de brede weekindeling kan horizontaal worden geschoven. Bij een geopend venster wordt de achtergrond vastgezet. **Medewerkers** opent een compact formulier met Naam en Functie, zonder lange lijst van bestaande namen. De bestaande namen blijven in de agenda en keuzelijsten beschikbaar.
 
 - Voeg monteurs en chauffeurs toe via **Medewerkers**. Dit zijn planningsmedewerkers; zij krijgen hiermee geen inlogaccount.
-- Klik op **Werkbon** in een dagvak om direct een bon voor die monteur en datum aan te maken. Begin- en eindtijd staan op de bon; bestaande bonnen behouden hun tijdsduur. Nieuwe bonnen kunnen ook ongepland blijven.
+- Klik op **Werkbon** in een dagvak om direct een bon voor die monteur en datum aan te maken. De begintijd en een optionele richttijd staan op de bon; de werkelijk gewerkte uren worden apart ingevuld. Nieuwe bonnen kunnen ook ongepland blijven.
 - Sleep een bon naar een andere medewerker of dag. De begintijd blijft behouden; pas die aan door de bon te openen. Overlappende opdrachten voor dezelfde medewerker worden geweigerd. Aansluitende opdrachten zijn toegestaan.
-- Statussen: Nieuw, Ingepland, Mee bezig, Wachten op onderdelen, Wachten op goedkeuring, Pauze, Klaar voor transport.
-- Rond de drie werkplaatscontroles af en kies Klaar voor transport. Je kunt daarna **Opnemen in chauffeursplanning** aanvinken. Chauffeur, transportdatum, tijd, ritduur, ophaaladres, afleveradres en contact zijn verplicht. De rit verschijnt na opslaan bij de chauffeur.
+- Statussen: Nieuw, Ingepland, Mee bezig, Wachten op onderdelen, Wachten op goedkeuring, Werkbon-controle, On hold, Klaar voor transport en Afgerond. Bestaande Pauze-statussen blijven leesbaar.
+- De planner selecteert per bon uit tien check-up punten. De monteur moet alle geselecteerde punten afvinken voordat hij de bon voor controle aanbiedt. De planner kan daarna Klaar voor transport kiezen. Je kunt daarna **Opnemen in chauffeursplanning** aanvinken. Chauffeur, transportdatum, tijd, ritduur, ophaaladres, afleveradres en contact zijn verplicht. De rit verschijnt na opslaan bij de chauffeur.
 - Ritten zijn ook versleepbaar. Ritstatussen: Gepland, Onderweg en Afgeleverd. Bij Afgeleverd is een ontvangstnotitie verplicht.
 - Print een geopende bon met **Print werkbon**. De bon bevat geen prijzen. De normale browser geeft ook de mogelijkheid om als PDF op te slaan.
 - Slepen gebruikt pointerbewegingen voor muis en aanraking. De kaart volgt de aanwijzer, een gemarkeerd vak toont de bestemming en de verplaatsing verschijnt direct. Opslaan gebeurt op de achtergrond; bij een fout wordt de bon teruggezet. Escape annuleert het slepen. Datum, tijd en medewerker blijven ook in de bon aanpasbaar.
@@ -51,13 +51,13 @@ In lokale testmodus (`LOCAL_TEST_MODE=1`) toont `/werkplaats` de proefagenda met
 
 ## Opslag en toegang
 
-De bestaande ingelogde gebruikers kunnen de werkplaatsplanning bewerken. Het gedeelde account met serverrol `workshop_viewer` heeft uitsluitend kijkrechten op de agenda, kan bestelaanvragen indienen en wordt via middleware, de API en databasepolicies afgeschermd van de rest van de app. De rol komt uit `app_metadata`; zelf wijzigbare `user_metadata` wordt hiervoor niet vertrouwd. Klant, machine en serienummer zijn nu tekstvelden; er is nog geen automatische koppeling met klant- en machinekaarten.
+De bestaande ingelogde gebruikers kunnen de werkplaatsplanning bewerken. Het gedeelde account met serverrol `workshop_viewer` heeft uitsluitend kijkrechten op de agenda, kan bestelaanvragen indienen en wordt via middleware, de API en databasepolicies afgeschermd van de rest van de app. De rol komt uit `app_metadata`; zelf wijzigbare `user_metadata` wordt hiervoor niet vertrouwd. Nieuwe werkbonnen worden gekoppeld aan een bestaande klant en een machine van die klant. Nieuwe klanten en machines kunnen vanuit de bon worden aangemaakt in dezelfde klanten- en machinebak als de keuringen. Bestaande tekstbonnen blijven leesbaar; bij bewerken kan de planner ze koppelen. Het tabletaccount kan geen klanten of machines aanmaken.
 
 De module bewaart de gezamenlijke planning in `workshop_planning`, met een versienummer. Elke wijziging gebruikt een atomische versiecontrole, zodat twee gebruikers elkaar niet stil overschrijven. Bij een conflict wordt de nieuwste planning opgehaald en moet de gebruiker de wijziging opnieuw toepassen. De API valideert medewerkers, datums, duur, overlap, gereedmelding en transportgegevens. De browser kan niet rechtstreeks naar de tabel schrijven. De API vereist een geldige login en CSRF-controle.
 
 De planning ververst elke 30 seconden wanneer het scherm zichtbaar is en er geen bon openstaat. Met **Vernieuwen** kan dit ook handmatig. Een open formulier wordt niet door de achtergrondverversing vervangen.
 
-Deze eerste versie bewaart maximaal 100 medewerkers en 5.000 werkbonnen in één gedeeld planningsdocument. Bonnen verwijderen, medewerkers hernoemen/archiveren en een historisch wijzigingenlogboek zijn niet opgenomen. Klaar voor transport blijft op de monteursagenda zichtbaar; de rit staat daarnaast op de chauffeursplanning. Verander je de bon terug naar een andere werkplaatsstatus, dan wordt de gekoppelde transportplanning bij opslaan ingetrokken.
+Deze eerste versie bewaart maximaal 100 medewerkers en 5.000 werkbonnen in één gedeeld planningsdocument. Open bonnen kunnen worden verwijderd; afgeronde bonnen blijven bewaard in het archief. Medewerkers kunnen via hun naam worden versleept naar een andere volgorde, of met Alt+pijl omhoog/omlaag. Klaar voor transport blijft op de monteursagenda zichtbaar; de rit staat daarnaast op de chauffeursplanning. Verander je de bon terug naar een andere werkplaatsstatus, dan wordt de gekoppelde transportplanning bij opslaan ingetrokken.
 
 ## Verificatie
 
@@ -72,8 +72,24 @@ Regeltests dekken overlap, aansluitende afspraken, medewerkers, kalendergrenzen,
 De onderhoudbare agenda-assets staan in `modules/werkplaats/assets`; `scripts/package-workshop-module.mjs` kopieert deze naar `public/werkplaats-preview` en bouwt de ZIP. Voer dit script uit na wijzigingen aan de assets. Het pakket bevat geen credentials, klantgegevens of node_modules.
 
 ### Voortgang op het werkplaatstablet
-Monteurs kiezen hun naam op de gedeelde tablet en voegen notities toe of gebruiken Start, Pauze, Wachten op onderdelen, Afronden / controle en On hold. Elke update bewaart naam, datum en tijd. Start en Pauze zijn voortgangsmeldingen. De monteur vult daarnaast handmatig de werkelijk bestede tijd als totaal in uren en minuten in. De registratie bewaart naam en datum/tijd en verandert de geplande begin- en eindtijd niet. Afronden wordt Werkbon-controle; vrijgave en transport blijven bij het beheer. De tablet mag de planning niet wijzigen. De beperkte POST-route /api/werkplaats/werkbon controleert invoer, bestaande medewerker en werkbon en bewaart wijzigingen met versiecontrole.
+Monteurs kiezen hun naam op de gedeelde tablet en voegen notities toe of gebruiken Mee bezig, Wachten op onderdelen, Afronden / controle en On hold. Elke update bewaart naam, datum en tijd. Mee bezig is een voortgangsmelding; er is geen pauzeknop. De monteur vult daarnaast handmatig de werkelijk bestede tijd als totaal in uren en minuten in. De registratie bewaart naam en datum/tijd en verandert de begintijd en richttijd niet. Afronden wordt Werkbon-controle; vrijgave en transport blijven bij het beheer. De tablet mag de planning niet wijzigen. De beperkte POST-route /api/werkplaats/werkbon controleert invoer, bestaande medewerker en werkbon en bewaart wijzigingen met versiecontrole.
 
 De bestellijst gebruikt vrije tekst, een medewerkernaam en optioneel een werkbonnummer of voorraadvermelding. De server legt datum en tijd vast. Bestaande aanvragen blijven beschikbaar. Deze aanpassingen gebruiken de bestaande JSON-opslag en vragen geen databasemigratie.
 
 Een bestaande werkbon opent voor alle accounts direct met voortgangsknoppen, notities en bestede tijd. Beheerders openen het planningsformulier via **Planning & bon bewerken**. Het tabletaccount krijgt die beheerknop niet. De werkelijke tijd en de updategeschiedenis worden ook op de geprinte werkbon getoond.
+
+## Klantkoppeling, werkbonhistorie en voorraadklussen
+
+De nieuwe knop **Nieuwe werkbon** zoekt klanten uit de klantenbak en toont uitsluitend machines van de gekozen klant. Het afleveradres kan los van transport worden ingevuld. De knop **Nieuwe klant** of **Nieuwe machine** bewaart het nieuwe record direct in het systeem. Een dubbele klant of machine wordt geweigerd, zodat een bestaande machine niet ongemerkt bij een andere klant terechtkomt.
+
+Werkzaamheden leren losse zinnen uit opgeslagen bonnen. Tijdens typen verschijnen maximaal zes passende eerdere omschrijvingen. Deze voorstellen worden gedeeld met de planning en blijven bewaard na verwijderen van een open bon. Klantvelden leren geen losse teksten; die zoeken alleen in de klantenbak.
+
+De algemene werkbonnenbak staat boven de monteurs en bevat een apart vak **Voorraadmachines**. Voor een voorraadbon is een richttijd verplicht en zichtbaar in de titel. De planner kan de bon naar een monteur en dag slepen. Een monteur kan een ongeplande voorraadklus zelf oppakken met zijn naam; de server zoekt vandaag een vrij tijdvak vanaf het huidige kwartier. Gelijktijdige wijzigingen blijven beveiligd met versiecontrole.
+
+De achtergrondkleur toont de status (onder meer groen voor Mee bezig en rood voor On hold). Een smal balkje toont Klantreparatie, Verkooptruck of Voorraadtruck. Spoed heeft een rood balkje en uitroepteken.
+
+**Afgerond** verplaatst een werkbon uit de actieve agenda naar **Relaties & materieel → Werkbonnen**. De volledige bon, geselecteerde en uitgevoerde check-up, werkelijk gewerkte tijd en updates blijven daar leesbaar en afdrukbaar. De klant- en machinekaart tonen gekoppelde werkbonnen met een link naar de volledige bon. Afgeronde bonnen kunnen door de planner worden heropend en kunnen niet direct worden verwijderd.
+
+Deze uitbreiding gebruikt de bestaande JSON-opslag en bestaande klanten- en machinetabellen; een nieuwe SQL-migratie is niet nodig. Proefbonnen blijven in de browser; nieuw aangemaakte klanten en machines in lokale testmodus staan in de lokale demodatabase.
+
+Aanvullende verificatie: `npx tsx --test tests/workshop-workflow.test.ts`.

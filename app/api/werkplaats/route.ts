@@ -3,7 +3,9 @@ import { requireUser } from "@/lib/auth";
 import { hasSupabaseConfig } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import { applyRateLimit, validateCsrf, validateOrigin } from "@/lib/security";
-import { workshopSaveSchema } from "@/lib/workshop";
+import { getMachineById,getCustomerById } from "@/lib/inspection-service";
+import type { WorkshopState } from "@/lib/workshop";
+import { prepareWorkshopSave,workshopSaveSchema } from "@/lib/workshop";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { isWorkshopViewer } from "@/lib/workshop-access";
 
@@ -41,12 +43,28 @@ export async function PUT(request: NextRequest) {
     try {body=JSON.parse(raw);} catch {return json({message:"Ongeldig verzoek."},400);}
     const parsed = workshopSaveSchema.safeParse(body);
     if (!parsed.success) return json({message:parsed.error.issues[0]?.message || "Controleer de gegevens."},400);
-    const {state,version} = parsed.data;
+    const {version} = parsed.data;
+    let state=parsed.data.state;
     const user = await requireUser();
     const client = createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {auth:{persistSession:false,autoRefreshToken:false}});
+    const current=await client.from("workshop_planning").select("state,version").eq("id",1).single();
+    if(current.error)return json({message:"De bestaande werkbonnen konden niet worden geladen."},503);
+    if(current.data.version!==version)return json({message:"De planning is intussen door een collega gewijzigd."},409);
+    const previous=current.data.state as WorkshopState;
+    try{state=prepareWorkshopSave(previous,state);}catch(e){return json({message:e instanceof Error?e.message:"Controleer de werkbonnen."},400);}
+    for(const job of state.jobs){
+      const old=previous.jobs.find(j=>j.id===job.id);
+      if(!old&&!job.customerId)return json({message:"Koppel de nieuwe werkbon aan een klant en machine."},400);
+      if(job.customerId&&(!old||old.customerId!==job.customerId||old.machineId!==job.machineId)){
+        const [customer,machine]=await Promise.all([getCustomerById(job.customerId),getMachineById(job.machineId!)]);
+        if(!customer||!machine||machine.customerId!==customer.id)return json({message:"De machine hoort niet bij de gekozen klant."},400);
+        job.customer=customer.companyName;job.machine=[machine.brand,machine.model,machine.internalNumber||machine.machineNumber].filter(Boolean).join(" · ");job.serial=machine.serialNumber;
+      }
+
+    }
     const {data,error} = await client.from("workshop_planning").update({state,version:version+1,updated_at:new Date().toISOString(),updated_by:user!.id}).eq("id",1).eq("version",version).select("version").maybeSingle();
     if (error) return json({message:"Opslaan mislukt. Controleer de database-inrichting en probeer opnieuw."},503);
     if (!data) return json({message:"De planning is intussen door een collega gewijzigd."},409);
-    return json({version:data.version});
+    return json({version:data.version,state});
   } catch {return json({message:"Opslaan mislukt. Je wijzigingen zijn nog niet opgeslagen."},500);}
 }

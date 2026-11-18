@@ -13,6 +13,7 @@ const links: NavLink[] = [
   { href: "/keuringen/nieuw", label: "Nieuwe keuring", icon: ClipboardCheck },
   { href: "/klanten", label: "Klanten", icon: Users },
   { href: "/machines", label: "Machines", icon: Forklift },
+  { href: "/werkbonnen", label: "Werkbonnen", icon: Wrench },
   { href: "/keuringen", label: "Keuringen", icon: Wrench },
   { href: "/planning", label: "Keuringsplanning", icon: FolderKanban },
   { href: "/verhuur", label: "Verhuur", icon: PackageCheck },
@@ -20,7 +21,7 @@ const links: NavLink[] = [
   { href: "/frello", label: "Frellobord", icon: FolderKanban }
 ];
 const groups = [
-  { label: "Relaties & materieel", icon: Users, hrefs: ["/klanten", "/machines", "/keuringen"] },
+  { label: "Relaties & materieel", icon: Users, hrefs: ["/klanten", "/machines", "/keuringen", "/werkbonnen"] },
   { label: "Planning", icon: FolderKanban, hrefs: ["/planning", "/verhuur"] }
 ];
 function isActive(path: string, href: string) {

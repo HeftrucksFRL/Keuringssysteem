@@ -1,3 +1,5 @@
+import { WorkshopHistory } from "@/components/workshop-history";
+import { hasSupabaseConfig } from "@/lib/env";
 import { canCorrectInspectionCustomer, canManageCleanup, requireUser } from "@/lib/auth";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -869,6 +871,7 @@ export default async function CustomerDetailPage({
           </div>
         </section>
       ) : null}
+      <WorkshopHistory customerId={id} demo={!hasSupabaseConfig()} />
     </>
   );
 }
