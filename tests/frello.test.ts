@@ -57,3 +57,17 @@ test("a rejected or offline save rolls back the optimistic movement",async()=>{
   await assert.rejects(persistFrelloOptimistically('original','moved',async()=>{throw new Error('conflict');},v=>displayed.push(v)),/conflict/);
   assert.deepEqual(displayed,['moved','original']);
 });
+import { frelloStatus,frelloStatuses } from '../lib/frello';
+
+test('five card statuses preserve old boards and survive moves',()=>{
+  const legacy=frelloStateSchema.parse({...state,cards:[card]});
+  assert.equal(frelloStatus(legacy.cards[0].status).name,'Nog doen');
+  assert.equal(frelloStatuses.length,5);
+  for(const status of frelloStatuses){
+    const saved=frelloStateSchema.parse({...state,cards:[{...card,status:status.id}]});
+    const moved=moveFrelloCard(saved,card.id,state.columns[1].id);
+    assert.equal(moved.cards[0].status,status.id);
+    assert.equal(frelloStatus(moved.cards[0].status).name,status.name);
+  }
+  assert.equal(frelloStateSchema.safeParse({...state,cards:[{...card,status:'unknown'}]}).success,false);
+});

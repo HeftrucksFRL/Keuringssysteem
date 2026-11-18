@@ -90,7 +90,9 @@
     const personnel=()=>state.employees.filter(e=>e.role===(mode==='driver'?'driver':'mechanic') && (!filter || e.id===filter));
     function card(j) {
       const info=mode==='driver'?j.transport:j;
-      return `<button type="button" draggable="${canEdit}" data-job="${j.id}" class="hf-job hf-status-${STATUSES.indexOf(j.status)} ${info?.state==='Afgeleverd'?'hf-done':''}" aria-label="Open ${esc(j.number)} ${esc(j.machine)}"><span class="hf-job-meta">${esc(j.number)} <span>${esc(info?.time || '')}–${esc(endTime(info?.time||'08:00',info?.duration||120))}</span></span><strong>${esc(j.machine)}</strong><span>${esc(j.customer)}</span><span class="hf-badge">${esc(mode==='driver'?info?.state||j.status:j.status)}</span></button>`;
+      const time=info?.time||'',finish=endTime(time||'08:00',info?.duration||120),status=mode==='driver'?info?.state||j.status:j.status;
+      const summary=[time?time+'–'+finish:'',j.number,j.machine,j.customer,status].filter(Boolean).join(' · ');
+      return `<button type="button" draggable="${canEdit}" data-job="${j.id}" class="hf-job hf-status-${STATUSES.indexOf(j.status)} ${info?.state==='Afgeleverd'?'hf-done':''}" aria-label="Open ${esc(summary)}" title="${esc(summary)}"><span class="hf-job-line"><span class="hf-job-time">${esc(time)}</span> <strong>${esc(j.machine)}</strong><span class="hf-job-customer"> · ${esc(j.customer)}</span></span><span class="hf-job-meta" hidden>${esc(j.number)} · ${esc(status)}</span></button>`;
     }
     function render() {
       if(config.isActive&&!config.isActive())return;

@@ -5,12 +5,13 @@ Een gezamenlijk leadbord voor de bestaande accounts van Age en Renze op `/frello
 ## Gebruik
 
 - Het gezamenlijke bord begint met Nieuwe leads, Contact gelegd, Offerte verstuurd, Opvolgen, Gewonnen en Verloren.
-- **Bord bewerken → Nieuw bord** biedt Gezamenlijk of Privé. Privé is standaard. De zichtbaarheid staat na aanmaken vast, zodat een privébord niet per ongeluk gedeeld kan worden.
+- **＋ Nieuw bord** boven het bord (of **Bord bewerken → Nieuw bord**) biedt Gezamenlijk of Privé. Privé is standaard. De zichtbaarheid staat na aanmaken vast, zodat een privébord niet per ongeluk gedeeld kan worden.
 - Open een kaart om titel, omschrijving, klant/contactgegevens, verantwoordelijke, opvolgdatum en labels bij te werken. Labels worden met komma’s gescheiden.
 - Een kaart bevat een checklist, reacties en bijlagen. Reacties worden bij opslaan aan de huidige gebruiker gekoppeld. Een leeg checklistpunt wordt bij opslaan verwijderd.
 - Sleep kaarten tussen kolommen of vóór een andere kaart. Op een touchscreen kan de kolom ook in de geopende kaart worden gekozen.
 - Tijdens slepen kantelt de sleepweergave en markeert een open plek waar de kaart zal landen. Kaarten schuiven op rond die plek; de bovenste/onderste helft van een kaart bepaalt de invoegpositie. Na loslaten wordt de verplaatsing direct getoond en op de achtergrond opgeslagen. Bij een opslagfout of versieconflict gaat de kaart terug naar de vorige positie met een foutmelding. Ongewijzigd terugplaatsen veroorzaakt geen opslagverzoek. Verminderde beweging wordt gerespecteerd bij de animaties.
 - **Bord bewerken → Bordnaam & kolommen** laat de bordnaam en kolomnamen aanpassen en een nieuwe kolom toevoegen. Bord kiezen, zoeken, filteren en het archief staan eveneens in de popup, zodat het bord direct zichtbaar is.
+- Iedere kaart heeft daarnaast één instelbare status: **Nog doen** (grijs), **Bezig** (blauw), **Wachten** (oranje), **Nog afmaken** (paars) of **Klaar** (groen). Open de kaart en kies **Status**. Een kort kleurstreepje met de statusnaam blijft zichtbaar op het bord. Bestaande kaarten zonder status beginnen met Nog doen; verplaatsen verandert de status niet. Geen databasemigratie nodig.
 - Kaarten kleuren automatisch op verantwoordelijke: Age lichtblauw en Renze lichtpaars. De naam blijft zichtbaar; niet-toegewezen kaarten zijn neutraal.
 - Kaarten kunnen worden gearchiveerd en via Archief weer worden teruggezet. Er worden geen kaarten definitief verwijderd.
 - Sla een nieuwe kaart eerst op; daarna kunnen bijlagen worden toegevoegd. Maximaal 4 MB per bestand: PDF, gangbare afbeeldingen, Office, TXT, CSV en ZIP. HTML, SVG, scripts en uitvoerbare bestanden worden geweigerd. Downloads gebruiken korte ondertekende links en worden als bestand aangeboden.
@@ -40,3 +41,11 @@ Dit is een eigen kanbanmodule voor leadopvolging. Automatische acties, koppeling
 ## Hoofdnavigatie
 
 Dashboard, Nieuwe keuring, Werkplaats en Frellobord blijven direct bereikbaar. Onder **Relaties & materieel** staan Klanten, Machines en Keuringen. Onder **Planning** staan Keuringsplanning en Verhuur. Het menu loopt zo nodig door op meerdere regels en heeft geen horizontale schuifbalk. Submenu's sluiten bij een klik buiten het menu, bij navigatie of met Escape. De werkplaatstablet houdt uitsluitend de Werkplaats-knop.
+
+## Compacte werkplaatsweergave
+
+Op het dashboard staat **Bestellijst** rechts naast Welkom terug. Het rode bolletje telt aanvragen met status Nieuw en verdwijnt zodra die behandeld worden; het is geen persoonlijk leesvinkje. De teller ververst elke 30 seconden, bij terugkeren naar het venster en bij wijzigingen in de proefversie. De knop blijft zonder nieuwe aanvragen bereikbaar.
+
+De werkplaatsagenda toont één tekstregel per werkbon: tijd, machine en waar de ruimte het toelaat klant. Hover toont de volledige samenvatting; klikken opent de bestaande werkbon met alle details. Medewerkerrijen zijn compact, de +knoppen blijven beschikbaar en verslepen blijft werken. Dezelfde weergave geldt voor chauffeursplanning.
+
+Browsercontrole: start de app met LOCAL_TEST_MODE=1 en voer scripts/workplace-ui-review.cjs uit met Playwright beschikbaar (eventueel PLAYWRIGHT_MODULE_PATH), UI_BASE_URL en indien nodig CHROME_PATH. Voorbeeldgegevens blijven lokaal in de testbrowser. Screenshots komen in test-results/workplace-ui (of UI_ARTIFACT_DIR).

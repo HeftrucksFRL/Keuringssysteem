@@ -45,3 +45,17 @@
 [data-workshop-planner] .hf-job{touch-action:none;user-select:none;cursor:grab}[data-workshop-planner] .hf-job.hf-pointer-ghost{position:fixed;left:0;top:0;z-index:10000;pointer-events:none;margin:0;transition:none;box-shadow:0 18px 35px #15385150;will-change:transform;cursor:grabbing}[data-workshop-planner] .hf-job.hf-drag-source{display:none}.hf-drop-slot{border:2px dashed #70a9d2;background:#deedf7;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#4e7b9c;font-size:11px;margin-bottom:8px;pointer-events:none}
 
 .hf-actual-time{border:1px solid #ccdde9;border-radius:8px;padding:14px;margin:16px 0}.hf-actual-time legend{font-size:12px;font-weight:600}.hf-actual-time .hf-fields{gap:12px}.hf-actual-time button{width:100%}
+
+/* Eén regel per werkbon; alle details blijven in de geopende bon beschikbaar. */
+[data-workshop-planner] .hf-cell{min-height:66px;padding:5px 7px}
+[data-workshop-planner] .hf-person{padding:9px 12px;min-height:66px;justify-content:center;gap:2px}
+[data-workshop-planner] .hf-person>span,[data-workshop-planner] .hf-person small{display:none}
+[data-workshop-planner] .hf-agenda .hf-job,[data-workshop-planner] .hf-backlog .hf-job{display:block;min-height:30px;height:30px;padding:5px 7px;margin-bottom:4px;line-height:18px;overflow:hidden}
+[data-workshop-planner] .hf-job-line{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px}
+[data-workshop-planner] .hf-job-line strong{display:inline;font-size:11px;line-height:18px}
+[data-workshop-planner] .hf-job-time{font-variant-numeric:tabular-nums;font-size:10px;margin-right:4px}
+[data-workshop-planner] .hf-job .hf-job-meta[hidden]{display:none}
+[data-workshop-planner] .hf-cell .hf-add{min-height:24px;padding:2px 5px;font-size:10px}
+[data-workshop-planner] .hf-corner,[data-workshop-planner] .hf-day{padding:9px 12px}
+
+[data-workshop-planner] .hf-job.hf-pointer-ghost{min-height:30px;height:30px;padding:5px 7px;display:block}

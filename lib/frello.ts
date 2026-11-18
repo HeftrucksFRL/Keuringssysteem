@@ -1,5 +1,14 @@
 import { z } from "zod";
 
+export const frelloStatuses = [
+  {id:'todo',name:'Nog doen',color:'#64748b'},
+  {id:'doing',name:'Bezig',color:'#2563eb'},
+  {id:'waiting',name:'Wachten',color:'#d97706'},
+  {id:'finish',name:'Nog afmaken',color:'#9333ea'},
+  {id:'done',name:'Klaar',color:'#15803d'},
+] as const;
+export type FrelloStatus = typeof frelloStatuses[number]['id'];
+export function frelloStatus(value?:FrelloStatus){return frelloStatuses.find(s=>s.id===value)||frelloStatuses[0];}
 const id=z.string().uuid();
 const text=z.string().trim().max(10000);
 const date=z.string().refine(v=>v===""||(/^\d{4}-\d{2}-\d{2}$/.test(v)&&!Number.isNaN(Date.parse(v+"T12:00:00Z"))&&new Date(v+"T12:00:00Z").toISOString().slice(0,10)===v),"Ongeldige opvolgdatum");
@@ -9,6 +18,7 @@ export const frelloStateSchema=z.object({
     id,columnId:id,title:z.string().trim().min(1).max(180),description:text,
     company:z.string().trim().max(180),contact:z.string().trim().max(180),
     email:z.union([z.string().trim().email().max(254),z.literal("")]),phone:z.string().trim().max(80),
+    status:z.enum(["todo","doing","waiting","finish","done"]).optional(),
     assignee:z.enum(["","Age","Renze"]),dueDate:date,labels:z.array(z.string().trim().min(1).max(40)).max(12),archived:z.boolean(),
     checklist:z.array(z.object({id,text:z.string().trim().min(1).max(500),done:z.boolean()}).strict()).max(100),
     comments:z.array(z.object({id,text:text.min(1),author:z.string().max(180),createdAt:z.string().datetime()}).strict()).max(100)
