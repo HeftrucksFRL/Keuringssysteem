@@ -1,6 +1,6 @@
 # Werkplaatsagenda — module voor de keuringsapp
 
-Bijgewerkt op 18 november 2026. Een eigen werkplaatsagenda op `/werkplaats`, los van de bestaande keuringsplanning. Dit pakket is een Next.js-uitbreidingsmodule voor deze app, geen WordPress-plugin.
+Bijgewerkt op 19 november 2026. Een eigen werkplaatsagenda op `/werkplaats`, los van de bestaande keuringsplanning. Dit pakket is een Next.js-uitbreidingsmodule voor deze app, geen WordPress-plugin.
 
 ## Bestellijst voor onderdelen, gereedschap en verbruiksmateriaal
 
@@ -119,3 +119,13 @@ Het menu **Relaties & materieel → Werkbonnen** opent een documentenoverzicht z
 Het grote filterblok boven de keuringsagenda is vervangen door een smalle filterbalk; op kleinere schermen schuiven de velden naar twee regels. De richttijd op een werkbon wordt in uren ingevoerd, met stappen van 0,25 uur, bijvoorbeeld 1,5 uur. De bestaande minutengegevens blijven behouden.
 
 Tijdens slepen verschijnen zones **Vorige week** en **Volgende week**. Laat een geplande bon op een zone los om dezelfde medewerker en weekdag in de andere week te gebruiken. Bij vasthouden boven de weekzone of aan de rand gaat de agenda vanzelf over naar de andere week; je kunt de bon vervolgens op een gekozen dag laten vallen. Dezelfde bediening werkt voor transportbonnen. Boven de werkplaatsplanning staat een kleine legenda met statusvlakjes en de balkkleuren voor soort werkbon.
+
+## Papieren werkbonnen, transportbonnen en ritlijsten
+
+Lege en ingevulde werkbonnen gebruiken hetzelfde A4-PDF-formulier. Bekende gegevens worden ingevuld; ontbrekende gegevens laten schrijfruimte vrij. Het formulier bevat tien onderdelenregels, dezelfde tien check-ups, gewerkte uren, opmerkingen van de monteur en een afvinkvak voor kantoorcontrole. Lange inhoud loopt door op vervolgpagina's. Status, updates, prijzen en browserkop/-voet (paginatitel en URL) worden niet op de PDF afgedrukt. De knop opent de PDF; de gebruiker drukt af vanuit de PDF-lezer.
+
+Transportbonnen gebruiken dezelfde PDF-stijl, met invulruimte voor adressen, instructies, afleverbevestiging en handtekeningen. **Ritlijst afdrukken** in de transportplanning neemt de zichtbare week, de geselecteerde chauffeur en het zoekfilter over. Kies daarna één dag of de hele week. Alleen geplande ritten worden opgenomen, gegroepeerd per datum/chauffeur en gesorteerd op de geplande positie, onafhankelijk van optionele afspraaktijden.
+
+De PDF-API vereist een ingelogde gebruiker, en bij POST ook origin-/CSRF-controle. Het is uitsluitend een renderer: afdrukken wijzigt geen bonnen of planning. De HTML-preview heeft voor PDF-afdrukken een draaiende app nodig. Er is geen extra database-migratie of afhankelijkheid nodig.
+
+Klant en machine hebben elk één doorzoekbare keuze uit de opgeslagen records. Een wijziging van klant wist de machinekeuze onmiddellijk. Vrije zoektekst geldt nooit als een gekoppeld record. **Opmerkingen monteur** vervangt de onduidelijke veldnaam Terugkoppeling / onderdelen; gebruikte onderdelen blijven apart staan. Spoed heeft een neongroen balkje; wachten op onderdelen een oranje statusvlak. De legenda gebruikt dezelfde kleuren.
