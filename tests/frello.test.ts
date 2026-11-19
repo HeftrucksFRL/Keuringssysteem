@@ -1,6 +1,6 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
-import {frelloStateSchema,frelloSaveSchema,frelloCreateSchema,frelloBoardOrderSchema,orderFrelloBoards,moveFrelloBoard,moveFrelloColumn,moveFrelloCard,frelloDropBefore,persistFrelloOptimistically,validateFrelloUpload,initialFrelloState,type FrelloCard} from "../lib/frello";
+import {frelloStateSchema,frelloSaveSchema,frelloCreateSchema,frelloBoardOrderSchema,orderFrelloBoards,moveFrelloBoard,moveFrelloColumn,moveFrelloCard,frelloDropBefore,persistFrelloOptimistically,validateFrelloUpload,initialFrelloState,updateFrelloColumns,deleteFrelloCard,frelloDeleteSchema,type FrelloCard} from "../lib/frello";
 import {workshopViewerRequestAllowed} from "../lib/workshop-access";
 const state=initialFrelloState();
 const card:FrelloCard={id:crypto.randomUUID(),columnId:state.columns[0].id,title:"Lead",description:"",company:"",contact:"",email:"",phone:"",assignee:"Age",dueDate:"",labels:[],archived:false,checklist:[],comments:[]};
@@ -93,4 +93,23 @@ test('columns move in both directions while preserving all cards and their colum
  assert.deepEqual(moveFrelloColumn(moved,original.columns[0].id,original.columns[1].id),original);
  assert.equal(moveFrelloColumn(original,'missing',original.columns[0].id),original);
  assert.equal(moveFrelloColumn(original,original.columns[0].id,original.columns[0].id),original);
+});
+
+test('blank column names disappear, removed columns retain their cards and thirty columns can be saved',()=>{
+ const populated={...state,cards:[card]};
+ const edited=updateFrelloColumns(populated,state.columns.map((c,i)=>({...c,name:i<3?'':'  '+c.name+'  '})));
+ assert.equal(edited.columns.length,3);assert.equal(edited.cards[0].id,card.id);assert.equal(edited.cards[0].columnId,edited.columns[0].id);
+ assert.equal(edited.cards[0].description,card.description);
+ const thirty=Array.from({length:30},(_,i)=>({id:crypto.randomUUID(),name:'Kolom '+i}));
+ assert.equal(updateFrelloColumns(populated,thirty).columns.length,30);
+ assert.throws(()=>updateFrelloColumns(populated,[...thirty,{id:crypto.randomUUID(),name:'31'}]),/30/);
+ assert.throws(()=>updateFrelloColumns(populated,[{id:crypto.randomUUID(),name:'  '}]),/minimaal/);
+});
+test('card deletion preserves other cards and board deletion requires its version',()=>{
+ const second={...card,id:crypto.randomUUID(),title:'Behouden'};
+ const result=deleteFrelloCard({...state,cards:[card,second]},card.id);
+ assert.deepEqual(result.cards,[second]);assert.deepEqual(result.columns,state.columns);
+ assert.equal(frelloDeleteSchema.safeParse({id:crypto.randomUUID(),version:2}).success,true);
+ assert.equal(frelloDeleteSchema.safeParse({id:crypto.randomUUID()}).success,false);
+ assert.equal(frelloStateSchema.safeParse({...state,deletedAt:'2026-11-19T12:00:00.000Z'}).success,true);
 });

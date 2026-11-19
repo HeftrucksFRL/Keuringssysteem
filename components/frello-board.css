@@ -13,3 +13,5 @@
 .fr-column h3 .fr-column-grip{font-size:20px;color:#648196;background:transparent;padding:0;cursor:grab;user-select:none}.fr-column h3{gap:7px}
 
 .fr-column h3{touch-action:none;user-select:none;cursor:grab}.fr-column-preview{position:fixed;left:0;top:0;z-index:9999;pointer-events:none;background:white;border:1px solid #9ac0da;border-radius:8px;padding:12px 20px;box-shadow:0 12px 25px #173b5240;font-weight:600}
+
+.fr .fr-danger{color:#a52c2c;border-color:#e3b9b9}.fr .fr-column-delete{min-height:26px;min-width:26px;padding:0;border:0;background:transparent;font-size:20px;color:#71899b}.fr-column-editor{display:flex;align-items:center;gap:12px}.fr-column-editor>label{flex:1}.fr-column-editor>button{margin-top:6px}

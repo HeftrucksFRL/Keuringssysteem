@@ -15,7 +15,7 @@ export async function POST(req:NextRequest){try{
   if(!(file instanceof File)||!validateFrelloUpload(file.name,file.size))return json("Kies een ondersteund bestand van maximaal 4 MB (PDF, afbeelding, Office, tekst of ZIP).",400);
   const client=await createClient();const board=await client.from("frello_boards").select("state").eq("id",boardId).maybeSingle();
   if(board.error||!board.data)return json("Bord niet gevonden of privé.",404);
-  if(!(board.data.state as FrelloState).cards.some(c=>c.id===cardId&&!c.archived))return json("Sla de kaart eerst op.",400);
+  if((board.data.state as FrelloState).deletedAt||!(board.data.state as FrelloState).cards.some(c=>c.id===cardId&&!c.archived))return json("Sla de kaart eerst op of controleer of het bord is verwijderd.",400);
   const id=crypto.randomUUID(),path=`${boardId}/${cardId}/${id}.${file.name.split('.').pop()!.toLowerCase()}`;
   const uploaded=await client.storage.from(bucket).upload(path,file,{contentType:"application/octet-stream",upsert:false});
   if(uploaded.error)return json("Upload is niet gelukt. Bestand blijft ongewijzigd.",503);
@@ -25,7 +25,10 @@ export async function POST(req:NextRequest){try{
 }catch{return json("Upload is niet gelukt.",500);}}
 export async function GET(req:NextRequest){try{
   if(!await allowed())return json("Geen toegang.",403);const client=await createClient(),id=req.nextUrl.searchParams.get("id");
-  const file=await client.from("frello_files").select("path,name").eq("id",id||"").maybeSingle();if(file.error||!file.data)return json("Bijlage niet gevonden of privé.",404);
+  const file=await client.from("frello_files").select("path,name,board_id,card_id").eq("id",id||"").maybeSingle();if(file.error||!file.data)return json("Bijlage niet gevonden of privé.",404);
+  const cardId=file.data.card_id;
+  const board=await client.from('frello_boards').select('state').eq('id',file.data.board_id).maybeSingle();
+  if(board.error||!board.data||(board.data.state as FrelloState).deletedAt||!(board.data.state as FrelloState).cards.some(c=>c.id===cardId))return json('De kaart of het bord is verwijderd.',404);
   const signed=await client.storage.from(bucket).createSignedUrl(file.data.path,60,{download:file.data.name});
   if(signed.error)return json("Download is niet gelukt.",503);
   return new NextResponse(null,{status:302,headers:{Location:signed.data.signedUrl,"Cache-Control":"private, no-store","Referrer-Policy":"no-referrer"}});

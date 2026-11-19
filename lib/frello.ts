@@ -14,6 +14,7 @@ const id=z.string().uuid();
 const text=z.string().trim().max(10000);
 const date=z.string().refine(v=>v===""||(/^\d{4}-\d{2}-\d{2}$/.test(v)&&!Number.isNaN(Date.parse(v+"T12:00:00Z"))&&new Date(v+"T12:00:00Z").toISOString().slice(0,10)===v),"Ongeldige opvolgdatum");
 export const frelloStateSchema=z.object({
+  deletedAt:z.string().datetime().optional(),
   columns:z.array(z.object({id,name:z.string().trim().min(1).max(80)}).strict()).min(1).max(30),
   cards:z.array(z.object({
     id,columnId:id,title:z.string().trim().min(1).max(180),description:text,
@@ -52,6 +53,15 @@ export function moveFrelloColumn(state:FrelloState,id:string,targetId:string):Fr
 }
 export const frelloCreateSchema=z.object({title:z.string().trim().min(1).max(100),visibility:z.enum(["shared","private"])}).strict();
 export const frelloSaveSchema=z.object({id,version:z.number().int().nonnegative(),title:z.string().trim().min(1).max(100),state:frelloStateSchema}).strict();
+export const frelloDeleteSchema=z.object({id,version:z.number().int().nonnegative()}).strict();
+export function updateFrelloColumns(state:FrelloState,draft:FrelloState['columns']):FrelloState{
+  const columns=draft.map(c=>({...c,name:c.name.trim()})).filter(c=>c.name);
+  if(!columns.length)throw new Error('Vul minimaal één kolom in.');
+  if(columns.length>30)throw new Error('Maximaal 30 kolommen per bord.');
+  const ids=new Set(columns.map(c=>c.id));
+  return frelloStateSchema.parse({...state,columns,cards:state.cards.map(c=>ids.has(c.columnId)?c:{...c,columnId:columns[0].id})});
+}
+export function deleteFrelloCard(state:FrelloState,id:string):FrelloState{return {...state,cards:state.cards.filter(c=>c.id!==id)};}
 export function initialFrelloState():FrelloState{return {columns:["Nieuwe leads","Contact gelegd","Offerte verstuurd","Opvolgen","Gewonnen","Verloren"].map(name=>({id:crypto.randomUUID(),name})),cards:[]};}
 export function moveFrelloCard(state:FrelloState,cardId:string,columnId:string,beforeId?:string):FrelloState{
   if(!state.columns.some(c=>c.id===columnId))return state;
