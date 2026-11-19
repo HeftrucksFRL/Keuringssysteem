@@ -145,8 +145,7 @@
         viewRoot.querySelector('.hf-weekbar').remove();viewRoot.querySelector('.hf-agenda-wrap').outerHTML='<section class="hf-archive-list">'+(done.map(card).join('')||'<p>Geen afgeronde werkbonnen gevonden.</p>')+'</section>';viewRoot.querySelectorAll('.hf-backlog').forEach(el=>el.remove());
       }
       bind();
-      const orderLink=document.createElement('a');orderLink.className='hf-order-link';orderLink.target='_top';orderLink.href='/werkplaats/bestellingen'+(demo&&!canEdit?'?tablet=1':'');orderLink.textContent='Onderdelen & gereedschap';viewRoot.querySelector('.hf-tabs').appendChild(orderLink);
-      if(canEdit){const link=document.createElement('a');link.href='/werkbonnen';link.className='hf-order-link';link.textContent='Werkbonnen';viewRoot.querySelector('.hf-tabs').appendChild(link);}
+      const orderLink=document.createElement('a');orderLink.className='hf-order-link';orderLink.target='_top';orderLink.href='/werkplaats/bestellingen'+(demo&&!canEdit?'?tablet=1':'');orderLink.textContent='Onderdelen bestellen';viewRoot.querySelector('.hf-tabs').appendChild(orderLink);
       if(dragging)root.querySelectorAll('[data-job]').forEach(card=>{if(card.dataset.job===dragging)card.classList.add('hf-drag-source');});
       const blank=document.createElement('a');blank.href='/werkplaats/werkbon/print';blank.target='_blank';blank.rel='noopener';blank.className='hf-order-link';blank.textContent='Lege werkbon afdrukken';viewRoot.querySelector('.hf-tabs').appendChild(blank);
     }
@@ -244,7 +243,7 @@
         if(action==='employees')employeesDialog();
         if(action==='refresh')void refresh(true);
         if(['prev','next','today'].includes(action)){week=action==='today'?weekStart(localDate(new Date())):addDays(week,action==='prev'?-7:7);render();}
-        if(['workshop','driver'].includes(action)){mode=action;filter='';render();}
+        if(['workshop','driver'].includes(action)){if(config.onModeChange){config.onModeChange(action);return;}mode=action;filter='';render();}
       });
       root.querySelector('#hf-person').onchange=e=>{filter=e.target.value;render();};
       root.querySelector('#hf-search').onchange=e=>{search=e.target.value;render();};

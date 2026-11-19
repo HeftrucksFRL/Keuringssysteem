@@ -139,3 +139,7 @@ Machine en werkbon zijn afzonderlijke opslagbewerkingen: na validatie wordt de u
 Bij een geopende bon bewaart **Wijzigingen opslaan** notitie, aangevinkte controles en ingevulde werktijd samen. Daarna verschijnt **Wijzigingen opgeslagen**. De planner houdt daarnaast de bestaande knop voor het bewerken en opslaan van de bon/planning.
 
 De snelheidscontrole en meetresultaten staan in `docs/snelheidscontrole-2026-11-19.md`. Machine-eigenaars voor klantentellingen gebruiken een smalle projectie; keuringsperioden worden vooraf in de database gefilterd. Ongewijzigde werkplaatsverversingen sturen geen planningsdocument meer terug. Historie op klant-/machinekaarten stuurt alleen de gekoppelde samenvattingen terug. Er is geen nieuwe migratie nodig.
+
+## Directe planningnavigatie
+
+Onder Planning staan Keuringsplanning, Transportplanning, Werkplaatsplanning en Verhuur. De werkplaats blijft ook bereikbaar via het losse hoofdmenu-item Werkplaats. De planningtabknoppen gebruiken dezelfde routes; het tabletaccount behoudt de bestaande interne tabbediening. De werkplaatsknop Onderdelen bestellen opent de bestellijst. Het werkbonnenoverzicht blijft onder Relaties & materieel staan en is uit de werkplaatsknoppenbalk verwijderd.

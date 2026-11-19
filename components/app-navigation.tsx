@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef } from "react";
-import { ClipboardCheck, FilePenLine, ChevronDown, Forklift, FolderKanban, LayoutDashboard, PackageCheck, Users, Wrench } from "lucide-react";
+import { ClipboardCheck, FilePenLine, ChevronDown, Forklift, FolderKanban, LayoutDashboard, PackageCheck, Truck, Users, Wrench } from "lucide-react";
 import type { Route } from "next";
 import "./app-navigation.css";
 
@@ -16,17 +16,20 @@ const links: NavLink[] = [
   { href: "/werkbonnen", label: "Werkbonnen", icon: Wrench },
   { href: "/keuringen", label: "Keuringen", icon: FilePenLine },
   { href: "/planning", label: "Keuringsplanning", icon: FolderKanban },
+  { href: "/planning/transport", label: "Transportplanning", icon: Truck },
+  { href: "/planning/werkplaats", label: "Werkplaatsplanning", icon: Wrench },
   { href: "/verhuur", label: "Verhuur", icon: PackageCheck },
   { href: "/werkplaats", label: "Werkplaats", icon: Wrench },
   { href: "/frello", label: "Frellobord", icon: FolderKanban }
 ];
 const groups = [
   { label: "Relaties & materieel", icon: Users, hrefs: ["/klanten", "/machines", "/keuringen", "/werkbonnen"] },
-  { label: "Planning", icon: FolderKanban, hrefs: ["/planning", "/verhuur"] }
+  { label: "Planning", icon: FolderKanban, hrefs: ["/planning", "/planning/transport", "/planning/werkplaats", "/verhuur"] }
 ];
 function isActive(path: string, href: string) {
   if (href === "/") return path === "/";
   if (href === "/keuringen" && path.startsWith("/keuringen/nieuw")) return false;
+  if (href === "/planning" && ["/planning/transport", "/planning/werkplaats"].some(route => path === route || path.startsWith(route + "/"))) return false;
   return path === href || path.startsWith(`${href}/`);
 }
 export function AppNavigation({ variant = "desktop", workshopOnly = false }: { variant?: "desktop" | "mobile"; workshopOnly?: boolean }) {
