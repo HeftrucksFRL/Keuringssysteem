@@ -16,7 +16,7 @@ declare global {interface Window {
 function loadPlanner(){
   if(window.HFWorkshopMount)return Promise.resolve();
   if(!window.hfWorkshopScript)window.hfWorkshopScript=new Promise<void>((resolve,reject)=>{
-    const script=document.createElement('script');script.src='/werkplaats-preview/assets/planning.js?v=20261119-transport-delete-v4';script.async=true;
+    const script=document.createElement('script');script.src='/werkplaats-preview/assets/planning.js?v=20261119-week-header-v5';script.async=true;
     script.onload=()=>resolve();script.onerror=()=>{window.hfWorkshopScript=undefined;script.remove();reject(new Error('Werkplaatsagenda laden is niet gelukt.'));};document.head.appendChild(script);
   });
   return window.hfWorkshopScript;

@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 export const frelloStatuses = [
-  {id:'todo',name:'Nog doen',color:'#dc2626'},
-  {id:'doing',name:'Bezig',color:'#2563eb'},
+  {id:'todo',name:'Nog doen',color:'#ea580c'},
+  {id:'doing',name:'Mee bezig',color:'#16a34a'},
   {id:'waiting',name:'Wachten',color:'#d97706'},
   {id:'ordered',name:'Onderdeel is besteld',color:'#0891b2'},
   {id:'finish',name:'Nog afmaken',color:'#9333ea'},
