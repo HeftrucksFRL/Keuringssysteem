@@ -9,7 +9,7 @@ export function normalizeWorkshopTransports(state:WorkshopState):WorkshopState{
  const transports=[...(state.transports||[])].map(t=>({...t}));
  const byJob=new Map<string,TransportTicket>();for(const ticket of transports)if(ticket.jobId&&!byJob.has(ticket.jobId))byJob.set(ticket.jobId,ticket);
  for(const job of state.jobs){const legacy=job.transport;let ticket=byJob.get(job.id);if(!ticket){ticket={id:"transport-"+job.id,jobId:job.id,kind:"Werkbon",title:job.number+" · "+job.machine,customer:job.customer,machine:job.machine,pickup:legacy?.pickup||"Eigen werkplaats",address:legacy?.address||job.deliveryAddress||"",contact:legacy?.contact||"",instructions:legacy?.instructions||"",driver:legacy?.driver||"",date:legacy?.date||"",appointmentTime:legacy?.time||"",position:transports.length,state:legacy?.state||"Nieuw",confirmation:legacy?.confirmation||"",...(legacy?{legacyReleased:true}:{})};transports.push(ticket);byJob.set(job.id,ticket);}else{ticket.title=job.number+" · "+job.machine;ticket.customer=job.customer;ticket.machine=job.machine;}}
- return {...state,transports,jobs:state.jobs.map(job=>({...job,transport:null}))};
+ return {...state,transports,jobs:state.jobs.map(job=>({...job,...(job.status==='Klaar voor transport'?{status:'Afgerond' as const,...(!job.completedAt&&job.officeApprovedAt?{completedAt:job.officeApprovedAt}:{})}:{}),transport:null}))};
 }
 export function validateTransportPlanning(state:WorkshopState,previous?:WorkshopState){
  const transports=state.transports||[];if(new Set(transports.map(t=>t.id)).size!==transports.length)throw new Error("Dubbele transportbonnen zijn niet toegestaan.");

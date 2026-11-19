@@ -8,6 +8,7 @@ test('a monteur cannot be double-booked, adjacent appointments are allowed',()=>
   assert.equal(collision([job],{...job,id:'two',employee:'b'},'workshop'),false);
   assert.equal(collision([job],{...job,id:'two',date:'2026-11-13'},'workshop'),false);
   assert.equal(collision([job],job,'workshop'),false);
+  for(const status of ['Afgerond','Klaar voor transport'])assert.equal(collision([{...job,status}],{...job,id:'two'},'workshop'),false);
 });
 test('chauffeur conflicts only include active, transport-ready work orders',()=>{
   const ready={...job,status:'Klaar voor transport',transport:{driver:'d',date:'2026-11-13',time:'09:00',duration:60,state:'Gepland'}};

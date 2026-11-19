@@ -1,6 +1,6 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
-import {prepareWorkshopSave,workshopSaveSchema,type WorkshopState} from "../lib/workshop";
+import {prepareWorkshopSave,workshopSaveSchema,filterWorkshopDocuments,type WorkshopState} from "../lib/workshop";
 import {normalizeWorkshopTransports,deleteTransportTicket,transportRelease,moveTransportTicket,returnWorkshopJob,validateTransportPlanning} from "../lib/workshop-transport";
 const job={id:"one",number:"WB-0001",customer:"Klant",machine:"Machine",serial:"123",task:"Onderhoud",notes:"",employee:"mechanic",date:"2026-11-18",time:"08:00",duration:60,status:"Ingepland" as const,checks:[false,false,false] as [boolean,boolean,boolean],transport:null,requiredChecks:Array(10).fill(false) as boolean[],checkedPoints:Array(10).fill(false) as boolean[]};
 const state:WorkshopState={employees:[{id:"mechanic",name:"Renze",role:"mechanic",canDrive:true},{id:"harm",name:"Harm",role:"driver"}],jobs:[job]};
@@ -49,4 +49,17 @@ test('transport deletion survives normalization and saves, retaining work order 
  assert.equal(transportRelease(restored.transports![0],restored.jobs).allowed,true);
  const loose={...ticket,id:'loose',jobId:undefined,kind:'Inkoop ophalen' as const};const looseState={...original,transports:[...original.transports!,loose]};
  assert.equal(prepareWorkshopSave(looseState,deleteTransportTicket(looseState,'loose',at),at).transports!.find(t=>t.id==='loose')!.deletedAt,at);
+});
+
+test('legacy ready work orders become closed without inventing approvals, dates or payments',()=>{
+ const legacy={...state,jobs:[{...job,status:'Klaar voor transport' as const,checks:[true,true,true] as [boolean,boolean,boolean],notes:'Historie bewaren',actualMinutes:125}]};
+ const next=normalizeWorkshopTransports(legacy),closed=next.jobs[0];
+ assert.equal(closed.status,'Afgerond');assert.equal(closed.notes,'Historie bewaren');assert.equal(closed.actualMinutes,125);
+ assert.equal(closed.completedAt,undefined);assert.equal(closed.officeApprovedAt,undefined);assert.equal(closed.invoicePaidAt,undefined);
+ assert.equal(filterWorkshopDocuments(legacy.jobs,{status:'completed'}).length,1);assert.equal(filterWorkshopDocuments(legacy.jobs,{status:'open'}).length,0);
+ assert.equal(transportRelease(next.transports![0],next.jobs).allowed,false);
+ const saved=prepareWorkshopSave(legacy,next,at);assert.equal(saved.jobs[0].completedAt,undefined);
+ assert.throws(()=>prepareWorkshopSave(legacy,{...legacy,jobs:[]},at),/bewaard/);
+ const active={...job,id:'active',number:'WB-0002'};assert.equal(workshopSaveSchema.safeParse({version:1,state:{...legacy,jobs:[...legacy.jobs,active]}}).success,true);
+ const dated=normalizeWorkshopTransports({...legacy,jobs:[{...legacy.jobs[0],officeApprovedAt:at}]});assert.equal(dated.jobs[0].completedAt,at);
 });

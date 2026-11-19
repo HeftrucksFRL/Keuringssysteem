@@ -38,7 +38,7 @@ test("tablet activity changes only status and appends a dated named update, safe
   assert.equal(applyWorkshopActivity(next,activity),next);
   for(const [action,status] of [["pause","Pauze"],["parts","Wachten op onderdelen"],["review","Werkbon-controle"],["hold","On hold"]] as const)assert.equal(applyWorkshopActivity(original,{...activity,action}).jobs[0].status,status);
 });
-test("tablet cannot schedule or release transport, but may leave notes on unplanned/ready jobs",()=>{
+test("tablet cannot schedule or release transport, but may leave notes on unplanned jobs and rejects closed legacy jobs",()=>{
   const state={employees,jobs:[job]} as WorkshopState;
   assert.equal(workshopActivitySchema.safeParse({...activity,transport:{}}).success,false);
   assert.equal(workshopActivitySchema.safeParse({...activity,action:"note",text:" "}).success,false);
@@ -46,7 +46,7 @@ test("tablet cannot schedule or release transport, but may leave notes on unplan
   for(const changed of [{...job,status:"Nieuw",employee:"",date:""},{...job,status:"Klaar voor transport",checks:[true,true,true]}]){
     const current={employees,jobs:[changed]} as WorkshopState;
     assert.throws(()=>applyWorkshopActivity(current,activity));
-    assert.equal(applyWorkshopActivity(current,{...activity,action:"note"}).jobs[0].status,changed.status);
+    if(changed.status==="Klaar voor transport")assert.throws(()=>applyWorkshopActivity(current,{...activity,action:"note"}),/afgerond/);else assert.equal(applyWorkshopActivity(current,{...activity,action:"note"}).jobs[0].status,changed.status);
   }
 });
 
@@ -68,6 +68,7 @@ test("time validation rejects missing, negative, fractional and extreme time; re
  assert.equal(next.jobs[0].status,"Werkbon-controle");assert.equal(next.jobs[0].actualMinutes,95);
  for(const changed of [{...job,status:"Nieuw",employee:"",date:""},{...job,status:"Klaar voor transport",checks:[true,true,true]}]){
    const current={employees,jobs:[changed]} as WorkshopState;
+   if(changed.status==="Klaar voor transport"){assert.throws(()=>applyWorkshopActivity(current,{...activity,action:"time",actualMinutes:60}),/afgerond/);continue;}
    const result=applyWorkshopActivity(current,{...activity,action:"time",actualMinutes:60});
    assert.equal(result.jobs[0].status,changed.status);assert.equal(result.jobs[0].actualMinutes,60);
  }
