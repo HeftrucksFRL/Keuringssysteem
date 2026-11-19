@@ -46,6 +46,10 @@ export function moveFrelloBoard<T extends {id:string}>(boards:T[],id:string,targ
   if(from<0||to<0||from===to)return boards;
   const next=[...boards],item=next.splice(from,1)[0];next.splice(to,0,item);return next;
 }
+export function moveFrelloColumn(state:FrelloState,id:string,targetId:string):FrelloState{
+  const columns=moveFrelloBoard(state.columns,id,targetId);
+  return columns===state.columns?state:{...state,columns};
+}
 export const frelloCreateSchema=z.object({title:z.string().trim().min(1).max(100),visibility:z.enum(["shared","private"])}).strict();
 export const frelloSaveSchema=z.object({id,version:z.number().int().nonnegative(),title:z.string().trim().min(1).max(100),state:frelloStateSchema}).strict();
 export function initialFrelloState():FrelloState{return {columns:["Nieuwe leads","Contact gelegd","Offerte verstuurd","Opvolgen","Gewonnen","Verloren"].map(name=>({id:crypto.randomUUID(),name})),cards:[]};}

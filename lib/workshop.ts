@@ -125,7 +125,7 @@ export function prepareWorkshopSave(previous:WorkshopState,next:WorkshopState,at
  let result=normalizeWorkshopTransports({...next,jobs,transports:next.transports||before.transports});
  // Removing an open work order also removes its linked, unscheduled preparation ticket.
  result={...result,transports:result.transports!.filter(t=>!t.jobId||jobs.some(j=>j.id===t.jobId))};
- for(const old of before.transports||[]){if(old.jobId&&!jobs.some(j=>j.id===old.jobId)&&old.driver)throw new Error("Haal de gekoppelde transportbon eerst uit de planning.");if(!result.transports!.some(t=>t.id===old.id)&&(!old.jobId||jobs.some(j=>j.id===old.jobId)))throw new Error("Transportbonnen blijven bewaard in hun bak.");}
+ for(const old of before.transports||[]){if(old.jobId&&!jobs.some(j=>j.id===old.jobId)&&old.driver&&!old.deletedAt)throw new Error("Haal de gekoppelde transportbon eerst uit de planning.");if(!result.transports!.some(t=>t.id===old.id)&&(!old.jobId||jobs.some(j=>j.id===old.jobId)))throw new Error("Transportbonnen blijven bewaard in hun bak.");}
  validateTransportPlanning(result,before);
  return {...result,taskSuggestions:Array.from(new Set([...(previous.taskSuggestions||[]),...jobs.flatMap(j=>j.task.split(/[\n.!?]+/).map(sentence=>sentence.trim()).filter(sentence=>sentence.length>=3&&sentence.length<=500))])).slice(-2000),nextJobNumber:Math.max(previous.nextJobNumber||1,...[...previous.jobs,...jobs].map(j=>Number(j.number.slice(3))+1))};
 }

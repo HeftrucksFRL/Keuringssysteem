@@ -1,7 +1,7 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
 import {prepareWorkshopSave,workshopSaveSchema,type WorkshopState} from "../lib/workshop";
-import {normalizeWorkshopTransports,transportRelease,moveTransportTicket,returnWorkshopJob,validateTransportPlanning} from "../lib/workshop-transport";
+import {normalizeWorkshopTransports,deleteTransportTicket,transportRelease,moveTransportTicket,returnWorkshopJob,validateTransportPlanning} from "../lib/workshop-transport";
 const job={id:"one",number:"WB-0001",customer:"Klant",machine:"Machine",serial:"123",task:"Onderhoud",notes:"",employee:"mechanic",date:"2026-11-18",time:"08:00",duration:60,status:"Ingepland" as const,checks:[false,false,false] as [boolean,boolean,boolean],transport:null,requiredChecks:Array(10).fill(false) as boolean[],checkedPoints:Array(10).fill(false) as boolean[]};
 const state:WorkshopState={employees:[{id:"mechanic",name:"Renze",role:"mechanic",canDrive:true},{id:"harm",name:"Harm",role:"driver"}],jobs:[job]};
 const at="2026-11-18T14:00:00.000Z";
@@ -36,4 +36,17 @@ test("general and stock work orders return only to their original workshop tray,
 test("legacy scheduled transport migrates without losing dates, addresses or release",()=>{
  const legacy={...state,jobs:[{...job,status:"Klaar voor transport" as const,checks:[true,true,true] as [boolean,boolean,boolean],transport:{driver:"harm",date:"2026-11-19",time:"10:00",duration:60,pickup:"Werkplaats",address:"Klant",contact:"Jan",instructions:"Lader",state:"Gepland" as const,confirmation:""}}]};
  const next=normalizeWorkshopTransports(legacy);assert.equal(next.transports![0].date,"2026-11-19");assert.equal(next.transports![0].address,"Klant");assert.equal(next.jobs[0].transport,null);assert.equal(transportRelease(next.transports![0],next.jobs).allowed,true);assert.doesNotThrow(()=>prepareWorkshopSave(legacy,next,at));
+});
+
+test('transport deletion survives normalization and saves, retaining work order history and invoice state',()=>{
+ const original=paid(),ticket=original.transports![0];ticket.pickup='Werkplaats';ticket.address='Klantadres';const planned=moveTransportTicket(original,ticket.id,{driver:'harm',date:'2026-11-19',position:0});
+ const deleted=deleteTransportTicket(planned,ticket.id,at),saved=prepareWorkshopSave(planned,deleted,at);
+ assert.deepEqual(saved.jobs,planned.jobs);assert.equal(saved.transports![0].deletedAt,at);
+ assert.equal(normalizeWorkshopTransports(saved).transports!.length,1);assert.equal(normalizeWorkshopTransports(saved).transports![0].deletedAt,at);
+ assert.equal(transportRelease(saved.transports![0],saved.jobs).allowed,false);
+ assert.throws(()=>moveTransportTicket(saved,ticket.id,{driver:'harm',date:'2026-11-20',position:0}),/verwijderd/);
+ const restored=prepareWorkshopSave(saved,{...saved,transports:saved.transports!.map(t=>({...t,deletedAt:undefined,driver:'',date:'',state:'Nieuw'}))},at);
+ assert.equal(transportRelease(restored.transports![0],restored.jobs).allowed,true);
+ const loose={...ticket,id:'loose',jobId:undefined,kind:'Inkoop ophalen' as const};const looseState={...original,transports:[...original.transports!,loose]};
+ assert.equal(prepareWorkshopSave(looseState,deleteTransportTicket(looseState,'loose',at),at).transports!.find(t=>t.id==='loose')!.deletedAt,at);
 });

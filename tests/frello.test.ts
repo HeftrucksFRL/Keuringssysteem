@@ -1,6 +1,6 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
-import {frelloStateSchema,frelloSaveSchema,frelloCreateSchema,frelloBoardOrderSchema,orderFrelloBoards,moveFrelloBoard,moveFrelloCard,frelloDropBefore,persistFrelloOptimistically,validateFrelloUpload,initialFrelloState,type FrelloCard} from "../lib/frello";
+import {frelloStateSchema,frelloSaveSchema,frelloCreateSchema,frelloBoardOrderSchema,orderFrelloBoards,moveFrelloBoard,moveFrelloColumn,moveFrelloCard,frelloDropBefore,persistFrelloOptimistically,validateFrelloUpload,initialFrelloState,type FrelloCard} from "../lib/frello";
 import {workshopViewerRequestAllowed} from "../lib/workshop-access";
 const state=initialFrelloState();
 const card:FrelloCard={id:crypto.randomUUID(),columnId:state.columns[0].id,title:"Lead",description:"",company:"",contact:"",email:"",phone:"",assignee:"Age",dueDate:"",labels:[],archived:false,checklist:[],comments:[]};
@@ -83,4 +83,14 @@ test('board order is personal, preserves new boards and cannot reveal unavailabl
  assert.equal(frelloBoardOrderSchema.safeParse({boardIds:[a.id,a.id]}).success,false);
  assert.equal(frelloBoardOrderSchema.safeParse({boardIds:[a.id],userId:b.id}).success,false);
  assert.equal(frelloBoardOrderSchema.safeParse({boardIds:[a.id,c.id]}).success,true);
+});
+
+test('columns move in both directions while preserving all cards and their column links',()=>{
+ const original={...state,cards:[card]};
+ const moved=moveFrelloColumn(original,original.columns[0].id,original.columns[2].id);
+ assert.deepEqual(moved.columns.map(c=>c.id),[original.columns[1].id,original.columns[2].id,original.columns[0].id,...original.columns.slice(3).map(c=>c.id)]);
+ assert.equal(moved.cards,original.cards);assert.equal(moved.cards[0].columnId,card.columnId);
+ assert.deepEqual(moveFrelloColumn(moved,original.columns[0].id,original.columns[1].id),original);
+ assert.equal(moveFrelloColumn(original,'missing',original.columns[0].id),original);
+ assert.equal(moveFrelloColumn(original,original.columns[0].id,original.columns[0].id),original);
 });
