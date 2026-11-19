@@ -1,6 +1,6 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
-import {frelloStateSchema,frelloSaveSchema,frelloCreateSchema,moveFrelloCard,frelloDropBefore,persistFrelloOptimistically,validateFrelloUpload,initialFrelloState,type FrelloCard} from "../lib/frello";
+import {frelloStateSchema,frelloSaveSchema,frelloCreateSchema,frelloBoardOrderSchema,orderFrelloBoards,moveFrelloBoard,moveFrelloCard,frelloDropBefore,persistFrelloOptimistically,validateFrelloUpload,initialFrelloState,type FrelloCard} from "../lib/frello";
 import {workshopViewerRequestAllowed} from "../lib/workshop-access";
 const state=initialFrelloState();
 const card:FrelloCard={id:crypto.randomUUID(),columnId:state.columns[0].id,title:"Lead",description:"",company:"",contact:"",email:"",phone:"",assignee:"Age",dueDate:"",labels:[],archived:false,checklist:[],comments:[]};
@@ -59,10 +59,10 @@ test("a rejected or offline save rolls back the optimistic movement",async()=>{
 });
 import { frelloStatus,frelloStatuses } from '../lib/frello';
 
-test('five card statuses preserve old boards and survive moves',()=>{
+test('six card statuses preserve old boards and survive moves',()=>{
   const legacy=frelloStateSchema.parse({...state,cards:[card]});
   assert.equal(frelloStatus(legacy.cards[0].status).name,'Nog doen');
-  assert.equal(frelloStatuses.length,5);
+  assert.equal(frelloStatuses.length,6);
   for(const status of frelloStatuses){
     const saved=frelloStateSchema.parse({...state,cards:[{...card,status:status.id}]});
     const moved=moveFrelloCard(saved,card.id,state.columns[1].id);
@@ -70,4 +70,17 @@ test('five card statuses preserve old boards and survive moves',()=>{
     assert.equal(frelloStatus(moved.cards[0].status).name,status.name);
   }
   assert.equal(frelloStateSchema.safeParse({...state,cards:[{...card,status:'unknown'}]}).success,false);
+});
+
+test('board order is personal, preserves new boards and cannot reveal unavailable private boards',()=>{
+ const a={id:crypto.randomUUID(),title:'Gezamenlijk'},b={id:crypto.randomUUID(),title:'Renze privé'},c={id:crypto.randomUUID(),title:'Nieuw'};
+ const renze=orderFrelloBoards([a,b,c],[b.id,a.id]);assert.deepEqual(renze.map(b=>b.id),[b.id,a.id,c.id]);
+ const age=orderFrelloBoards([a,c],[b.id,a.id]);assert.deepEqual(age.map(b=>b.id),[a.id,c.id]);
+ assert.deepEqual(orderFrelloBoards([a,c],null),[a,c]);
+ assert.deepEqual(moveFrelloBoard(renze,b.id,c.id).map(b=>b.id),[a.id,c.id,b.id]);
+ assert.deepEqual(moveFrelloBoard(renze,c.id,b.id).map(b=>b.id),[c.id,b.id,a.id]);
+ assert.equal(moveFrelloBoard(renze,'missing',a.id),renze);
+ assert.equal(frelloBoardOrderSchema.safeParse({boardIds:[a.id,a.id]}).success,false);
+ assert.equal(frelloBoardOrderSchema.safeParse({boardIds:[a.id],userId:b.id}).success,false);
+ assert.equal(frelloBoardOrderSchema.safeParse({boardIds:[a.id,c.id]}).success,true);
 });

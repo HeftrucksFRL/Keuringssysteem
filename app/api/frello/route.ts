@@ -4,10 +4,16 @@ import { hasSupabaseConfig } from "@/lib/env";
 import { canManageWorkshopTablet } from "@/lib/workshop-access";
 import { createClient } from "@/lib/supabase/server";
 import { validateOrigin,validateCsrf,applyRateLimit } from "@/lib/security";
-import { frelloCreateSchema,frelloSaveSchema,initialFrelloState,type FrelloState } from "@/lib/frello";
+import { frelloCreateSchema,frelloSaveSchema,frelloBoardOrderSchema,orderFrelloBoards,initialFrelloState,type FrelloState,type FrelloBoard } from "@/lib/frello";
+import {createClient as createAdminClient} from '@supabase/supabase-js';
 export const dynamic="force-dynamic";
 const cols="id,title,visibility,owner_id,version,updated_at";
 const json=(v:unknown,status=200)=>NextResponse.json(v,{status,headers:{"Cache-Control":"private, no-store"}});
+async function visibleBoards(client:Awaited<ReturnType<typeof createClient>>){
+  const boards:FrelloBoard[]=[];
+  for(let from=0;;from+=1000){const {data,error}=await client.from('frello_boards').select(cols).order('created_at').order('id').range(from,from+999);if(error)throw new Error('Borden laden is niet gelukt.');boards.push(...data);if(data.length<1000)break;}
+  return boards;
+}
 async function access(req:NextRequest,write=false){
   if(!hasSupabaseConfig())return {denied:json({message:"Gebruik lokaal de proefversie."},503)};
   const user=await requireUser();if(!user)return {denied:json({message:"Log opnieuw in."},401)};
@@ -24,9 +30,22 @@ export async function GET(req:NextRequest){try{
     if(files.error)return json({message:"Bijlagen laden is niet gelukt."},503);
     return json({board:data,files:files.data});
   }
-  const {data,error}=await client.from("frello_boards").select(cols).order("created_at").limit(100);
-  return error?json({message:"Frellobord is nog niet beschikbaar. Controleer de database-installatie."},503):json({boards:data});
+  const boards=await visibleBoards(client);
+  return json({boards:orderFrelloBoards(boards,(gate.user!.user_metadata as Record<string,unknown>)?.frello_board_order)});
 }catch{return json({message:"Borden laden is niet gelukt."},500);}}
+export async function PATCH(req:NextRequest){try{
+  const gate=await access(req,true);if(gate.denied)return gate.denied;
+  const raw=await req.text();if(raw.length>50000)return json({message:'Verzoek is te groot.'},413);
+  const parsed=frelloBoardOrderSchema.safeParse(JSON.parse(raw));if(!parsed.success)return json({message:'Controleer de bordvolgorde.'},400);
+  const client=await createClient(),boards=await visibleBoards(client),allowed=new Set(boards.map(b=>b.id));
+  if(parsed.data.boardIds.some(id=>!allowed.has(id)))return json({message:'Een bord bestaat niet meer of is privé. Vernieuw de lijst.'},400);
+  const ordered=orderFrelloBoards(boards,parsed.data.boardIds);
+  const admin=createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.SUPABASE_SERVICE_ROLE_KEY!,{auth:{persistSession:false,autoRefreshToken:false}});
+  const current=await admin.auth.admin.getUserById(gate.user!.id);if(current.error)return json({message:'Je voorkeuren laden is niet gelukt.'},503);
+  const result=await admin.auth.admin.updateUserById(gate.user!.id,{user_metadata:{...current.data.user.user_metadata,frello_board_order:ordered.map(b=>b.id)}});
+  if(result.error)return json({message:'Bordvolgorde opslaan is niet gelukt.'},503);
+  return json({boards:ordered});
+}catch{return json({message:'Bordvolgorde opslaan is niet gelukt.'},400);}}
 async function read(req:NextRequest){const raw=await req.text();if(Buffer.byteLength(raw)>5000000)throw new Error();return JSON.parse(raw);}
 export async function POST(req:NextRequest){try{
   const gate=await access(req,true);if(gate.denied)return gate.denied;const parsed=frelloCreateSchema.safeParse(await read(req));if(!parsed.success)return json({message:"Vul een bordnaam en zichtbaarheid in."},400);

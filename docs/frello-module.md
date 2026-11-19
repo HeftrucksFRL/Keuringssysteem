@@ -49,3 +49,14 @@ Op het dashboard staat **Bestellijst** rechts naast Welkom terug. Het rode bolle
 De werkplaatsagenda toont één tekstregel per werkbon: tijd, machine en waar de ruimte het toelaat klant. Hover toont de volledige samenvatting; klikken opent de bestaande werkbon met alle details. Medewerkerrijen zijn compact, de +knoppen blijven beschikbaar en verslepen blijft werken. Dezelfde weergave geldt voor chauffeursplanning.
 
 Browsercontrole: start de app met LOCAL_TEST_MODE=1 en voer scripts/workplace-ui-review.cjs uit met Playwright beschikbaar (eventueel PLAYWRIGHT_MODULE_PATH), UI_BASE_URL en indien nodig CHROME_PATH. Voorbeeldgegevens blijven lokaal in de testbrowser. Screenshots komen in test-results/workplace-ui (of UI_ARTIFACT_DIR).
+## Bordvolgorde en onderdelenstatus (19 november 2026)
+
+Bij Wissel bord staat een versleepbare lijst met afzonderlijke labels voor gezamenlijke en eigen privéborden. Pijltjes bieden dezelfde bediening zonder slepen. De bovenste rij is het standaardbord bij een nieuw bezoek. De volgorde wordt via een beveiligde PATCH op de Frello-API opgeslagen in `user_metadata.frello_board_order` van uitsluitend de ingelogde gebruiker. Voor de proefversie is er een afzonderlijke localStorage-sleutel per demo-account. Nieuwe borden worden achteraan toegevoegd; een eerder gekozen bord blijft tijdens verversen geopend.
+
+De API leest alle toegankelijke borden gepagineerd, in plaats van de lijst tot 100 af te kappen. Onbekende of niet-toegankelijke ID's worden bij het bewaren van de volgorde geweigerd. De voorkeur sorteert alleen al toegankelijke borden en verandert nooit de zichtbaarheid, eigenaar of inhoud. Een database-migratie is niet nodig. Wissel bord ververst de lijst bij openen en heeft een eigen knop Borden vernieuwen.
+
+De kaartstatus Onderdeel is besteld (`ordered`) is toegevoegd. Bestaande kaarten zonder status blijven Nog doen; bestaande statussen, kaartvolgorde, reacties en bijlagen blijven behouden.
+
+Bij de alleen-lezen controle op 19 november stonden vijf borden opgeslagen. Het privébord TTD Renze was gekoppeld aan info@heftrucks.frl; het gezamenlijke bord Klant wil offerte stond eveneens opgeslagen. Een privébord is alleen zichtbaar voor het account waarmee het is gemaakt. Er zijn tijdens deze controle geen bordgegevens of privacyinstellingen gewijzigd. De databasecontrole bewijst dat deze borden bestaan; niet of er ooit andere, niet genoemde borden hebben bestaan.
+
+Bij een nieuwe kaart wordt de opvolgdatum op de lokale datum van vandaag gezet, berekend op het moment dat de kaart wordt geopend. Morgen krijgt een nieuwe kaart dus automatisch de nieuwe datum. De gebruiker kan deze datum aanpassen of leegmaken; bestaande kaarten en hun opgeslagen opvolgdatums worden niet overschreven.

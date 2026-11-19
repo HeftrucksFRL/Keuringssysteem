@@ -4,6 +4,7 @@ export const frelloStatuses = [
   {id:'todo',name:'Nog doen',color:'#64748b'},
   {id:'doing',name:'Bezig',color:'#2563eb'},
   {id:'waiting',name:'Wachten',color:'#d97706'},
+  {id:'ordered',name:'Onderdeel is besteld',color:'#0891b2'},
   {id:'finish',name:'Nog afmaken',color:'#9333ea'},
   {id:'done',name:'Klaar',color:'#15803d'},
 ] as const;
@@ -18,7 +19,7 @@ export const frelloStateSchema=z.object({
     id,columnId:id,title:z.string().trim().min(1).max(180),description:text,
     company:z.string().trim().max(180),contact:z.string().trim().max(180),
     email:z.union([z.string().trim().email().max(254),z.literal("")]),phone:z.string().trim().max(80),
-    status:z.enum(["todo","doing","waiting","finish","done"]).optional(),
+    status:z.enum(["todo","doing","waiting","ordered","finish","done"]).optional(),
     assignee:z.enum(["","Age","Renze"]),dueDate:date,labels:z.array(z.string().trim().min(1).max(40)).max(12),archived:z.boolean(),
     checklist:z.array(z.object({id,text:z.string().trim().min(1).max(500),done:z.boolean()}).strict()).max(100),
     comments:z.array(z.object({id,text:text.min(1),author:z.string().max(180),createdAt:z.string().datetime()}).strict()).max(100)
@@ -34,6 +35,17 @@ export type FrelloState=z.infer<typeof frelloStateSchema>;
 export type FrelloCard=FrelloState["cards"][number];
 export interface FrelloBoard {id:string;title:string;visibility:"shared"|"private";owner_id:string|null;version:number;updated_at:string;state?:FrelloState}
 export interface FrelloFile {id:string;board_id:string;card_id:string;name:string;size:number;created_at:string}
+export const frelloBoardOrderSchema=z.object({boardIds:z.array(id).max(1000)}).strict().refine(v=>new Set(v.boardIds).size===v.boardIds.length,{message:'Een bord mag maar één keer in de volgorde staan.'});
+export function orderFrelloBoards<T extends {id:string}>(boards:T[],order:unknown):T[]{
+  const ids=Array.isArray(order)?order.filter((id):id is string=>typeof id==='string'):[];
+  const position=new Map<string,number>();ids.forEach((id,i)=>{if(!position.has(id))position.set(id,i);});
+  return [...boards].sort((a,b)=>(position.get(a.id)??Infinity)-(position.get(b.id)??Infinity));
+}
+export function moveFrelloBoard<T extends {id:string}>(boards:T[],id:string,targetId:string):T[]{
+  const from=boards.findIndex(b=>b.id===id),to=boards.findIndex(b=>b.id===targetId);
+  if(from<0||to<0||from===to)return boards;
+  const next=[...boards],item=next.splice(from,1)[0];next.splice(to,0,item);return next;
+}
 export const frelloCreateSchema=z.object({title:z.string().trim().min(1).max(100),visibility:z.enum(["shared","private"])}).strict();
 export const frelloSaveSchema=z.object({id,version:z.number().int().nonnegative(),title:z.string().trim().min(1).max(100),state:frelloStateSchema}).strict();
 export function initialFrelloState():FrelloState{return {columns:["Nieuwe leads","Contact gelegd","Offerte verstuurd","Opvolgen","Gewonnen","Verloren"].map(name=>({id:crypto.randomUUID(),name})),cards:[]};}
