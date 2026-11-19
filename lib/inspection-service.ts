@@ -2639,6 +2639,14 @@ export async function getMachines(options: { includeArchived?: boolean } = {}) {
   return includeArchived ? machines : machines.filter((machine) => !isMachineArchived(machine));
 }
 
+/** Customer lists only need ownership and archive state, never full machine data. */
+export async function getMachineCustomerReferences(options:{includeArchived?:boolean}={}){
+  if(!hasSupabaseConfig())return (await getMachines(options)).map(({customerId})=>({customerId}));
+  const client=createSupabaseAdmin();
+  const rows=await fetchAllSupabaseRows((from,to)=>client.from('machines').select('id,customer_id,archived:configuration->__archivedAt').order('id').range(from,to));
+  return rows.filter(row=>options.includeArchived||!row.archived).map(row=>({customerId:String(row.customer_id)}));
+}
+
 export async function getMachineSummaries(options: {
   ids?: string[];
   includeArchived?: boolean;
@@ -2815,15 +2823,20 @@ export async function getInspectionCustomerDates():Promise<Pick<InspectionRecord
   return (await listDemoData()).inspections.map(({customerId,inspectionDate})=>({customerId,inspectionDate}));
 }
 
-export async function getInspectionSummaries() {
+export async function getInspectionSummaries(scope:{from?:string;to?:string;status?:string}={}) {
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
     const rows = await fetchAllSupabaseRows((from, to) =>
-      supabase
+      {
+      let query=supabase
         .from("inspections")
         .select("id, customer_id, machine_id, machine_type, inspection_date, inspection_number, status, machine_snapshot, updated_at")
-        .order("inspection_date", { ascending: false })
-        .range(from, to)
+        .order("inspection_date", { ascending: false });
+      if(scope.from)query=query.gte('inspection_date',scope.from);
+      if(scope.to)query=query.lte('inspection_date',scope.to);
+      if(scope.status)query=query.eq('status',scope.status);
+      return query.range(from,to);
+      }
     );
 
     return rows.map((row) => ({
@@ -2849,7 +2862,7 @@ export async function getInspectionSummaries() {
   }
 
   const data = await listDemoData();
-  return data.inspections.map((inspection) => ({
+  return data.inspections.filter(i=>(!scope.from||i.inspectionDate>=scope.from)&&(!scope.to||i.inspectionDate<=scope.to)&&(!scope.status||i.status===scope.status)).map((inspection) => ({
     ...inspection,
     checklist: {},
     customerSnapshot: {},
@@ -3671,6 +3684,29 @@ export async function getCustomerById(id: string) {
 
   const customers = await getCustomers();
   return customers.find((customer) => customer.id === id) ?? null;
+}
+
+/** Update only the meter, preserving every other machine configuration field. */
+export async function updateWorkshopMachineHours(machineId:string,hourReading:string){
+  if(!/^\d+(?:[.,]\d+)?$/.test(hourReading))throw new Error('Vul een geldige urenstand in.');
+  if(hasSupabaseConfig()){
+    const client=createSupabaseAdmin();
+    for(let attempt=0;attempt<3;attempt++){
+      const {data,error}=await client.from('machines').select('id,configuration').eq('id',machineId).single();
+      if(error||!data)throw new Error('Machine voor urenstand niet gevonden.');
+      const configuration=(data.configuration||{}) as Record<string,string>;
+      if(configuration.hour_reading===hourReading)return;
+      let query=client.from('machines').update({configuration:{...configuration,hour_reading:hourReading}}).eq('id',machineId);
+      query=data.configuration===null?query.is('configuration',null):query.eq('configuration',JSON.stringify(data.configuration));
+      const result=await query.select('id').maybeSingle();
+      if(result.error)throw new Error('Urenstand op de machine opslaan is niet gelukt.');
+      if(result.data)return;
+    }
+    throw new Error('De machine is intussen gewijzigd. Probeer opnieuw.');
+  }
+  const data=await readAppData(),machine=data.machines.find(m=>m.id===machineId);
+  if(!machine)throw new Error('Machine voor urenstand niet gevonden.');
+  machine.configuration={...machine.configuration,hour_reading:hourReading};machine.updatedAt=nowIso();await writeAppData(data);
 }
 
 export async function getMachinesForCustomer(

@@ -3,7 +3,7 @@ import { CustomersTable } from "@/components/customers-table";
 import {
   getArchivedCustomers,
   getInspectionCustomerDates,
-  getMachineSummaries
+  getMachineCustomerReferences
 } from "@/lib/inspection-service";
 
 export default async function CustomerArchivePage({
@@ -15,7 +15,7 @@ export default async function CustomerArchivePage({
   const [customers, inspections, machines] = await Promise.all([
     getArchivedCustomers(),
     getInspectionCustomerDates(),
-    getMachineSummaries({ includeArchived: true })
+    getMachineCustomerReferences({ includeArchived: true })
   ]);
 
   return (

@@ -5,7 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { hasSupabaseConfig } from "@/lib/env";
 import { isWorkshopViewer } from "@/lib/workshop-access";
 import { validateOrigin,validateCsrf,applyRateLimit } from "@/lib/security";
-import { createCustomer,createMachine,getCustomerById,getCustomerSummaries,getMachinesForCustomer,getMachineSummaries,isMachineHistoryCustomer } from "@/lib/inspection-service";
+import { createCustomer,createMachine,getCustomerById,getCustomerSummaries,getMachinesForCustomer,getMachineSummaries,isMachineHistoryCustomer,getMachineById,updateWorkshopMachineHours } from "@/lib/inspection-service";
 const reply=(data:unknown,status=200)=>NextResponse.json(data,{status,headers:{"Cache-Control":"private, no-store"}});
 const text=z.string().trim().max(180),required=text.min(1);
 const schema=z.discriminatedUnion("kind",[
@@ -13,6 +13,7 @@ const schema=z.discriminatedUnion("kind",[
  z.object({kind:z.literal("machine"),customerId:required,machineType:z.enum(["heftruck_reachtruck","batterij_lader","graafmachine","hoogwerker","palletwagen_stapelaar","shovel","verreiker","stellingmateriaal"]),brand:required,model:required,serialNumber:text,internalNumber:text,buildYear:z.string().regex(/^(|\d{4})$/)}).strict()
 ]);
 async function denied(req:NextRequest,write=false){const user=await requireUser();if(!user)return reply({message:"Log opnieuw in."},401);if(isWorkshopViewer(user))return reply({message:"Alleen de planner kan klanten en machines beheren."},403);if(write){const error=validateOrigin(req)||validateCsrf(req)||applyRateLimit(req,"workshop-relations",40);if(error)return reply({message:error},403);}return null;}
+export async function PATCH(req:NextRequest){const error=await denied(req,true);if(error)return error;try{const raw=await req.text();if(raw.length>1000)return reply({message:'Verzoek is te groot.'},413);const input=z.object({machineId:required,customerId:required,hourReading:text.regex(/^\d+(?:[.,]\d+)?$/)}).strict().parse(JSON.parse(raw));const machine=await getMachineById(input.machineId);if(!machine||machine.customerId!==input.customerId)return reply({message:'Kies een machine van deze klant.'},400);await updateWorkshopMachineHours(input.machineId,input.hourReading);return reply({saved:true});}catch(e){return reply({message:e instanceof Error?e.message:'Urenstand opslaan mislukt.'},400);}}
 export async function GET(req:NextRequest){const error=await denied(req);if(error)return error;try{const customerId=req.nextUrl.searchParams.get("customerId");if(customerId)return reply({machines:await getMachinesForCustomer(customerId)});return reply({customers:(await getCustomerSummaries()).filter(c=>!c.archivedAt&&!isMachineHistoryCustomer(c))});}catch{return reply({message:"Klanten en machines laden is niet gelukt."},503);}}
 export async function POST(req:NextRequest){const error=await denied(req,true);if(error)return error;try{const raw=await req.text();if(raw.length>6000)return reply({message:"Verzoek is te groot."},413);const parsed=schema.safeParse(JSON.parse(raw));if(!parsed.success)return reply({message:"Controleer de ingevulde gegevens."},400);const input=parsed.data;let id="";
  if(input.kind==="customer"){

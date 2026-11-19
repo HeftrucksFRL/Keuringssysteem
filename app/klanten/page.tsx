@@ -4,7 +4,7 @@ import {
   isRentalStockCustomer,
   isMachineHistoryCustomer,
   getInspectionCustomerDates,
-  getMachineSummaries
+  getMachineCustomerReferences
 } from "@/lib/inspection-service";
 import { CustomersTable } from "@/components/customers-table";
 import Link from "next/link";
@@ -18,7 +18,7 @@ export default async function CustomersPage({
   const [allCustomers, inspections, machines] = await Promise.all([
     getCustomers(),
     getInspectionCustomerDates(),
-    getMachineSummaries()
+    getMachineCustomerReferences()
   ]);
 
   const visibleCustomers=allCustomers.filter(customer=>!isRentalStockCustomer(customer)&&!isMachineHistoryCustomer(customer));

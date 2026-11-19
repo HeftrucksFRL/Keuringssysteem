@@ -129,3 +129,13 @@ Transportbonnen gebruiken dezelfde PDF-stijl, met invulruimte voor adressen, ins
 De PDF-API vereist een ingelogde gebruiker, en bij POST ook origin-/CSRF-controle. Het is uitsluitend een renderer: afdrukken wijzigt geen bonnen of planning. De HTML-preview heeft voor PDF-afdrukken een draaiende app nodig. Er is geen extra database-migratie of afhankelijkheid nodig.
 
 Klant en machine hebben elk één doorzoekbare keuze uit de opgeslagen records. Een wijziging van klant wist de machinekeuze onmiddellijk. Vrije zoektekst geldt nooit als een gekoppeld record. **Opmerkingen monteur** vervangt de onduidelijke veldnaam Terugkoppeling / onderdelen; gebruikte onderdelen blijven apart staan. Spoed heeft een neongroen balkje; wachten op onderdelen een oranje statusvlak. De legenda gebruikt dezelfde kleuren.
+
+## Machinevelden en urenstand (19 november 2026)
+
+Machine bevat uitsluitend merk en type. Intern nummer en serienummer zijn afzonderlijke velden en worden uit de gekoppelde machine gelezen; het interne nummer valt nooit terug op het serienummer. Een bekende urenstand wordt uit `configuration.hour_reading` opgehaald. Bij een nieuwe of gewijzigde urenstand wordt alleen die sleutel op de machine bijgewerkt, ook bij een machine die zojuist via de werkbon is aangemaakt. Andere configuratievelden blijven behouden. Het opnieuw plannen van een oude bon schrijft zijn oude urenstand niet terug naar de machine.
+
+Machine en werkbon zijn afzonderlijke opslagbewerkingen: na validatie wordt de urenstand bewaard en daarna de planning met versiecontrole. Als die laatste bewerking conflicteert, meldt de app expliciet dat de machine-uren wel bewaard zijn en de werkbon opnieuw moet worden opgeslagen. De proefmodus gebruikt dezelfde machineopslag via de relaties-API; de planning blijft daar in de browser.
+
+Bij een geopende bon bewaart **Wijzigingen opslaan** notitie, aangevinkte controles en ingevulde werktijd samen. Daarna verschijnt **Wijzigingen opgeslagen**. De planner houdt daarnaast de bestaande knop voor het bewerken en opslaan van de bon/planning.
+
+De snelheidscontrole en meetresultaten staan in `docs/snelheidscontrole-2026-11-19.md`. Machine-eigenaars voor klantentellingen gebruiken een smalle projectie; keuringsperioden worden vooraf in de database gefilterd. Ongewijzigde werkplaatsverversingen sturen geen planningsdocument meer terug. Historie op klant-/machinekaarten stuurt alleen de gekoppelde samenvattingen terug. Er is geen nieuwe migratie nodig.

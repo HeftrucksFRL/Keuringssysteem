@@ -5,6 +5,7 @@ import {
   getMachineSummaries
 } from "@/lib/inspection-service";
 import { InspectionsTable } from "@/components/inspections-table";
+import {inspectionListScope} from '@/lib/inspection-list-scope';
 
 export default async function InspectionsPage({
   searchParams
@@ -12,7 +13,7 @@ export default async function InspectionsPage({
   searchParams?: Promise<{ created?: string; week?: string; period?: string; status?: string }>;
 }) {
   const params = await searchParams;
-  const allInspections = await getInspectionSummaries();
+  const allInspections = await getInspectionSummaries(inspectionListScope(params));
   let inspections = allInspections;
   let title = "Alle keuringen";
 

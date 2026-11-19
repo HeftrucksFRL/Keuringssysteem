@@ -9,9 +9,9 @@ async function read(input:Parameters<typeof createWorkshopPdf>[0]){
   return {pdf,text};
 }
 test('blank and populated work orders share a one-page paper worksheet with checkboxes and ten parts rows',async()=>{
-  for(const item of [undefined,{number:'WB-0001',customer:'De Boer',machine:'Linde E20',task:'Kantelaar demonteren\nSlangen vervangen',usedParts:'2 slangen\n1 filter',requiredChecks:[true]}]){
+  for(const item of [undefined,{number:'WB-0001',customer:'De Boer',machine:'Linde E20',internalNumber:'254',task:'Kantelaar demonteren\nSlangen vervangen',usedParts:'2 slangen\n1 filter',requiredChecks:[true]}]){
     const {pdf,text}=await read({type:'workshop',item});assert.equal(pdf.getPageCount(),1);assert.match(text,/Gebruikte onderdelen/);assert.match(text,/Kantoorcontrole/);assert.match(text,/Veiligheid en eindcontrole/);assert.doesNotMatch(text,/Nog niet ingevuld|Werkplaatsupdates|Status:|zonder prijzen|https:/);
-    if(item){assert.match(text,/Kantelaar demonteren/);assert.match(text,/Slangen vervangen/);assert.doesNotMatch(text,/demonteren\?Slangen/);assert.equal(pdf.getTitle(),'Werkbon WB-0001');}
+    if(item){assert.match(text,/Intern nummer/);assert.match(text,/254/);assert.doesNotMatch(text,/Machine \/ machinenummer/);assert.match(text,/Kantelaar demonteren/);assert.match(text,/Slangen vervangen/);assert.doesNotMatch(text,/demonteren\?Slangen/);assert.equal(pdf.getTitle(),'Werkbon WB-0001');}
   }
 });
 test('long work instructions continue across pages without truncating the final line',async()=>{

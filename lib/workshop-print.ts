@@ -3,7 +3,7 @@ import {z} from 'zod';
 import {workshopCheckLabels} from './workshop';
 
 const text=z.string().max(6000).optional().default('');
-const record=z.object({number:z.string().max(100).optional().default(''),customer:text,machine:text,serial:text,employee:text,date:text,time:text,hourReading:text,deliveryAddress:text,task:text,usedParts:text,notes:text,estimatedMinutes:z.number().min(0).max(1440).optional(),actualMinutes:z.number().min(0).max(600000).optional(),requiredChecks:z.array(z.boolean()).max(10).optional(),checkedPoints:z.array(z.boolean()).max(10).optional(),title:text,pickup:text,address:text,contact:text,driver:text,appointmentTime:text,instructions:text,confirmation:text,position:z.number().optional()});
+const record=z.object({number:z.string().max(100).optional().default(''),customer:text,machine:text,internalNumber:text,serial:text,employee:text,date:text,time:text,hourReading:text,deliveryAddress:text,task:text,usedParts:text,notes:text,estimatedMinutes:z.number().min(0).max(1440).optional(),actualMinutes:z.number().min(0).max(600000).optional(),requiredChecks:z.array(z.boolean()).max(10).optional(),checkedPoints:z.array(z.boolean()).max(10).optional(),title:text,pickup:text,address:text,contact:text,driver:text,appointmentTime:text,instructions:text,confirmation:text,position:z.number().optional()});
 export const workshopPrintSchema=z.object({type:z.enum(['workshop','transport','trips']),item:record.optional(),items:z.array(record).max(300).optional()});
 export type WorkshopPrintInput=z.input<typeof workshopPrintSchema>;
 
@@ -28,7 +28,7 @@ export async function createWorkshopPdf(input:WorkshopPrintInput){
   const item=data.item||record.parse({});
   if(data.type==='workshop'){
     newPage('Werkbon'+(item.number?' '+item.number:''));
-    fields([['Datum',date(item.date)],['Naam monteur',item.employee],['Klant / bedrijf',item.customer],['Machine / machinenummer',item.machine],['Serienummer',item.serial],['Urenstand machine',item.hourReading],['Afleveradres',item.deliveryAddress],['Begintijd / richttijd (uren)',[item.time,item.estimatedMinutes===undefined?'':String(item.estimatedMinutes/60)+' uur'].filter(Boolean).join(' / ')]]);
+    fields([['Datum',date(item.date)],['Naam monteur',item.employee],['Klant / bedrijf',item.customer],['Machine (merk en type)',item.machine],['Intern nummer',item.internalNumber],['Serienummer',item.serial],['Urenstand machine',item.hourReading],['Afleveradres',item.deliveryAddress],['Begintijd / richttijd (uren)',[item.time,item.estimatedMinutes===undefined?'':String(item.estimatedMinutes/60)+' uur'].filter(Boolean).join(' / ')]]);
     section('Werkzaamheden / bevindingen',item.task,64);
     const parts=wrap(item.usedParts,width-90,9);const rowCount=Math.max(10,item.usedParts?parts.length+5:10);ensure(20+Math.min(rowCount,10)*19);write('Gebruikte onderdelen',margin,y,10,true);y+=17;
     box(margin,y,width,18);write('Aantal',margin+6,y+3,9,true);write('Omschrijving / artikelnummer',margin+65,y+3,9,true);y+=18;
