@@ -276,13 +276,13 @@ export function NewAgendaWorkspace({
       <div className="new-agenda-head">
         <div>
           <div className="eyebrow">Planning</div>
-          <h1>Agenda</h1>
+          <h1>Keuringsplanning</h1>
           <p className="muted">
-            Filter verwachte keuringen, plan routes en werk met de bestaande planning.
+            Zoek verwachte keuringen, kies een keuringsdatum en stel keuringsroutes samen.
           </p>
         </div>
-        <Link className="button-secondary" href="/planning/oude-agenda">
-          Oude planning
+        <Link className="button-secondary" href="/agenda">
+          Afspraken & opleidingen
         </Link>
       </div>
 
