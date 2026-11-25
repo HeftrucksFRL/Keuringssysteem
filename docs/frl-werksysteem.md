@@ -7,7 +7,7 @@
 - **Werk & dossiers**: Werkbonnen, Keuringen, Verhuur en Onderdelen & gereedschap.
 - **Relaties & materieel**: Klanten en Machines, de gezamenlijke basisgegevens.
 - **Agenda**: eigen afspraken en de bestaande alleen-lezen cursusfeed.
-- **Takenbord**: vrije taken en opvolging op het bestaande Frello-bord.
+- **Frellobord**: vrije taken en opvolging op het bestaande Frello-bord.
 
 Keuringsplanning bevat uitsluitend keuringen en keuringsroutes. Afspraken,
 opleidingen en verhuur worden daar niet langer tussen gezet. Verhuur wordt

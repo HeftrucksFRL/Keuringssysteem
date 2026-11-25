@@ -21,7 +21,7 @@ const links: NavLink[] = [
   { href: "/werkplaats/bestellingen", label: "Onderdelen & gereedschap", icon: PackageCheck },
   { href: "/agenda", label: "Agenda", icon: CalendarDays },
   { href: "/werkplaats", label: "Werkplaats", icon: Wrench },
-  { href: "/frello", label: "Takenbord", icon: FolderKanban }
+  { href: "/frello", label: "Frellobord", icon: FolderKanban }
 ];
 const groups = [
   { label: "Planning", icon: FolderKanban, hrefs: ["/planning", "/planning/werkplaats", "/planning/transport"] },
