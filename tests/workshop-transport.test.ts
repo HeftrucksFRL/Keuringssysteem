@@ -10,11 +10,11 @@ function paid(){const closed=approved();return prepareWorkshopSave(closed,{...cl
 test("an explicitly selected work order has exactly one independent preparation ticket",()=>{
  const next=prepareWorkshopSave({employees:state.employees,jobs:[]},state,at);assert.equal(next.transports?.length,1);assert.equal(next.transports?.[0].jobId,job.id);assert.equal(next.transports?.[0].driver,"");assert.equal(transportRelease(next.transports![0],next.jobs).allowed,false);assert.equal(normalizeWorkshopTransports(next).transports?.length,1);
 });
-test("only office can approve a checked work order, and payment is required before scheduling",()=>{
+test("only office can approve a checked work order, and checked transport can be scheduled without payment",()=>{
  assert.throws(()=>prepareWorkshopSave(state,{...state,jobs:[{...job,status:"Afgerond"}]},at),/eerst op Afronden/);
  const review={...state,jobs:[{...job,status:"Werkbon-controle" as const}]};assert.throws(()=>prepareWorkshopSave(review,{...review,jobs:[{...job,status:"Afgerond"}]},at,{canApprove:false,approvedBy:""}),/Alleen Renze/);
- const closed=approved();assert.equal(closed.jobs[0].officeApprovedBy,"Renze");assert.equal(transportRelease(closed.transports![0],closed.jobs).label,"Wacht op betaling");
- assert.throws(()=>moveTransportTicket(closed,closed.transports![0].id,{driver:"harm",date:"2026-11-19",position:0}),/betaling/);
+ const closed=approved();closed.transports![0].address="Klantadres";assert.equal(closed.jobs[0].officeApprovedBy,"Renze");assert.equal(transportRelease(closed.transports![0],closed.jobs).allowed,true);
+ assert.equal(moveTransportTicket(closed,closed.transports![0].id,{driver:"harm",date:"2026-11-19",position:0}).transports![0].state,"Gepland");
  assert.throws(()=>prepareWorkshopSave(closed,{...closed,jobs:closed.jobs.map(j=>({...j,invoicePaidAt:at}))},at),/factuurnummer/);
  const forged={...closed,transports:closed.transports!.map(t=>({...t,legacyReleased:true}))};assert.throws(()=>prepareWorkshopSave(closed,forged,at),/vrijgave/);
 });
@@ -57,7 +57,7 @@ test('legacy ready work orders become closed without inventing approvals, dates 
  assert.equal(closed.status,'Afgerond');assert.equal(closed.notes,'Historie bewaren');assert.equal(closed.actualMinutes,125);
  assert.equal(closed.completedAt,undefined);assert.equal(closed.officeApprovedAt,undefined);assert.equal(closed.invoicePaidAt,undefined);
  assert.equal(filterWorkshopDocuments(legacy.jobs,{status:'completed'}).length,1);assert.equal(filterWorkshopDocuments(legacy.jobs,{status:'open'}).length,0);
- assert.equal(transportRelease(next.transports![0],next.jobs).allowed,false);
+ assert.equal(transportRelease(next.transports![0],next.jobs).allowed,true);
  const saved=prepareWorkshopSave(legacy,next,at);assert.equal(saved.jobs[0].completedAt,undefined);
  assert.throws(()=>prepareWorkshopSave(legacy,{...legacy,jobs:[]},at),/bewaard/);
  const active={...job,id:'active',number:'WB-0002'};assert.equal(workshopSaveSchema.safeParse({version:1,state:{...legacy,jobs:[...legacy.jobs,active]}}).success,true);

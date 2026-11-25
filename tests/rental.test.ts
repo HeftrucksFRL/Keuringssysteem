@@ -20,7 +20,7 @@ async function database(){const db=new PGlite();await db.exec(`
  await db.query('insert into customers(id,company_name) values($1,$2),($3,$4)',[owner,'Heftrucks.frl',customer,'Huurklant']);
  await db.query('insert into machines(id,customer_id,brand,model) values($1,$2,$3,$4)',[machine,owner,'Linde','E20']);
  await db.exec(await readFile('supabase/workshop-relational.sql','utf8'));
- await db.exec(await readFile('supabase/rental-open-transport.sql','utf8'));await db.exec(await readFile('supabase/workshop-archive-bin.sql','utf8'));return db;
+ await db.exec(await readFile('supabase/rental-open-transport.sql','utf8'));await db.exec(await readFile('supabase/workshop-archive-bin.sql','utf8'));await db.exec(await readFile('supabase/workshop-transport-without-payment.sql','utf8'));return db;
 }
 const input=(transport={})=>({machineId:machine,customerId:customer,startDate:'2026-11-01',endDate:'',price:'100',transport});
 async function save(db:PGlite,action:string,data:unknown,version=0,rentalId=id){return (await db.query<{value:Record<string,unknown>}>('select save_rental($1,$2,$3,$4) value',[rentalId,action,JSON.stringify(data),version])).rows[0].value;}
@@ -85,5 +85,16 @@ test('archived work orders release machines and tolerate removed employees',asyn
  const previous=(await db.query<{state:any}>('select state from workshop_state')).rows[0].state;
  await db.query('select save_workshop_changes($1,$2,null)',[JSON.stringify(previous),JSON.stringify({...previous,employees:[{id:'new',name:'Monteur'}]})]);
  assert.equal((await db.query('select * from workshop_jobs')).rows.length,1);
+ }finally{await db.close();}
+});
+
+test('database schedules approved transport without invoice or payment and retains technical release guard',async()=>{
+ const db=await database();try{
+ await db.exec(await readFile('supabase/workshop-transport-without-payment.sql','utf8'));
+ const previous=(await db.query<{state:any}>('select state from workshop_state')).rows[0].state;
+ const state={...previous,employees:[{id:'driver',name:'Chauffeur',role:'driver'}],jobs:[{id:'unpaid',number:'WB-0001',status:'Afgerond',employee:'',date:''}],transports:[{id:'transport-unpaid',jobId:'unpaid',kind:'Werkbon',driver:'driver',date:'2026-12-01',state:'Gepland'}]};
+ await db.query('select save_workshop_changes($1,$2,null)',[JSON.stringify(previous),JSON.stringify(state)]);
+ assert.equal((await db.query<{data:any}>("select data from workshop_transports where id='transport-unpaid'")).rows[0].data.state,'Gepland');
+ await assert.rejects(db.query('select save_workshop_changes($1,$2,null)',[JSON.stringify(state),JSON.stringify({...state,jobs:[{...state.jobs[0],status:'Nieuw'}]})]),/kantoorcontrole/);
  }finally{await db.close();}
 });

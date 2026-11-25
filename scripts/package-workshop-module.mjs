@@ -27,6 +27,7 @@ files.push('app/planning/transport/page.tsx','app/planning/werkplaats/page.tsx')
 files.push('lib/workshop-print.ts','app/api/werkplaats/print/route.ts','tests/workshop-print.test.ts');
 files.push('supabase/workshop-archive-bin.sql','tests/archive-bin.test.ts');
 files.push('lib/workshop-follow-up.ts','components/workshop-follow-up.tsx','components/workshop-follow-up.css','app/api/werkplaats/opvolging/route.ts','tests/workshop-follow-up.test.ts');
+files.push('supabase/workshop-transport-without-payment.sql');
 for(const file of files)zip.addFile(file,fs.readFileSync(path.join(root,file)));
 const patch=execFileSync('git',['diff','b12f3ec','--','components/app-navigation.tsx','components/auth-status.tsx','components/login-form.tsx','app/login/actions.ts','app/login/page.tsx','app/layout.tsx','app/page.tsx','app/globals.css','lib/domain.ts','lib/inspection-service.ts','lib/public-assets.ts','app/klanten/[id]/page.tsx','app/machines/[id]/page.tsx','middleware.ts'],{cwd:root});
 zip.addFile('navigation.patch',patch);
