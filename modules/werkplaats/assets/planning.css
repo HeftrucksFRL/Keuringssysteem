@@ -92,3 +92,5 @@
 .hf-day{position:relative}.hf-day-label{display:grid;gap:3px}[data-workshop-planner] .hf-day-first{padding-left:46px}[data-workshop-planner] .hf-day-last{padding-right:46px}[data-workshop-planner] .hf-day>button{position:absolute;top:50%;transform:translateY(-50%);min-height:30px;width:30px;padding:0;display:grid;place-items:center;font-size:17px;border-radius:7px}.hf-day-prev{left:7px}.hf-day-next{right:7px}
 
 .hf-document-folder{margin:10px 0;border:1px solid #dce3e9;border-radius:8px;overflow:hidden}.hf-document-folder>summary{padding:12px 16px;background:#edf3f8;color:#24445e;font-weight:700;cursor:pointer}.hf-document-folder .hf-document-folder{margin:10px}.hf-document-folder .hf-document-folder>summary{background:#f5f8fa}
+
+.hf-picker [role=option].hf-machine-result{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:12px!important;border-bottom:1px solid #e8edf2;line-height:1.4;overflow-wrap:anywhere}.hf-machine-result>strong{font-size:14px;color:#18344c}.hf-machine-result>span{font-size:12px;color:#344b60}.hf-machine-caption,.hf-machine-result>small{color:#6b7e90}.hf-machine-result>small{font-size:11px;margin-top:2px}

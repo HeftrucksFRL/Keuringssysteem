@@ -356,8 +356,8 @@
       }
       const customerSelect=form.elements.customerId,machineSelect=form.elements.machineId;
       let machineRequest=0;
-      const machineName=m=>[m.brand,m.model].filter(Boolean).join(' · ');
-      const machineLabel=m=>[machineName(m),m.internalNumber,m.serialNumber].filter(Boolean).join(' · ');
+      const machineName=m=>[m.brand,m.model].filter(Boolean).join(' ');
+      const machineLabel=m=>[machineName(m),m.internalNumber?'Intern nummer: '+m.internalNumber:'',m.serialNumber?'Serienummer: '+m.serialNumber:''].filter(Boolean).join(' — ');
       function fillMachine(keepReading=false){const m=machines.find(m=>m.id===machineSelect.value);form.elements.machineName.value=m?machineName(m):'';form.elements.internalNumber.value=m?.internalNumber||'';form.elements.serial.value=m?.serialNumber||'';if(!keepReading||!form.elements.hourReading.value)form.elements.hourReading.value=m?.configuration?.hour_reading||'';}
       function picker(kind,records,label,onchange){
         const host=form.querySelector('[data-picker="'+kind+'"]'),input=form.elements[kind+'Search'],id=form.elements[kind+'Id'],list=host.querySelector('[role="listbox"]');let active=-1;
@@ -365,7 +365,12 @@
         const sync=()=>{input.value=label(records().find(r=>r.id===id.value))||'';input.setCustomValidity(id.value?'':'Kies een resultaat uit de lijst.');close();};
         const show=()=>{const matches=records().filter(r=>label(r).toLowerCase().includes(input.value.toLowerCase())).filter((r,i,list)=>kind!=='customer'||!r.stock||list.findIndex(c=>c.stock)===i).slice(0,50);list.replaceChildren();active=-1;
           if(!matches.length){const empty=document.createElement('span');empty.textContent='Geen resultaten';list.appendChild(empty);}
-          matches.forEach(r=>{const option=document.createElement('button');option.type='button';option.setAttribute('role','option');option.textContent=label(r);option.onmousedown=e=>e.preventDefault();option.onclick=()=>{id.value=r.id;sync();onchange();};list.appendChild(option);});list.hidden=false;input.setAttribute('aria-expanded','true');};
+          matches.forEach(r=>{const option=document.createElement('button');option.type='button';option.setAttribute('role','option');if(kind==='machine'){
+            option.classList.add('hf-machine-result');
+            const title=document.createElement('strong');title.textContent=machineName(r)||'Machine';option.appendChild(title);
+            for(const [caption,value] of [['Intern nummer',r.internalNumber],['Serienummer',r.serialNumber]]){if(!value)continue;const line=document.createElement('span');const name=document.createElement('span');name.className='hf-machine-caption';name.textContent=caption+': ';line.appendChild(name);line.appendChild(document.createTextNode(value));option.appendChild(line);}
+            const owner=customers.find(c=>c.id===r.customerId);if(owner&&r.customerId!==customerSelect.value){const customer=document.createElement('small');customer.textContent=owner.companyName;option.appendChild(customer);}
+          }else option.textContent=label(r);option.onmousedown=e=>e.preventDefault();option.onclick=()=>{id.value=r.id;sync();onchange();};list.appendChild(option);});list.hidden=false;input.setAttribute('aria-expanded','true');};
         input.oninput=()=>{id.value='';input.setCustomValidity('Kies een resultaat uit de lijst.');onchange();show();};input.onfocus=show;input.onblur=close;
         input.onkeydown=e=>{if(e.key==='Escape'){close();return;}if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();if(list.hidden)show();const choices=Array.from(list.querySelectorAll('button'));active=choices.length?(active+(e.key==='ArrowDown'?1:-1)+choices.length)%choices.length:-1;choices.forEach((c,i)=>c.setAttribute('aria-selected',String(i===active)));choices[active]?.scrollIntoView({block:'nearest'});}if(e.key==='Enter'&&!list.hidden){e.preventDefault();list.querySelectorAll('button')[active<0?0:active]?.click();}};sync();return {sync,input};
       }
