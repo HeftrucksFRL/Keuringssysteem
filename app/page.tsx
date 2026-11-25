@@ -163,11 +163,17 @@ export default async function HomePage({
           <p className={`form-message ${params?.todo === "error" ? "error" : "success"}`}>{todoMessage}</p>
         ) : null}
         <div className="actions">
+          <Link className="button" href="/planning/werkplaats">
+            Werkplaatsplanning openen
+          </Link>
           <Link className="button" href="/keuringen/nieuw">
             Nieuwe keuring starten
           </Link>
           <Link className="button-secondary" href="/planning">
-            Planning openen
+            Keuringsplanning openen
+          </Link>
+          <Link className="button-secondary" href="/planning/transport">
+            Transportplanning openen
           </Link>
         </div>
       </section>
@@ -286,6 +292,14 @@ export default async function HomePage({
           <div className="eyebrow">Vandaag</div>
           <h2>Snel naar je werk</h2>
           <div className="list">
+            <Link className="list-item" href="/werkbonnen">
+              <span>Werkbonnen</span>
+              <strong>Open overzicht en historie</strong>
+            </Link>
+            <Link className="list-item" href="/werkplaats/bestellingen">
+              <span>Onderdelen & gereedschap</span>
+              <strong>Open aanvragen</strong>
+            </Link>
             <Link className="list-item" href="/keuringen/nieuw">
               <span>Nieuwe keuring</span>
               <strong>Open formulier</strong>
