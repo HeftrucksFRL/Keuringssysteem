@@ -1,8 +1,8 @@
 import { z } from "zod";
 import {transportTicketSchema,normalizeWorkshopTransports,validateTransportPlanning,canDrive} from "@/lib/workshop-transport";
 
-export const workshopStatuses = ["Nieuw", "Ingepland", "Mee bezig", "Wachten op onderdelen", "Wachten op goedkeuring", "Pauze", "Werkbon-controle", "On hold", "Klaar voor transport", "Afgerond"] as const;
-export const isWorkshopJobClosed=(job:{status:string})=>job.status==='Afgerond'||job.status==='Klaar voor transport';
+export const workshopStatuses = ["Nieuw", "Ingepland", "Mee bezig", "Wachten op onderdelen", "Wachten op goedkeuring", "Pauze", "Werkbon-controle", "On hold", "Klaar voor transport", "Afgerond", "Geannuleerd"] as const;
+export const isWorkshopJobClosed=(job:{status:string})=>job.status==='Afgerond'||job.status==='Klaar voor transport'||job.status==='Geannuleerd';
 export const workshopCheckLabels = ["Werkzaamheden uitgevoerd", "Remmen en parkeerrem", "Stuurinrichting", "Mast en hefkettingen", "Vorken en vorkenbord", "Hydrauliek en lekkages", "Banden en wielen", "Verlichting en signalering", "Batterij / motor en vloeistoffen", "Veiligheid en eindcontrole"] as const;
 const checklistSchema=z.array(z.boolean()).length(10);
 export const workshopActivitySchema=z.object({requestId:z.string().uuid(),jobId:z.string().min(1).max(80),employeeId:z.string().min(1).max(80),action:z.enum(["start","pause","parts","review","hold","note","time","check","claim"]),text:z.string().trim().max(3000),checkedPoints:checklistSchema.optional(),actualMinutes:z.number().int().min(0).max(600000).optional()}).strict().refine(v=>v.action!=="note"||v.text.length>0,{message:"Vul een notitie in."}).refine(v=>v.action!=="time"||v.actualMinutes!==undefined,{message:"Vul de werkelijk bestede tijd in."});
@@ -29,6 +29,7 @@ const jobSchema = z.object({
   kind:z.enum(["Klantreparatie","Verkooptruck","Voorraadtruck"]).optional(),urgent:z.boolean().optional(),
   estimatedMinutes:z.number().int().min(15).max(1440).multipleOf(15).optional(),
   requiredChecks:checklistSchema.optional(),checkedPoints:checklistSchema.optional(),completedAt:z.string().datetime().optional(),createdAt:z.string().datetime().optional(),
+  cancelledAt:z.string().datetime().optional(),cancelledBy:z.string().max(180).optional(),cancellationReason:z.string().trim().min(1).max(1000).optional(),
   serial: text, task: text.min(1), notes: text, employee: z.union([id, z.literal("")]),
   date: z.union([date, z.literal("")]), time, duration, status: z.enum(workshopStatuses),
   checks: z.tuple([z.boolean(), z.boolean(), z.boolean()]), transport: transportSchema.nullable(), actualMinutes:z.number().int().min(0).max(600000).optional(),
@@ -53,7 +54,7 @@ export const workshopStateSchema = z.object({
     if (start + length > 1440) problem(`${number}: de opdracht moet binnen één dag vallen.`);
   };
   for (const j of state.jobs) {
-    if (Boolean(j.employee) !== Boolean(j.date) || (j.status !== "Nieuw" && (!j.date || !j.employee))) problem(`${j.number}: kies een monteur en datum.`);
+    if (Boolean(j.employee) !== Boolean(j.date) || (!["Nieuw","Geannuleerd"].includes(j.status) && (!j.date || !j.employee))) problem(`${j.number}: kies een monteur en datum.`);
     if (j.employee && !person(j.employee, "mechanic")) problem(`${j.number}: onbekende monteur.`);
     if (!isWorkshopJobClosed(j) && j.employee && j.date) addSlot(`m:${j.employee}:${j.date}`, minutes(j.time), j.duration, j.number);
     if ((j.customerId&&!j.machineId)||(!j.customerId&&j.machineId)) problem(j.number+": kies zowel een klant als een machine.");
@@ -109,8 +110,15 @@ export function applyWorkshopActivity(state:WorkshopState,input:WorkshopActivity
 export function prepareWorkshopSave(previous:WorkshopState,next:WorkshopState,at=new Date().toISOString(),permissions={canApprove:true,approvedBy:"Kantoor"}):WorkshopState{
  const before=normalizeWorkshopTransports(previous);
  const nextIds=new Set(next.jobs.map(j=>j.id)),previousById=new Map(previous.jobs.map(j=>[j.id,j]));
- if(previous.jobs.some(old=>isWorkshopJobClosed(old)&&!nextIds.has(old.id)))throw new Error("Afgeronde werkbonnen blijven bewaard in het archief.");
+ if(previous.jobs.some(old=>!nextIds.has(old.id)))throw new Error("Werkbonnen blijven bewaard in het archief. Annuleer een foutieve bon.");
  const jobs=next.jobs.map(job=>{const old=previousById.get(job.id),copy={...job};copy.createdAt=old?.createdAt||(!old?at:undefined);
+  if(old&&old.number!==copy.number)throw new Error("Het werkbonnummer mag niet worden gewijzigd.");
+  if(old?.status==="Geannuleerd")return {...old};
+  if(copy.status==="Geannuleerd"){
+    if(!old||!copy.cancellationReason?.trim())throw new Error("Vul een reden voor annulering in.");
+    return {...old,status:"Geannuleerd" as const,cancellationReason:copy.cancellationReason.trim(),cancelledAt:at,cancelledBy:permissions.approvedBy};
+  }
+  delete copy.cancelledAt;delete copy.cancelledBy;delete copy.cancellationReason;
   if(copy.stockInvoiced&&!old?.stockInvoiced){
     if(!permissions.canApprove)throw new Error("Alleen kantoor mag een voorraadmachine overzetten.");
     if(old?.kind!=='Voorraadtruck'||old.machineId!==copy.machineId||!copy.customerId||copy.customerId===old.customerId||copy.kind!=='Verkooptruck'||!copy.stockInvoiceReference?.trim())throw new Error("Kies de koper, behoud de voorraadmachine en vul de factuurreferentie in.");
@@ -130,6 +138,7 @@ export function prepareWorkshopSave(previous:WorkshopState,next:WorkshopState,at
   return copy;
  });
  let result=normalizeWorkshopTransports({...next,jobs,transports:next.transports||before.transports});
+ result={...result,transports:result.transports!.map(t=>t.jobId&&jobs.some(j=>j.id===t.jobId&&j.status==='Geannuleerd')?{...t,deletedAt:t.deletedAt||at}:t)};
  // Removing an open work order also removes its linked, unscheduled preparation ticket.
  result={...result,transports:result.transports!.filter(t=>!t.jobId||jobs.some(j=>j.id===t.jobId))};
  for(const old of before.transports||[]){if(old.jobId&&!jobs.some(j=>j.id===old.jobId)&&old.driver&&!old.deletedAt)throw new Error("Haal de gekoppelde transportbon eerst uit de planning.");if(!result.transports!.some(t=>t.id===old.id)&&(!old.jobId||jobs.some(j=>j.id===old.jobId)))throw new Error("Transportbonnen blijven bewaard in hun bak.");}
@@ -137,6 +146,6 @@ export function prepareWorkshopSave(previous:WorkshopState,next:WorkshopState,at
  return {...result,taskSuggestions:Array.from(new Set([...(previous.taskSuggestions||[]),...jobs.flatMap(j=>j.task.split(/[\n.!?]+/).map(sentence=>sentence.trim()).filter(sentence=>sentence.length>=3&&sentence.length<=500))])).slice(-2000),nextJobNumber:Math.max(previous.nextJobNumber||1,...[...previous.jobs,...jobs].map(j=>Number(j.number.slice(3))+1))};
 }
 
-export function workshopDocumentDate(job:WorkshopJob){const timestamp=job.completedAt||(!job.date?job.createdAt:"");return timestamp?new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Amsterdam",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(timestamp)):job.date||"";}
+export function workshopDocumentDate(job:WorkshopJob){const timestamp=job.cancelledAt||job.completedAt||(!job.date?job.createdAt:"");return timestamp?new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Amsterdam",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(timestamp)):job.date||"";}
 export type WorkshopDocumentFilter={year?:string;month?:string;date?:string;status?:string;query?:string};
-export function filterWorkshopDocuments(jobs:WorkshopJob[],filter:WorkshopDocumentFilter){const query=filter.query?.trim().toLocaleLowerCase("nl-NL")||"";return jobs.filter(job=>{const date=workshopDocumentDate(job);if(filter.year&&date.slice(0,4)!==filter.year)return false;if(filter.month&&date.slice(5,7)!==filter.month)return false;if(filter.date&&date!==filter.date)return false;if(filter.status==="completed"&&!isWorkshopJobClosed(job))return false;if(filter.status==="open"&&isWorkshopJobClosed(job))return false;if(filter.status==="review"&&job.status!=="Werkbon-controle")return false;return !query||[job.number,job.customer,job.machine,job.serial,job.task,job.notes,job.invoiceReference].join(" ").toLocaleLowerCase("nl-NL").includes(query);}).sort((a,b)=>workshopDocumentDate(b).localeCompare(workshopDocumentDate(a))||b.number.localeCompare(a.number,"nl",{numeric:true}));}
+export function filterWorkshopDocuments(jobs:WorkshopJob[],filter:WorkshopDocumentFilter){const query=filter.query?.trim().toLocaleLowerCase("nl-NL")||"";return jobs.filter(job=>{const date=workshopDocumentDate(job);if(filter.year&&date.slice(0,4)!==filter.year)return false;if(filter.month&&date.slice(5,7)!==filter.month)return false;if(filter.date&&date!==filter.date)return false;if(filter.status==="cancelled"&&job.status!=="Geannuleerd")return false;if(filter.status==="completed"&&(!isWorkshopJobClosed(job)||job.status==="Geannuleerd"))return false;if(filter.status==="open"&&isWorkshopJobClosed(job))return false;if(filter.status==="review"&&job.status!=="Werkbon-controle")return false;return !query||[job.number,job.customer,job.machine,job.serial,job.task,job.notes,job.invoiceReference].join(" ").toLocaleLowerCase("nl-NL").includes(query);}).sort((a,b)=>workshopDocumentDate(b).localeCompare(workshopDocumentDate(a))||b.number.localeCompare(a.number,"nl",{numeric:true}));}

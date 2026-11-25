@@ -31,11 +31,22 @@ test("archived jobs retain IDs, timestamps, updates and learned sentences and fr
  assert.equal(workshopSaveSchema.safeParse({version:0,state:{...next,jobs:[...next.jobs,{...job,id:"two",number:"WB-0002"}]}}).success,true);
  const reopened=prepareWorkshopSave(next,{...next,jobs:[job]});assert.equal(reopened.jobs[0].completedAt,undefined);
 });
-test("deleting a draft keeps learned sentences and never reuses its work order number",()=>{
+test("all work orders resist deletion; cancellation preserves history, number and server audit",()=>{
  const learned=prepareWorkshopSave({employees,jobs:[]},state);
- const removed=prepareWorkshopSave(learned,{employees,jobs:[]});
- assert.equal(removed.nextJobNumber,2);assert.deepEqual(removed.taskSuggestions,learned.taskSuggestions);
+ assert.throws(()=>prepareWorkshopSave(learned,{employees,jobs:[]}),/bewaard/);
+ assert.throws(()=>prepareWorkshopSave(learned,{...learned,jobs:[{...learned.jobs[0],status:'Geannuleerd'}]}),/reden/);
+ const at='2026-11-25T11:00:00.000Z';
+ const cancelled=prepareWorkshopSave(learned,{...learned,jobs:[{...learned.jobs[0],status:'Geannuleerd',task:'tampered',cancellationReason:'Dubbele bon',cancelledBy:'fake'}]},at,{canApprove:true,approvedBy:'Age'});
+ assert.equal(cancelled.jobs[0].task,job.task);assert.equal(cancelled.jobs[0].cancelledBy,'Age');assert.equal(cancelled.jobs[0].cancelledAt,at);
+ assert.equal(cancelled.jobs[0].status,'Geannuleerd');assert.ok(cancelled.transports?.[0].deletedAt);
+ assert.equal(workshopSaveSchema.safeParse({version:1,state:cancelled}).success,true);
+ assert.deepEqual(prepareWorkshopSave(cancelled,{...cancelled,jobs:[{...cancelled.jobs[0],status:'Nieuw'}]}).jobs,cancelled.jobs);
+ assert.equal(cancelled.nextJobNumber,2);assert.deepEqual(cancelled.taskSuggestions,learned.taskSuggestions);
+ assert.throws(()=>applyWorkshopActivity(cancelled,{...activity,action:'start'}),/afgerond/);
+ assert.equal(filterWorkshopDocuments(cancelled.jobs,{status:'open'}).length,0);
+ assert.equal(filterWorkshopDocuments(cancelled.jobs,{status:'cancelled'}).length,1);
 });
+
 test("mechanics can claim stock work once; scheduling skips occupied slots and rejects wrong job types or drivers",()=>{
  const stock={...job,id:"stock",number:"WB-0002",kind:"Voorraadtruck" as const,status:"Nieuw" as const,employee:"",date:"",estimatedMinutes:60};
  const original={employees,jobs:[job,stock]};

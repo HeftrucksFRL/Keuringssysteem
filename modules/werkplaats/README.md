@@ -157,3 +157,7 @@ Nieuwe werkbonnen zoeken op merk/type, intern nummer en elk aaneengesloten deel 
 Bij bewerken van een voorraadbon kan kantoor Machine gefactureerd aanvinken, de koper kiezen en een afzonderlijke factuurreferentie van de machine invullen. Dezelfde machine en werkbon worden dan naar de koper overgezet en de bon wordt Verkooptruck. Oorspronkelijke klant, overdrachtsdatum en referentie worden bewaard. Deze registratie staat los van de facturatie en betaling van de werkplaatswerkzaamheden. De bestaande machineoverdracht werkt ook niet-afgeronde keuringsconcepten en keuringsplanning bij.
 
 Machineoverdracht en versiecontrole op de werkplaatsplanning zijn afzonderlijke opslagbewerkingen, evenals de bestaande urenstandopslag. Bij een opslagconflict na overdracht meldt de API expliciet dat de machine al is overgezet en de bon opnieuw moet worden opgeslagen. Herhalen met dezelfde koper is toegestaan. De lokale proefplanning voert geen echte klantoverdracht uit. Geen databasemigratie nodig.
+
+## Bewaren en annuleren van werkbonnen
+
+Werkbonnen kunnen niet meer definitief worden verwijderd via de planner of API. Annuleren vraagt een reden; de server bewaart naam, tijdstip en de oorspronkelijke bon met alle historie. Geannuleerde bonnen blijven leesbaar in Werkbonnen, worden niet opnieuw geopend en blokkeren geen monteurstijd. Gekoppelde transportbonnen blijven intern bewaard en worden uit de planning gehaald. Werkbonnen staan in uitklapbare jaar- en maandmappen; filters openen de gevonden mappen. Bestaande nummers blijven behouden.
