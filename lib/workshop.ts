@@ -1,3 +1,4 @@
+import {pendingReplanning} from "./workshop-follow-up";
 import { z } from "zod";
 import {transportTicketSchema,normalizeWorkshopTransports,validateTransportPlanning,canDrive} from "@/lib/workshop-transport";
 
@@ -24,6 +25,7 @@ const transportSchema = z.object({
 const jobSchema = z.object({
   id, number: z.string().regex(/^WB-\d{4,}$/), customer: name, machine: name,
   customerId:z.string().max(80).optional(),machineId:z.string().max(80).optional(),internalNumber:z.string().max(180).optional(),deliveryAddress:text.optional(),
+  followUp:z.object({startedAt:z.string().datetime().optional(),requestedSlot:z.string().max(300).optional(),snoozedUntil:z.string().datetime().optional(),requestAt:z.string().datetime().optional(),resolvedAt:z.string().datetime().optional(),history:z.array(z.object({action:z.enum(['snooze','request','planned']),at:z.string().datetime(),by:z.string().max(180),until:z.string().datetime().optional(),note:z.string().max(1000).optional()}).strict()).max(1000)}).strict().optional(),
   transportRequired:z.boolean().optional(),
   officeApprovedAt:z.string().datetime().optional(),officeApprovedBy:z.string().max(180).optional(),invoiceReference:z.string().max(180).optional(),invoiceSentAt:z.string().datetime().optional(),invoicePaidAt:z.string().datetime().optional(),hourReading:z.string().max(180).optional(),usedParts:z.string().max(6000).optional(),
   officeHistory:z.array(z.object({at:z.string().datetime(),by:z.string().max(180),action:z.enum(['reopened','invoice']),invoiceReference:z.string().max(180).optional(),invoiceSentAt:z.string().datetime().optional(),invoicePaidAt:z.string().datetime().optional()}).strict()).max(1000).optional(),
@@ -88,6 +90,7 @@ export function applyWorkshopActivity(state:WorkshopState,input:WorkshopActivity
   if(!employee)throw new Error("Kies je naam uit de medewerkerslijst.");
   if(isWorkshopJobClosed(job))throw new Error("Deze werkbon is afgerond. Laat de planner hem eerst heropenen.");
   if(job.updates?.some(u=>u.id===input.requestId))return state;
+  if(input.action==='claim'&&pendingReplanning(job))throw new Error("Deze werkbon is aan Renze doorgezet om opnieuw in te plannen.");
   if((job.updates?.length||0)>=500)throw new Error("Deze bon heeft het maximale aantal updates. Vraag Age of Renze om hulp.");
   if(!["note","time","check","claim"].includes(input.action)&&(job.transport||job.status==="Klaar voor transport"))throw new Error("Deze bon is vrijgegeven voor transport. Vraag Age of Renze om de status aan te passen.");
   if(!["note","time","check","claim"].includes(input.action)&&(!job.employee||!job.date))throw new Error("Deze bon is nog niet ingepland. Je kunt wel een notitie toevoegen.");
@@ -116,7 +119,7 @@ export function prepareWorkshopSave(previous:WorkshopState,next:WorkshopState,at
  const before=normalizeWorkshopTransports(previous);
  const nextIds=new Set(next.jobs.map(j=>j.id)),previousById=new Map(previous.jobs.map(j=>[j.id,j]));
  if(previous.jobs.some(old=>!nextIds.has(old.id)))throw new Error("Werkbonnen blijven bewaard in het archief. Annuleer een foutieve bon.");
- const jobs=next.jobs.map(job=>{const old=previousById.get(job.id),copy={...job};copy.createdAt=old?.createdAt||(!old?at:undefined);
+ const jobs=next.jobs.map(job=>{const old=previousById.get(job.id),copy={...job};copy.createdAt=old?.createdAt||(!old?at:undefined);copy.followUp=old?.followUp;
   if(old&&old.number!==copy.number)throw new Error("Het werkbonnummer mag niet worden gewijzigd.");
   if(copy.deletedAt&&!old)throw new Error('Sla de werkbon eerst op voordat je hem verwijdert.');
   if(old?.deletedAt){

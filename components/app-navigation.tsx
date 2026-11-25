@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { CalendarDays, FilePenLine, ChevronDown, Forklift, FolderKanban, KeyRound, LayoutDashboard, PackageCheck, Truck, Users, Wrench } from "lucide-react";
 import type { Route } from "next";
 import "./app-navigation.css";
+import {WorkshopFollowUp} from "./workshop-follow-up";
 
 type NavLink = { href: Route; label: string; icon: typeof LayoutDashboard };
 const links: NavLink[] = [
@@ -58,7 +59,7 @@ export function AppNavigation({ variant = "desktop", workshopOnly = false }: { v
   }
   return <nav ref={nav} className={`${variant === "mobile" ? "mobile-topnav" : "topnav"} app-nav`} aria-label={variant === "mobile" ? "Hoofdnavigatie mobiel" : "Hoofdnavigatie"}>
     {workshopOnly ? renderLink(links.find(l => l.href === "/werkplaats")!) : <>
-      {links.filter(l => l.href === "/").map(l => renderLink(l))}
+      {links.filter(l => l.href === "/").map(l => renderLink(l))}<WorkshopFollowUp badge/>
       {groups.map(group => {
         const Icon = group.icon;
         const active = group.hrefs.some(href => isActive(pathname, href));

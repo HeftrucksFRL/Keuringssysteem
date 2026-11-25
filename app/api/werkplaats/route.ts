@@ -1,3 +1,4 @@
+import {followUpRole,pendingReplanning} from "@/lib/workshop-follow-up";
 import { NextResponse, type NextRequest } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { hasSupabaseConfig } from "@/lib/env";
@@ -78,6 +79,7 @@ export async function PUT(request: NextRequest) {
     const machineChanges=new Map<string,{machineId:string;expectedCustomerId:string;customerId?:string;hourReading?:string;expectedHourReading?:string}>();
     for(const job of state.jobs){
       const old=previousById.get(job.id);
+      if(old&&pendingReplanning(old)&&followUpRole(user?.email)!=="planner"&&(["employee","date","time","duration"] as const).some(key=>old[key]!==job[key]))return json({message:"Deze werkbon is aan Renze doorgezet. Alleen Renze mag hem opnieuw inplannen."},403);
       if(sameRecord(old,job))continue;
       if(!old&&!job.customerId)return json({message:"Koppel de nieuwe werkbon aan een klant en machine."},400);
       if(job.customerId&&(!old||old.customerId!==job.customerId||old.machineId!==job.machineId||old.hourReading!==job.hourReading)){

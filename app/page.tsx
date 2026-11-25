@@ -1,3 +1,4 @@
+import {WorkshopFollowUp} from "@/components/workshop-follow-up";
 import Link from "next/link";
 import { TodoDeleteButton } from "@/components/todo-delete-button";
 import type { UrlObject } from "node:url";
@@ -181,6 +182,7 @@ export default async function HomePage({
         </div>
       </section>
 
+      <WorkshopFollowUp/>
       <section className="grid-2 dashboard-summary-grid" style={{ marginTop: "1rem" }}>
         <article className="panel">
           <div className="eyebrow">Overzicht</div>
