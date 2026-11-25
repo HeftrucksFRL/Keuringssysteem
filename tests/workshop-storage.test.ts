@@ -7,7 +7,7 @@ import {prepareWorkshopSave,type WorkshopState} from '../lib/workshop';
 
 const machine='10000000-0000-0000-0000-000000000001',stock='20000000-0000-0000-0000-000000000001',buyer='20000000-0000-0000-0000-000000000002';
 const employee={id:'mechanic',name:'Monteur',role:'mechanic' as const};
-const job={id:'one',number:'WB-0001',customer:'Voorraad',customerId:stock,machineId:machine,machine:'Truck',serial:'123',task:'Onderhoud',notes:'',employee:'mechanic',date:'2026-12-01',time:'08:00',duration:60,status:'Ingepland' as const,checks:[false,false,false] as [boolean,boolean,boolean],transport:null};
+const job={transportRequired:true,id:'one',number:'WB-0001',customer:'Voorraad',customerId:stock,machineId:machine,machine:'Truck',serial:'123',task:'Onderhoud',notes:'',employee:'mechanic',date:'2026-12-01',time:'08:00',duration:60,status:'Ingepland' as const,checks:[false,false,false] as [boolean,boolean,boolean],transport:null};
 const base:WorkshopState={employees:[employee],jobs:[job]};
 
 test('different work orders merge while same-order changes conflict; new numbers remain unique',()=>{

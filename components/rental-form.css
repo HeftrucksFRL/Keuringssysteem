@@ -1,0 +1,10 @@
+.rental-form label,.rental-customer-dialog label{display:flex;flex-direction:column;gap:6px;margin:10px 0;color:#24435d;font-weight:600}
+.rental-form label:has(input[type=checkbox]){flex-direction:row;align-items:center;gap:9px}
+.rental-form input[type=checkbox]{width:18px;height:18px;flex-shrink:0}
+.rental-form fieldset{min-width:0;border:1px solid #cad9e6;border-radius:10px;padding:14px;margin-bottom:16px}
+.rental-form fieldset legend{padding:0 8px;font-weight:700}
+.rental-form .button{margin-top:12px}.rental-form input:disabled{background:#edf2f6;color:#63788b}
+.rental-customer-dialog{width:min(600px,calc(100vw - 32px));max-height:90vh;overflow:auto;border:1px solid #cad9e6;border-radius:16px;padding:24px;color:#173b56}
+.rental-customer-dialog::backdrop{background:#19334c88}
+.rental-completion{display:flex!important;flex-direction:column;gap:8px;align-items:flex-start;padding:12px 0}
+.rental-details{grid-column:1/-1;min-width:0}.rental-details summary{cursor:pointer;font-weight:600;padding:10px 0;color:#24435d}

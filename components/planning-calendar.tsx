@@ -195,7 +195,7 @@ function combinePlanningState(
 
 function rentalPhaseLabel(rental: RentalRecord) {
   const today = todayLocalIso();
-  if (rental.status === "completed" || rental.endDate < today) {
+  if (rental.status === "completed") {
     return "Afgerond";
   }
   if (rental.startDate > today) {
@@ -447,7 +447,7 @@ export function PlanningCalendar({
       ];
 
       for (const moment of moments) {
-        if (moment.dueDate < monthStartIso || moment.dueDate > monthEndIso) {
+        if (!moment.dueDate || moment.dueDate < monthStartIso || moment.dueDate > monthEndIso) {
           continue;
         }
 
@@ -950,7 +950,7 @@ export function PlanningCalendar({
                   </div>
                   <div className="list-item static-list-item">
                     <span>Periode</span>
-                    <strong>{formatDisplayDate(selectedEvent.rental.startDate)} t/m {formatDisplayDate(selectedEvent.rental.endDate)}</strong>
+                    <strong>{formatDisplayDate(selectedEvent.rental.startDate)} t/m {(selectedEvent.rental.endDate ? formatDisplayDate(selectedEvent.rental.endDate) : 'Open huurperiode')}</strong>
                   </div>
                 </>
               ) : (
@@ -1036,6 +1036,7 @@ export function PlanningCalendar({
               {selectedEvent.kind === "rental" ? (
                 <form action={updateRentalAction} className="panel" style={{ width: "100%", marginBottom: "0.5rem" }}>
                   <input type="hidden" name="rentalId" value={selectedEvent.rental.id} />
+                  <input type="hidden" name="version" value={selectedEvent.rental.version||1} />
                   <input type="hidden" name="month" value={monthKey(anchorDate)} />
                   <div className="eyebrow">Verhuur aanpassen</div>
                   <div className="form-grid-wide" style={{ marginTop: "0.75rem" }}>

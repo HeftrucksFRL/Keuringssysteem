@@ -24,6 +24,7 @@ const transportSchema = z.object({
 const jobSchema = z.object({
   id, number: z.string().regex(/^WB-\d{4,}$/), customer: name, machine: name,
   customerId:z.string().max(80).optional(),machineId:z.string().max(80).optional(),internalNumber:z.string().max(180).optional(),deliveryAddress:text.optional(),
+  transportRequired:z.boolean().optional(),
   officeApprovedAt:z.string().datetime().optional(),officeApprovedBy:z.string().max(180).optional(),invoiceReference:z.string().max(180).optional(),invoiceSentAt:z.string().datetime().optional(),invoicePaidAt:z.string().datetime().optional(),hourReading:z.string().max(180).optional(),usedParts:z.string().max(6000).optional(),
   officeHistory:z.array(z.object({at:z.string().datetime(),by:z.string().max(180),action:z.enum(['reopened','invoice']),invoiceReference:z.string().max(180).optional(),invoiceSentAt:z.string().datetime().optional(),invoicePaidAt:z.string().datetime().optional()}).strict()).max(1000).optional(),
   stockInvoiced:z.boolean().optional(),stockInvoiceReference:z.string().trim().max(180).optional(),stockTransferredAt:z.string().datetime().optional(),stockSourceCustomerId:z.string().max(80).optional(),
@@ -148,6 +149,18 @@ export function prepareWorkshopSave(previous:WorkshopState,next:WorkshopState,at
   return copy;
  });
  let result=normalizeWorkshopTransports({...next,jobs,transports:next.transports||before.transports});
+ result={...result,transports:result.transports!.map(ticket=>{
+   const job=jobs.find(j=>j.id===ticket.jobId),old=previousById.get(ticket.jobId||'');
+   if(!job)return ticket;
+   if(job.transportRequired===false&&!ticket.deletedAt){
+     if(['Onderweg','Afgeleverd'].includes(ticket.state))throw new Error('Een gestarte of afgeleverde rit blijft bewaard. Transport kan niet worden uitgezet.');
+     return {...ticket,deletedAt:at};
+   }
+   if(job.transportRequired===true&&old?.transportRequired===false&&ticket.deletedAt){
+     const restored={...ticket,deletedAt:undefined,driver:'',date:'',state:'Nieuw' as const};delete restored.legacyReleased;return restored;
+   }
+   return ticket;
+ })};
  result={...result,transports:result.transports!.map(t=>{
    const oldJob=previous.jobs.find(j=>j.id===t.jobId),job=jobs.find(j=>j.id===t.jobId);
    if(oldJob&&job&&['Afgerond','Klaar voor transport'].includes(oldJob.status)&&!isWorkshopJobClosed(job)){

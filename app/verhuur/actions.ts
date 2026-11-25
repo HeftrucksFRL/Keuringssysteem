@@ -1,90 +1,34 @@
 "use server";
-
-import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
-import { requireActivityActor } from "@/lib/auth";
-import { addActivityLog, completeRental, createRental } from "@/lib/inspection-service";
-
-function redirectWithMessage(basePath: string, key: "error" | "rented" | "returned", value: string) {
-  const separator = basePath.includes("?") ? "&" : "?";
-  redirect(`${basePath}${separator}${key}=${value}` as never);
+import {revalidatePath} from 'next/cache';
+import {redirect} from 'next/navigation';
+import {requireActivityActor} from '@/lib/auth';
+import {addActivityLog,completeRental,createRental,updateRental} from '@/lib/inspection-service';
+import {rentalTransportSchema} from '@/lib/rental';
+function returnPath(form:FormData){const path=String(form.get('returnTo')||'/verhuur');return path==='/verhuur'||/^\/machines\/[a-zA-Z0-9-]+$/.test(path)?path:'/verhuur';}
+function go(path:string,key:string,value:string){redirect((path+'?'+new URLSearchParams({[key]:value})) as never);}
+function transport(form:FormData){return rentalTransportSchema.parse({delivery:form.has('transportDelivery'),collection:form.has('transportCollection'),address:String(form.get('transportAddress')||''),contact:String(form.get('transportContact')||''),instructions:String(form.get('transportInstructions')||'')});}
+function refresh(machineId:string){for(const path of ['/','/verhuur','/machines','/planning/transport','/planning/werkplaats',`/machines/${machineId}`])revalidatePath(path);}
+export async function createRentalAction(form:FormData){
+ const actor=await requireActivityActor(),path=returnPath(form),machineId=String(form.get('machineId')||''),customerId=String(form.get('customerId')||''),startDate=String(form.get('startDate')||''),endDate=form.has('openPeriod')?'':String(form.get('endDate')||'');
+ try{
+  if(!machineId||!customerId)throw new Error('Kies een voorraadmachine en een klant.');
+  const rental=await createRental({id:String(form.get('requestId')||'')||undefined,machineId,customerId,startDate,endDate,price:String(form.get('price')||''),transport:transport(form)});
+  await addActivityLog({actorId:actor.id,actorName:actor.name,actorEmail:actor.email,action:'rental.created',entityType:'rental',entityId:rental.id,targetLabel: 'Verhuur '+startDate+' - '+(endDate||'open'),details:{machineId,customerId}});
+ }catch(e){go(path,'error',e instanceof Error?e.message:'Verhuur opslaan mislukt.');}
+ refresh(machineId);go(path,'rented','1');
 }
-
-export async function createRentalAction(formData: FormData) {
-  const actor = await requireActivityActor();
-  const machineId = String(formData.get("machineId") || "");
-  const customerId = String(formData.get("customerId") || "");
-  const startDate = String(formData.get("startDate") || "");
-  const endDate = String(formData.get("endDate") || "");
-  const price = String(formData.get("price") || "");
-  const returnTo = String(formData.get("returnTo") || `/machines/${machineId}`);
-
-  if (!machineId || !customerId || !startDate || !endDate) {
-    redirectWithMessage(returnTo, "error", "Vul%20klant,%20startdatum%20en%20einddatum%20in");
-  }
-
-  if (endDate < startDate) {
-    redirectWithMessage(returnTo, "error", "De%20einddatum%20moet%20na%20de%20startdatum%20liggen");
-  }
-
-  try {
-    await createRental({
-      machineId,
-      customerId,
-      startDate,
-      endDate,
-      price
-    });
-  } catch (error) {
-    const message =
-      error instanceof Error
-        ? encodeURIComponent(error.message)
-        : encodeURIComponent("Verhuur starten is niet gelukt.");
-    redirectWithMessage(returnTo, "error", message);
-  }
-
-  await addActivityLog({
-    actorId: actor.id,
-    actorName: actor.name,
-    actorEmail: actor.email,
-    action: "rental.created",
-    entityType: "rental",
-    targetLabel: `Verhuur ${startDate} - ${endDate}`,
-    details: { machineId, customerId, price }
-  });
-
-  revalidatePath("/machines");
-  revalidatePath(`/machines/${machineId}`);
-  revalidatePath("/planning");
-  revalidatePath("/verhuur");
-  revalidatePath("/");
-  redirectWithMessage(returnTo, "rented", "1");
+export async function completeRentalAction(form:FormData){
+ const actor=await requireActivityActor(),path=returnPath(form),rentalId=String(form.get('rentalId')||''),machineId=String(form.get('machineId')||''),endDate=String(form.get('endDate')||'');
+ try{
+  if(!rentalId||!endDate)throw new Error('Vul de werkelijke einddatum in.');
+  await completeRental(rentalId,endDate,Number(form.get('version'))||undefined);
+  await addActivityLog({actorId:actor.id,actorName:actor.name,actorEmail:actor.email,action:'rental.completed',entityType:'rental',entityId:rentalId,targetLabel:'Verhuur afgesloten op '+endDate,details:{machineId,endDate}});
+ }catch(e){go(path,'error',e instanceof Error?e.message:'Verhuur afsluiten mislukt.');}
+ refresh(machineId);go(path,'returned','1');
 }
-
-export async function completeRentalAction(formData: FormData) {
-  const actor = await requireActivityActor();
-  const rentalId = String(formData.get("rentalId") || "");
-  const machineId = String(formData.get("machineId") || "");
-
-  if (!rentalId || !machineId) {
-    return;
-  }
-
-  await completeRental(rentalId);
-  await addActivityLog({
-    actorId: actor.id,
-    actorName: actor.name,
-    actorEmail: actor.email,
-    action: "rental.completed",
-    entityType: "rental",
-    entityId: rentalId,
-    targetLabel: `Verhuur ${rentalId}`,
-    details: { machineId }
-  });
-  revalidatePath("/machines");
-  revalidatePath(`/machines/${machineId}`);
-  revalidatePath("/planning");
-  revalidatePath("/verhuur");
-  revalidatePath("/");
-  redirect(`/machines/${machineId}?returned=1`);
+export async function updateRentalDetailsAction(form:FormData){
+ await requireActivityActor();
+ try{await updateRental({rentalId:String(form.get('rentalId')||''),version:Number(form.get('version')),customerId:String(form.get('customerId')||''),startDate:String(form.get('startDate')||''),endDate:form.has('openPeriod')?'':String(form.get('endDate')||''),price:String(form.get('price')||''),transport:transport(form)});
+ }catch(e){go('/verhuur','error',e instanceof Error?e.message:'Verhuur wijzigen mislukt.');}
+ refresh('');go('/verhuur','updated','1');
 }

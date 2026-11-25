@@ -115,16 +115,16 @@ export async function updateRentalAction(formData: FormData) {
   const price = String(formData.get("price") || "");
   const month = String(formData.get("month") || "");
 
-  if (!rentalId || !startDate || !endDate) {
+  if (!rentalId || !startDate) {
     redirect(`/planning?month=${month}&error=Vul%20een%20geldige%20periode%20in`);
   }
 
-  if (endDate < startDate) {
+  if (endDate && endDate < startDate) {
     redirect(`/planning?month=${month}&error=De%20einddatum%20moet%20na%20de%20startdatum%20liggen`);
   }
 
   try {
-    await updateRental({ rentalId, startDate, endDate, customerId: customerId || undefined, price });
+    await updateRental({ rentalId, startDate, endDate, customerId: customerId || undefined, price, version:Number(formData.get('version'))||undefined });
   } catch (error) {
     const message =
       error instanceof Error

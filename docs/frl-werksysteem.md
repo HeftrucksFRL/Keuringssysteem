@@ -71,6 +71,39 @@ blokkades. Bestaande ongeplande bonnen blokkeren geen hele verhuurperiode.
 
 ## Controle
 
+## Verhuur en optioneel transport (25 november 2026)
+
+Aanvullende migratie: `supabase/rental-open-transport.sql`, na de relationele
+werkplaatsmigratie. Bestaande einddatums en transportbonnen blijven behouden.
+Verhuur krijgt een versienummer en twee optionele transportkeuzes: brengen en
+ophalen. Deze keuzes maken elk één gekoppelde transportbon in dezelfde
+chauffeursplanning; zonder keuze ontstaat geen transportbon. Een open
+huurperiode heeft in de database een lege (`NULL`) einddatum. Een bekende
+einddatum blijft beschikbaar en bewerkbaar. Afsluiten vereist een expliciete
+werkelijke einddatum, op of na de startdatum en uiterlijk vandaag.
+
+Vanuit zowel Verhuur als de machinekaart kan de gebruiker een klant toevoegen
+aan het bestaande gezamenlijke klantenbestand en direct kiezen voor verhuur.
+In Verhuur zijn periode en transport later te wijzigen. Open huurperioden
+blokkeren conflicterende verhuur en werkplaatsplanning; na afsluiten wordt de
+machinebeschikbaarheid in dezelfde transactie bijgewerkt.
+
+Transportaanvragen en verhuur worden atomair opgeslagen. Transportbonnen hebben
+een vaste koppeling naar de verhuur en een heen-/retourrichting. Hun planning,
+chauffeur, volgorde, afdruk en aflevermelding gebruiken de bestaande planner.
+Een geannuleerde aanvraag bewaart de bon als verwijderd; een gestarte of
+afgeleverde rit kan niet worden uitgezet. Als ophalen door ons is aangevraagd,
+moet de ophaalrit afgemeld zijn vóór afsluiten van de verhuur. Klanten die zelf
+halen/brengen hebben geen transportbon nodig.
+
+Nieuwe werkbonnen krijgen uitsluitend bij **Transport nodig** een transportbon.
+Het invullen van een afleveradres alleen is geen aanvraag. Bestaande bonnen
+krijgen de keuze op basis van hun huidige actieve transportbon; er worden geen
+historische bonnen verwijderd. Uitzetten bewaart een ongebruikte of geplande bon
+met een verwijdermarkering; opnieuw aanzetten herstelt deze in de ongeplande bak.
+
+## Controle van deze uitbreiding
+
 `npm test`, `node --test tests/workshop-scheduling.test.cjs`,
 `npm run typecheck` en `npm run build`. De opslagtests voeren de daadwerkelijke
 migratie en transacties uit in PostgreSQL via PGlite: herhaalbare import,

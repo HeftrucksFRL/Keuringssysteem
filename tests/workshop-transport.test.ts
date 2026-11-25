@@ -2,12 +2,12 @@ import {test} from "node:test";
 import assert from "node:assert/strict";
 import {prepareWorkshopSave,workshopSaveSchema,filterWorkshopDocuments,type WorkshopState} from "../lib/workshop";
 import {normalizeWorkshopTransports,deleteTransportTicket,transportRelease,moveTransportTicket,returnWorkshopJob,validateTransportPlanning} from "../lib/workshop-transport";
-const job={id:"one",number:"WB-0001",customer:"Klant",machine:"Machine",serial:"123",task:"Onderhoud",notes:"",employee:"mechanic",date:"2026-11-18",time:"08:00",duration:60,status:"Ingepland" as const,checks:[false,false,false] as [boolean,boolean,boolean],transport:null,requiredChecks:Array(10).fill(false) as boolean[],checkedPoints:Array(10).fill(false) as boolean[]};
+const job={transportRequired:true,id:"one",number:"WB-0001",customer:"Klant",machine:"Machine",serial:"123",task:"Onderhoud",notes:"",employee:"mechanic",date:"2026-11-18",time:"08:00",duration:60,status:"Ingepland" as const,checks:[false,false,false] as [boolean,boolean,boolean],transport:null,requiredChecks:Array(10).fill(false) as boolean[],checkedPoints:Array(10).fill(false) as boolean[]};
 const state:WorkshopState={employees:[{id:"mechanic",name:"Renze",role:"mechanic",canDrive:true},{id:"harm",name:"Harm",role:"driver"}],jobs:[job]};
 const at="2026-11-18T14:00:00.000Z";
 function approved(){const review={...state,jobs:[{...job,status:"Werkbon-controle" as const}]};return prepareWorkshopSave(review,{...review,jobs:[{...job,status:"Afgerond"}]},at,{canApprove:true,approvedBy:"Renze"});}
 function paid(){const closed=approved();return prepareWorkshopSave(closed,{...closed,jobs:closed.jobs.map(j=>({...j,invoiceReference:"FACT-1",invoicePaidAt:at}))},at);}
-test("each work order immediately has exactly one independent preparation ticket",()=>{
+test("an explicitly selected work order has exactly one independent preparation ticket",()=>{
  const next=prepareWorkshopSave({employees:state.employees,jobs:[]},state,at);assert.equal(next.transports?.length,1);assert.equal(next.transports?.[0].jobId,job.id);assert.equal(next.transports?.[0].driver,"");assert.equal(transportRelease(next.transports![0],next.jobs).allowed,false);assert.equal(normalizeWorkshopTransports(next).transports?.length,1);
 });
 test("only office can approve a checked work order, and payment is required before scheduling",()=>{

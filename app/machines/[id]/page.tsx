@@ -1,3 +1,5 @@
+import {RentalForm,RentalCompletionForm} from "@/components/rental-form";
+import { rentalPhase, rentalEndLabel } from "@/lib/rental";
 import { WorkshopHistory } from "@/components/workshop-history";
 import { hasSupabaseConfig } from "@/lib/env";
 import Link from "next/link";
@@ -45,16 +47,7 @@ import {
 import { formatDisplayDate, titleCase } from "@/lib/utils";
 import { MachineTypeFields } from "@/components/machine-type-fields";
 
-function rentalPhase(rental: { startDate: string; endDate: string; status: "active" | "completed" }) {
-  const today = new Date().toISOString().slice(0, 10);
-  if (rental.status === "completed" || rental.endDate < today) {
-    return "completed" as const;
-  }
-  if (rental.startDate > today) {
-    return "upcoming" as const;
-  }
-  return "active" as const;
-}
+
 
 function formatDate(value?: Date | null) {
   if (!value) {
@@ -530,7 +523,7 @@ export default async function MachineDetailPage({
               >
                 <span>Verhuurd aan</span>
                 <strong>
-                  {rentalCustomer?.companyName ?? "-"} - {formatDisplayDate(activeRental.startDate)} t/m {formatDisplayDate(activeRental.endDate)}
+                  {rentalCustomer?.companyName ?? "-"} - {formatDisplayDate(activeRental.startDate)} t/m {rentalEndLabel(activeRental.endDate)}
                 </strong>
               </div>
             ) : null}
@@ -549,7 +542,7 @@ export default async function MachineDetailPage({
                 >
                   <span>Aanstaande huur</span>
                   <strong>
-                    {upcomingCustomer?.companyName ?? "-"} - {formatDisplayDate(rental.startDate)} t/m {formatDisplayDate(rental.endDate)}
+                    {upcomingCustomer?.companyName ?? "-"} - {formatDisplayDate(rental.startDate)} t/m {rentalEndLabel(rental.endDate)}
                   </strong>
                 </div>
               );
@@ -701,43 +694,7 @@ export default async function MachineDetailPage({
           {isArchived ? (
             <p className="muted">Deze machine is gearchiveerd en kan niet meer in verhuur worden gezet.</p>
           ) : isRentalStockMachine ? (
-            <form action={createRentalAction}>
-              <input type="hidden" name="machineId" value={machine.id} />
-              <CustomerPicker
-                customers={assignableCustomers}
-                label="Verhuren aan klant"
-                required
-              />
-              <div className="form-grid-wide" style={{ marginTop: "1rem" }}>
-                <div className="field">
-                  <label htmlFor="startDate">Startdatum</label>
-                  <input
-                    id="startDate"
-                    name="startDate"
-                    type="date"
-                    defaultValue={activeRental?.endDate || new Date().toISOString().slice(0, 10)}
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="endDate">Einddatum</label>
-                  <input
-                    id="endDate"
-                    name="endDate"
-                    type="date"
-                    defaultValue={new Date().toISOString().slice(0, 10)}
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="price">Prijs</label>
-                  <input id="price" name="price" placeholder="Bijv. EUR 350 totaal" />
-                </div>
-              </div>
-              <div className="actions">
-                <button className="button" type="submit">
-                  Start verhuur
-                </button>
-              </div>
-            </form>
+            <RentalForm customers={assignableCustomers} stockMachines={[machine]} defaultMachineId={machine.id} returnTo={`/machines/${machine.id}`}/>
           ) : (
             <p className="muted">
               Alleen voorraadmachines van Heftrucks Friesland kunnen vanuit dit scherm verhuurd worden.
@@ -758,7 +715,7 @@ export default async function MachineDetailPage({
                 <div className="list-item">
                   <span>Periode</span>
                   <strong>
-                    {formatDisplayDate(activeRental.startDate)} t/m {formatDisplayDate(activeRental.endDate)}
+                    {formatDisplayDate(activeRental.startDate)} t/m {rentalEndLabel(activeRental.endDate)}
                   </strong>
                 </div>
                 <div className="list-item">
@@ -767,13 +724,7 @@ export default async function MachineDetailPage({
                 </div>
               </div>
               {!isArchived ? (
-                <form action={completeRentalAction} style={{ marginTop: "1rem" }}>
-                  <input type="hidden" name="rentalId" value={activeRental.id} />
-                  <input type="hidden" name="machineId" value={machine.id} />
-                  <button className="button-secondary" type="submit">
-                    Verhuur afronden
-                  </button>
-                </form>
+                <RentalCompletionForm rental={activeRental} returnTo={`/machines/${machine.id}`}/>
               ) : null}
             </>
           ) : (
@@ -787,7 +738,7 @@ export default async function MachineDetailPage({
                   <div className="list-item" key={rental.id}>
                     <span>Aanstaande huur</span>
                     <strong>
-                      {upcomingCustomer?.companyName ?? "-"} - {formatDisplayDate(rental.startDate)} t/m {formatDisplayDate(rental.endDate)}
+                      {upcomingCustomer?.companyName ?? "-"} - {formatDisplayDate(rental.startDate)} t/m {rentalEndLabel(rental.endDate)}
                     </strong>
                   </div>
                 );

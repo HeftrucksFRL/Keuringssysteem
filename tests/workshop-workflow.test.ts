@@ -2,7 +2,7 @@ import {test} from "node:test";
 import assert from "node:assert/strict";
 import {applyWorkshopActivity,prepareWorkshopSave,workshopSaveSchema,workshopActivitySchema,type WorkshopState} from "../lib/workshop";
 const employees=[{id:"mechanic",name:"Jelle",role:"mechanic" as const},{id:"driver",name:"Age",role:"driver" as const}];
-const job={id:"one",number:"WB-0001",customer:"Klant",machine:"Machine",customerId:"customer",machineId:"machine",serial:"123",task:"Mast controleren. Hefkettingen smeren.",notes:"",employee:"mechanic",date:"2026-11-18",time:"08:00",duration:60,status:"Ingepland" as const,checks:[false,false,false] as [boolean,boolean,boolean],transport:null,requiredChecks:Array.from({length:10},(_,i)=>i===3),checkedPoints:Array(10).fill(false) as boolean[]};
+const job={transportRequired:true,id:"one",number:"WB-0001",customer:"Klant",machine:"Machine",customerId:"customer",machineId:"machine",serial:"123",task:"Mast controleren. Hefkettingen smeren.",notes:"",employee:"mechanic",date:"2026-11-18",time:"08:00",duration:60,status:"Ingepland" as const,checks:[false,false,false] as [boolean,boolean,boolean],transport:null,requiredChecks:Array.from({length:10},(_,i)=>i===3),checkedPoints:Array(10).fill(false) as boolean[]};
 const state:WorkshopState={employees,jobs:[job]};
 const activity={requestId:"d3e82ffa-f8c2-41e1-9c8c-c4f07cb92398",jobId:"one",employeeId:"mechanic",action:"review" as const,text:""};
 test("review is blocked until every planner-selected check is complete, including direct API calls",()=>{

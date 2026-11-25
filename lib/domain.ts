@@ -103,6 +103,8 @@ export interface RentalRecord {
   customerId: string;
   startDate: string;
   endDate: string;
+  version?: number;
+  transport?: import('./rental').RentalTransport;
   status: RentalStatus;
   price?: string;
   createdAt: string;

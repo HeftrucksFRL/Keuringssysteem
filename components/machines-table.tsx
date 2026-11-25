@@ -242,8 +242,7 @@ export function MachinesTable({
         .filter(
           (rental) =>
             rental.status === "active" &&
-            rental.startDate <= today &&
-            rental.endDate >= today
+            rental.startDate <= today
         )
         .map((rental) => [rental.machineId, rental] as const)
     );

@@ -1,4 +1,5 @@
 "use client";
+import { rentalPhase } from "@/lib/rental";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -13,16 +14,7 @@ interface RentalStockListProps {
   stockOwnerLabel: string;
 }
 
-function rentalPhase(rental: RentalRecord) {
-  const today = todayLocalIso();
-  if (rental.status === "completed" || rental.endDate < today) {
-    return "completed" as const;
-  }
-  if (rental.startDate > today) {
-    return "upcoming" as const;
-  }
-  return "active" as const;
-}
+
 
 export function RentalStockList({
   stockMachines,

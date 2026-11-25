@@ -1,3 +1,4 @@
+import { rentalPhase, rentalEndLabel } from "@/lib/rental";
 import { WorkshopHistory } from "@/components/workshop-history";
 import { hasSupabaseConfig } from "@/lib/env";
 import { canCorrectInspectionCustomer, canManageCleanup, requireUser } from "@/lib/auth";
@@ -41,16 +42,7 @@ import { formatDisplayDate } from "@/lib/utils";
 import { CustomerPicker } from "@/components/customer-picker";
 import { CustomerInspectionHistory } from "@/components/customer-inspection-history";
 
-function rentalPhase(rental: { startDate: string; endDate: string; status: "active" | "completed" }) {
-  const today = new Date().toISOString().slice(0, 10);
-  if (rental.status === "completed" || rental.endDate < today) {
-    return "completed" as const;
-  }
-  if (rental.startDate > today) {
-    return "upcoming" as const;
-  }
-  return "active" as const;
-}
+
 
 function isBatteryCharger(machine: MachineRecord) {
   return machine.machineType === "batterij_lader";
@@ -667,7 +659,7 @@ export default async function CustomerDetailPage({
                           : "Verhuurde machine"}
                       </strong>
                       <br />
-                      {[`Locatie: ${machine ? getMachineLocation(machine) || "-" : "-"}`, `${formatDisplayDate(rental.startDate)} t/m ${formatDisplayDate(rental.endDate)}`]
+                      {[`Locatie: ${machine ? getMachineLocation(machine) || "-" : "-"}`, `${formatDisplayDate(rental.startDate)} t/m ${rentalEndLabel(rental.endDate)}`]
                         .filter(Boolean)
                         .join(" | ")}
                     </span>
@@ -695,7 +687,7 @@ export default async function CustomerDetailPage({
                           : "Aanstaande huur"}
                       </strong>
                       <br />
-                      {[`Locatie: ${machine ? getMachineLocation(machine) || "-" : "-"}`, `${formatDisplayDate(rental.startDate)} t/m ${formatDisplayDate(rental.endDate)}`]
+                      {[`Locatie: ${machine ? getMachineLocation(machine) || "-" : "-"}`, `${formatDisplayDate(rental.startDate)} t/m ${rentalEndLabel(rental.endDate)}`]
                         .filter(Boolean)
                         .join(" | ")}
                     </span>

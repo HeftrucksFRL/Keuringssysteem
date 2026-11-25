@@ -1,6 +1,6 @@
+import { rentalPhase, rentalEndLabel } from "@/lib/rental";
 import Link from "next/link";
-import { completeRentalAction, createRentalAction } from "@/app/verhuur/actions";
-import { CustomerPicker } from "@/components/customer-picker";
+import {RentalForm,RentalCompletionForm,RentalDetailsForm} from "@/components/rental-form";
 import { RentalStockList } from "@/components/rental-stock-list";
 import {
   getCustomerDisplayName,
@@ -11,16 +11,7 @@ import {
 } from "@/lib/inspection-service";
 import { formatDisplayDate } from "@/lib/utils";
 
-function rentalPhase(rental: { startDate: string; endDate: string; status: "active" | "completed" }) {
-  const today = new Date().toISOString().slice(0, 10);
-  if (rental.status === "completed" || rental.endDate < today) {
-    return "completed" as const;
-  }
-  if (rental.startDate > today) {
-    return "upcoming" as const;
-  }
-  return "active" as const;
-}
+
 
 function phaseLabel(phase: ReturnType<typeof rentalPhase>) {
   if (phase === "active") return "Actief";
@@ -95,7 +86,7 @@ function groupRentalsByYearAndMonth<
 export default async function RentalsPage({
   searchParams
 }: {
-  searchParams?: Promise<{ rented?: string; returned?: string; error?: string; phase?: string }>;
+  searchParams?: Promise<{ rented?: string; returned?: string; error?: string; phase?: string; updated?: string }>;
 }) {
   const query = await searchParams;
   const [rentals, customers, stockMachines] = await Promise.all([
@@ -133,65 +124,15 @@ export default async function RentalsPage({
       <p className="muted">
         Beheer hier de voorraadmachines van Heftrucks Friesland en zet ze direct in verhuur.
       </p>
+      {query?.updated ? <p className="form-message success">Verhuur en transport opgeslagen.</p> : null}
       {query?.rented ? <p className="form-message success">Verhuur gestart.</p> : null}
       {query?.returned ? <p className="form-message success">Verhuur afgerond.</p> : null}
-      {query?.error ? <p className="form-message error">{decodeURIComponent(query.error)}</p> : null}
+      {query?.error ? <p className="form-message error">{query.error}</p> : null}
 
       <section className="panel" style={{ marginTop: "1rem" }}>
         <div className="eyebrow">Nieuwe verhuur</div>
         <div className="form-block">
-          <form action={createRentalAction}>
-            <input type="hidden" name="returnTo" value="/verhuur" />
-            <div className="form-grid-wide">
-              <div className="field">
-                <label htmlFor="rental-machine">Voorraadmachine</label>
-                <select id="rental-machine" name="machineId" defaultValue="">
-                  <option value="" disabled>
-                    Kies een machine uit de voorraad
-                  </option>
-                  {stockMachines.map((machine) => {
-                    const activeRental = groups.active.find((rental) => rental.machineId === machine.id);
-                    return (
-                      <option key={machine.id} value={machine.id}>
-                        {(machine.internalNumber || machine.machineNumber) +
-                          " | " +
-                          [machine.brand, machine.model].filter(Boolean).join(" ") +
-                          (activeRental ? " | al in verhuur" : "")}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-              <CustomerPicker customers={customers} label="Verhuren aan klant" required />
-              <div className="field">
-                <label htmlFor="startDate">Startdatum</label>
-                <input
-                  id="startDate"
-                  name="startDate"
-                  type="date"
-                  defaultValue={new Date().toISOString().slice(0, 10)}
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="endDate">Einddatum</label>
-                <input
-                  id="endDate"
-                  name="endDate"
-                  type="date"
-                  defaultValue={new Date().toISOString().slice(0, 10)}
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="price">Prijs</label>
-                <input id="price" name="price" placeholder="Bijv. EUR 350 totaal" />
-              </div>
-            </div>
-            <div className="actions" style={{ marginTop: "0.75rem" }}>
-              <button className="button" type="submit">
-                Start verhuur
-              </button>
-            </div>
-          </form>
+          <RentalForm customers={customers} stockMachines={stockMachines}/>
         </div>
       </section>
 
@@ -271,7 +212,7 @@ export default async function RentalsPage({
                                 const detailLine = [
                                   getCustomerDisplayName(customer),
                                   machineNumber,
-                                  `${formatDisplayDate(rental.startDate)} t/m ${formatDisplayDate(rental.endDate)}`,
+                                  `${formatDisplayDate(rental.startDate)} t/m ${rentalEndLabel(rental.endDate)}`,
                                   rental.price || ""
                                 ]
                                   .filter(Boolean)
@@ -287,9 +228,9 @@ export default async function RentalsPage({
                                         : undefined
                                     }
                                   >
-                                    <strong>{machineLabel}</strong>
+                                    <strong id={`rental-${rental.id}`}>{machineLabel}</strong>
                                     <span className="compact-overview-detail">{detailLine}</span>
-                                    <span className="compact-overview-actions">
+                                    <div className="compact-overview-actions">
                                       <span className="badge" style={statusBadgeStyle(phase)}>
                                         {phaseLabel(phase)}
                                       </span>
@@ -299,16 +240,8 @@ export default async function RentalsPage({
                                       <Link className="button-secondary" href={`/klanten/${rental.customerId}`}>
                                         Klant
                                       </Link>
-                                      {phase !== "completed" ? (
-                                        <form action={completeRentalAction}>
-                                          <input type="hidden" name="rentalId" value={rental.id} />
-                                          <input type="hidden" name="machineId" value={rental.machineId} />
-                                          <button className="button-secondary" type="submit">
-                                            Afronden
-                                          </button>
-                                        </form>
-                                      ) : null}
-                                    </span>
+                                    </div>
+                                    {phase!=='completed'&&<div className="rental-details"><details><summary>Periode & transport bewerken</summary><RentalDetailsForm rental={rental}/><Link href="/planning/transport" className="button-secondary">Transportplanning openen</Link></details><details><summary>Verhuur afsluiten</summary><RentalCompletionForm rental={rental}/></details></div>}
                                   </div>
                                 );
                               })}

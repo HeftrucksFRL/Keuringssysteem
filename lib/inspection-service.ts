@@ -1,3 +1,4 @@
+import {rentalPhase,rentalPeriodSchema,rentalTransportSchema,rentalPeriodsOverlap,validateRentalCompletion,type RentalTransport} from "@/lib/rental";
 import {readWorkshopState,saveWorkshopState} from "@/lib/workshop-storage";
 import { agendaRangeSchema,packAgendaDescription,unpackAgendaDescription } from "@/lib/calendar";
 import {unwrapLazyModule} from "@/lib/lazy-module";
@@ -377,33 +378,10 @@ function syncDemoInspectionPlanning(
   return targetItem.id;
 }
 
-function rentalCompletionStatus(rental: {
-  status: RentalRecord["status"];
-  startDate: string;
-  endDate: string;
-}) {
-  if (rental.status === "completed") {
-    return "completed" as const;
-  }
+const rentalCompletionStatus = rentalPhase;
 
-  if (rental.endDate < todayIso()) {
-    return "completed" as const;
-  }
-
-  if (rental.startDate > todayIso()) {
-    return "upcoming" as const;
-  }
-
-  return "active" as const;
-}
-
-function rentalsOverlapWithSwitchDay(
-  existingStartDate: string,
-  existingEndDate: string,
-  nextStartDate: string,
-  nextEndDate: string
-) {
-  return nextStartDate < existingEndDate && nextEndDate > existingStartDate;
+function rentalsOverlapWithSwitchDay(existingStartDate:string,existingEndDate:string,nextStartDate:string,nextEndDate:string){
+ return rentalPeriodsOverlap({startDate:existingStartDate,endDate:existingEndDate},{startDate:nextStartDate,endDate:nextEndDate});
 }
 
 function ensureRentalPeriodIsFree(
@@ -418,7 +396,7 @@ function ensureRentalPeriodIsFree(
       rental.machineId === machineId &&
       rental.id !== excludedRentalId &&
       rentalCompletionStatus(rental) !== "completed" &&
-      rentalsOverlapWithSwitchDay(rental.startDate, rental.endDate, startDate, endDate)
+      rentalsOverlapWithSwitchDay(rental.startDate, rental.endDate&&rental.endDate<todayIso()?"":rental.endDate, startDate, endDate)
   );
 
   if (conflictingRental) {
@@ -1394,6 +1372,8 @@ function mapRentalRow(row: Record<string, unknown>): RentalRecord {
     customerId: String(row.customer_id),
     startDate: String(row.start_date ?? ""),
     endDate: String(row.end_date ?? ""),
+    version: Number(row.version ?? 1),
+    transport: rentalTransportSchema.parse(row.transport || {}),
     status: String(row.status ?? "active") as RentalRecord["status"],
     price: row.price ? String(row.price) : undefined,
     createdAt: String(row.created_at ?? ""),
@@ -2303,8 +2283,7 @@ export async function getDashboardData() {
         .from("rentals")
         .select("id", { count: "exact", head: true })
         .neq("status", "completed")
-        .lte("start_date", today)
-        .gte("end_date", today),
+        .lte("start_date", today),
       supabase
         .from("planning_items")
         .select("id", { count: "exact", head: true })
@@ -4691,70 +4670,15 @@ export async function createMachine(input: {
   return machine.id;
 }
 
-export async function createRental(input: {
-  machineId: string;
-  customerId: string;
-  startDate: string;
-  endDate: string;
-  price?: string;
-}) {
+export async function createRental(input: {id?:string;machineId:string;customerId:string;startDate:string;endDate:string;price?:string;transport?:RentalTransport}) {
+  rentalPeriodSchema.parse(input);
+  const rentalCustomer=await getCustomerById(input.customerId);
+  if(!rentalCustomer||rentalCustomer.archivedAt)throw new Error('Kies een bestaande, actieve klant.');
   if (hasSupabaseConfig()) {
-    const supabase = createSupabaseAdmin();
-    const { data: machineRow } = await supabase
-      .from("machines")
-      .select("*")
-      .eq("id", input.machineId)
-      .maybeSingle();
-
-    if (!machineRow) {
-      throw new Error("Machine niet gevonden.");
-    }
-
-    const machine = mapMachineRow(machineRow);
-    assertMachineNotArchiveLocked(machine, "Verhuur starten");
-    if(machine.availabilityStatus === "maintenance") throw new Error("Deze machine staat in onderhoud en is niet verhuurbaar.");
-    const { data: ownerRow } = await supabase
-      .from("customers")
-      .select("*")
-      .eq("id", machine.customerId)
-      .maybeSingle();
-
-    const ownerCustomer = ownerRow ? mapCustomerRow(ownerRow) : null;
-    if (!isRentalStockCustomer(ownerCustomer)) {
-      throw new Error("Alleen voorraadmachines van Heftrucks Friesland zijn verhuurbaar.");
-    }
-
-    const { data: existingRentals } = await supabase
-      .from("rentals")
-      .select("*")
-      .eq("machine_id", input.machineId)
-      .eq("status", "active");
-
-    ensureRentalPeriodIsFree(
-      (existingRentals ?? []).map((row) => mapRentalRow(row)),
-      input.machineId,
-      input.startDate,
-      input.endDate
-    );
-
-    const { data, error: rentalError } = await supabase
-      .from("rentals")
-      .insert({
-        machine_id: input.machineId,
-        customer_id: input.customerId,
-        start_date: input.startDate,
-        end_date: input.endDate,
-        status: "active",
-        price: input.price?.trim() || null
-      })
-      .select("*")
-      .single();
-
-    if (rentalError || !data) throw new Error(rentalError?.message || "Verhuur opslaan mislukt.");
-
+    const {data,error}=await createSupabaseAdmin().rpc('save_rental',{p_id:input.id||randomUUID(),p_action:'create',p_data:{machineId:input.machineId,customerId:input.customerId,startDate:input.startDate,endDate:input.endDate,price:input.price||'',transport:rentalTransportSchema.parse(input.transport||{})},p_expected_version:0});
+    if(error||!data)throw new Error(error?.message||'Verhuur opslaan mislukt.');
     return mapRentalRow(data);
   }
-
   const data = await readAppData();
   const machine = data.machines.find((item) => item.id === input.machineId);
   if (!machine) {
@@ -4777,12 +4701,13 @@ export async function createRental(input: {
   );
 
   const rental: RentalRecord = {
-    id: randomUUID(),
+    id: input.id || randomUUID(),
     machineId: input.machineId,
     customerId: input.customerId,
     startDate: input.startDate,
     endDate: input.endDate,
     status: "active",
+    version: 1, transport: rentalTransportSchema.parse(input.transport || {}),
     price: input.price?.trim() || undefined,
     createdAt: nowIso(),
     updatedAt: nowIso()
@@ -4795,31 +4720,25 @@ export async function createRental(input: {
   return rental;
 }
 
-export async function completeRental(rentalId: string) {
+export async function completeRental(rentalId:string,endDate:string,version?:number) {
   if (hasSupabaseConfig()) {
-    const supabase = createSupabaseAdmin();
-    const { data: rentalRow, error: rentalError } = await supabase
-      .from("rentals")
-      .update({ status: "completed" })
-      .eq("id", rentalId)
-      .select("*")
-      .maybeSingle();
-
-    if(rentalError) throw new Error(rentalError.message || "Verhuur afronden mislukt.");
-    if (!rentalRow) {
-      return;
-    }
-
+    const {data:current,error:readError}=await createSupabaseAdmin().from('rentals').select('*').eq('id',rentalId).single();
+    if(readError||!current)throw new Error('Verhuur niet gevonden.');
+    validateRentalCompletion(String(current.start_date),endDate);
+    const {error}=await createSupabaseAdmin().rpc('save_rental',{p_id:rentalId,p_action:'complete',p_data:{endDate},p_expected_version:version??current.version});
+    if(error)throw new Error(error.message||'Verhuur afsluiten mislukt.');
     return;
   }
-
   const data = await readAppData();
   const rental = data.rentals.find((item) => item.id === rentalId);
   if (!rental) {
     return;
   }
 
+  validateRentalCompletion(rental.startDate,endDate);
+  rental.endDate=endDate;
   rental.status = "completed";
+  rental.version=(rental.version||1)+1;
   rental.updatedAt = nowIso();
 
   const machine = data.machines.find((item) => item.id === rental.machineId);
@@ -5048,57 +4967,15 @@ export async function updateRental(input: {
   endDate: string;
   customerId?: string;
   price?: string;
+  transport?: RentalTransport;
+  version?: number;
 }) {
+  rentalPeriodSchema.parse(input);
   if (hasSupabaseConfig()) {
-    const supabase = createSupabaseAdmin();
-    const { data: currentRentalRow } = await supabase
-      .from("rentals")
-      .select("*")
-      .eq("id", input.rentalId)
-      .maybeSingle();
-
-    if (!currentRentalRow) {
-      throw new Error("Verhuur niet gevonden.");
-    }
-
-    const currentRental = mapRentalRow(currentRentalRow);
-    const { data: machineRow } = await supabase
-      .from("machines")
-      .select("*")
-      .eq("id", currentRental.machineId)
-      .maybeSingle();
-
-    if (!machineRow) {
-      throw new Error("Machine niet gevonden.");
-    }
-
-    const machine = mapMachineRow(machineRow);
-    const { data: machineRentals } = await supabase
-      .from("rentals")
-      .select("*")
-      .eq("machine_id", currentRental.machineId)
-      .eq("status", "active");
-
-    ensureRentalPeriodIsFree(
-      (machineRentals ?? []).map((row) => mapRentalRow(row)),
-      currentRental.machineId,
-      input.startDate,
-      input.endDate,
-      input.rentalId
-    );
-
-    const {error: rentalError} = await supabase
-      .from("rentals")
-      .update({
-        start_date: input.startDate,
-        end_date: input.endDate,
-        customer_id: input.customerId || undefined,
-        price: input.price?.trim() || null
-      })
-      .eq("id", input.rentalId);
-    if(rentalError) throw new Error(rentalError.message || "Verhuur wijzigen mislukt.");
-
-    return;
+    const client=createSupabaseAdmin();const {data:current,error:readError}=await client.from('rentals').select('*').eq('id',input.rentalId).single();
+    if(readError||!current)throw new Error('Verhuur niet gevonden.');
+    const {error}=await client.rpc('save_rental',{p_id:input.rentalId,p_action:'update',p_data:{startDate:input.startDate,endDate:input.endDate,customerId:input.customerId||current.customer_id,price:input.price??current.price??'',transport:input.transport??current.transport??{}},p_expected_version:input.version??current.version});
+    if(error)throw new Error(error.message||'Verhuur wijzigen mislukt.');return;
   }
 
   const data = await readAppData();
@@ -5121,6 +4998,8 @@ export async function updateRental(input: {
     rental.customerId = input.customerId;
   }
   rental.price = input.price?.trim() || undefined;
+  if(input.transport)rental.transport=rentalTransportSchema.parse(input.transport);
+  rental.version=(rental.version||1)+1;
   rental.updatedAt = nowIso();
 
   const machine = data.machines.find((item) => item.id === rental.machineId);
