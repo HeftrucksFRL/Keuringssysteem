@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
         records.push(...data.map(row=>row.data as WorkshopState['jobs'][number]));
         if(data.length<1000)break;
       }
-      const jobs=records.map(({id,number,machine,task,status,date,completedAt,actualMinutes})=>({id,number,machine,task,status,date,completedAt,actualMinutes}));
+      const jobs=records.map(({id,number,machine,task,status,date,completedAt,actualMinutes,deletedAt})=>({id,number,machine,task,status,date,completedAt,actualMinutes,deletedAt}));
       return json({jobs});
     }
     const since=request.nextUrl.searchParams.get('since');

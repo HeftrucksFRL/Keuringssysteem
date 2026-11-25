@@ -20,7 +20,7 @@ async function database(){const db=new PGlite();await db.exec(`
  await db.query('insert into customers(id,company_name) values($1,$2),($3,$4)',[owner,'Heftrucks.frl',customer,'Huurklant']);
  await db.query('insert into machines(id,customer_id,brand,model) values($1,$2,$3,$4)',[machine,owner,'Linde','E20']);
  await db.exec(await readFile('supabase/workshop-relational.sql','utf8'));
- await db.exec(await readFile('supabase/rental-open-transport.sql','utf8'));return db;
+ await db.exec(await readFile('supabase/rental-open-transport.sql','utf8'));await db.exec(await readFile('supabase/workshop-archive-bin.sql','utf8'));return db;
 }
 const input=(transport={})=>({machineId:machine,customerId:customer,startDate:'2026-11-01',endDate:'',price:'100',transport});
 async function save(db:PGlite,action:string,data:unknown,version=0,rentalId=id){return (await db.query<{value:Record<string,unknown>}>('select save_rental($1,$2,$3,$4) value',[rentalId,action,JSON.stringify(data),version])).rows[0].value;}
@@ -75,5 +75,15 @@ test('rental and two optional transport tickets commit together; stale edits can
   await db.exec("update workshop_transports set data=data||'{\"state\":\"Afgeleverd\",\"confirmation\":\"Terug in werkplaats\"}' where data->>'rentalLeg'='collection'");
   await save(db,'complete',{endDate:'2026-11-20'},2);
   assert.equal((await db.query<{status:string}>("select status from rentals")).rows[0].status,'completed');
+ }finally{await db.close();}
+});
+
+test('archived work orders release machines and tolerate removed employees',async()=>{
+ const db=await database();try{
+ await db.query("insert into workshop_jobs(id,data) values('archived',$1)",[JSON.stringify({id:'archived',number:'WB-0001',machineId:machine,status:'Nieuw',employee:'removed',date:'2026-11-10',deletedAt:'2026-11-09T10:00:00Z'})]);
+ await save(db,'create',input());
+ const previous=(await db.query<{state:any}>('select state from workshop_state')).rows[0].state;
+ await db.query('select save_workshop_changes($1,$2,null)',[JSON.stringify(previous),JSON.stringify({...previous,employees:[{id:'new',name:'Monteur'}]})]);
+ assert.equal((await db.query('select * from workshop_jobs')).rows.length,1);
  }finally{await db.close();}
 });

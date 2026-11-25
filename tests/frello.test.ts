@@ -105,10 +105,10 @@ test('blank column names disappear, removed columns retain their cards and thirt
  assert.throws(()=>updateFrelloColumns(populated,[...thirty,{id:crypto.randomUUID(),name:'31'}]),/30/);
  assert.throws(()=>updateFrelloColumns(populated,[{id:crypto.randomUUID(),name:'  '}]),/minimaal/);
 });
-test('card deletion preserves other cards and board deletion requires its version',()=>{
+test('card deletion preserves the full card in the archive and board deletion requires its version',()=>{
  const second={...card,id:crypto.randomUUID(),title:'Behouden'};
  const result=deleteFrelloCard({...state,cards:[card,second]},card.id);
- assert.deepEqual(result.cards,[second]);assert.deepEqual(result.columns,state.columns);
+ assert.deepEqual(result.cards,[{...card,archived:true},second]);assert.deepEqual(result.columns,state.columns);
  assert.equal(frelloDeleteSchema.safeParse({id:crypto.randomUUID(),version:2}).success,true);
  assert.equal(frelloDeleteSchema.safeParse({id:crypto.randomUUID()}).success,false);
  assert.equal(frelloStateSchema.safeParse({...state,deletedAt:'2026-11-19T12:00:00.000Z'}).success,true);

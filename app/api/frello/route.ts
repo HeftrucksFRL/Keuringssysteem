@@ -4,7 +4,7 @@ import { hasSupabaseConfig } from "@/lib/env";
 import { canManageWorkshopTablet } from "@/lib/workshop-access";
 import { createClient } from "@/lib/supabase/server";
 import { validateOrigin,validateCsrf,applyRateLimit } from "@/lib/security";
-import { frelloCreateSchema,frelloSaveSchema,frelloDeleteSchema,frelloBoardOrderSchema,orderFrelloBoards,initialFrelloState,type FrelloState,type FrelloBoard } from "@/lib/frello";
+import { frelloCreateSchema,frelloSaveSchema,frelloDeleteSchema,frelloBoardOrderSchema,orderFrelloBoards,initialFrelloState,prepareFrelloSave,type FrelloState,type FrelloBoard } from "@/lib/frello";
 import {createClient as createAdminClient} from '@supabase/supabase-js';
 export const dynamic="force-dynamic";
 const cols="id,title,visibility,owner_id,version,updated_at";
@@ -55,12 +55,14 @@ export async function POST(req:NextRequest){try{
 }catch{return json({message:"Ongeldig verzoek of opslaan mislukt."},400);}}
 export async function PUT(req:NextRequest){try{
   const gate=await access(req,true);if(gate.denied)return gate.denied;const parsed=frelloSaveSchema.safeParse(await read(req));if(!parsed.success)return json({message:parsed.error.issues[0]?.message||"Controleer de kaartgegevens."},400);
-  const client=await createClient(),{id,version,title,state}=parsed.data;
+  const client=await createClient(),{id,version,title}=parsed.data;
+  let state=parsed.data.state;
   const prior=await client.from("frello_boards").select("state,version").eq("id",id).maybeSingle();if(prior.error||!prior.data)return json({message:"Bord niet gevonden of privé."},404);
   if(prior.data.version!==version)return json({message:"Een collega heeft dit bord gewijzigd. Je concept blijft open. Sluit het, vernieuw en pas je wijziging opnieuw toe."},409);
   const old=prior.data.state as FrelloState;if(old.deletedAt)return json({message:'Dit bord is verwijderd.'},404);
   // Deletion is a separate version-checked action, never a normal save.
   if(state.deletedAt)return json({message:'Gebruik Bord verwijderen om dit bord te verwijderen.'},400);
+  state=prepareFrelloSave(old,state,new Date().toISOString(),getUserDisplayName(gate.user));
   // Keep the authorship of existing comments; new comments get the current author.
   const oldComments=new Map(old.cards.flatMap(c=>c.comments.map(m=>[m.id,m] as const)));
   for(const card of state.cards)card.comments=card.comments.map(m=>oldComments.get(m.id)||{...m,author:getUserDisplayName(gate.user),createdAt:new Date().toISOString()});

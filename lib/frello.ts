@@ -22,6 +22,8 @@ export const frelloStateSchema=z.object({
     email:z.union([z.string().trim().email().max(254),z.literal("")]),phone:z.string().trim().max(80),
     status:z.enum(["todo","doing","waiting","ordered","finish","done"]).optional(),
     assignee:z.enum(["","Age","Renze"]),dueDate:date,labels:z.array(z.string().trim().min(1).max(40)).max(12),archived:z.boolean(),
+    archivedAt:z.string().datetime().optional(),archivedBy:z.string().max(180).optional(),
+    archiveHistory:z.array(z.object({action:z.enum(['archived','restored']),at:z.string().datetime(),by:z.string().max(180)}).strict()).max(1000).optional(),
     checklist:z.array(z.object({id,text:z.string().trim().min(1).max(500),done:z.boolean()}).strict()).max(100),
     comments:z.array(z.object({id,text:text.min(1),author:z.string().max(180),createdAt:z.string().datetime()}).strict()).max(100)
   }).strict()).max(1000)
@@ -61,7 +63,20 @@ export function updateFrelloColumns(state:FrelloState,draft:FrelloState['columns
   const ids=new Set(columns.map(c=>c.id));
   return frelloStateSchema.parse({...state,columns,cards:state.cards.map(c=>ids.has(c.columnId)?c:{...c,columnId:columns[0].id})});
 }
-export function deleteFrelloCard(state:FrelloState,id:string):FrelloState{return {...state,cards:state.cards.filter(c=>c.id!==id)};}
+export function deleteFrelloCard(state:FrelloState,id:string):FrelloState{return {...state,cards:state.cards.map(c=>c.id===id?{...c,archived:true}:c)};}
+export function restoreFrelloCard(state:FrelloState,id:string):FrelloState{return {...state,cards:state.cards.map(c=>c.id===id?{...c,archived:false}:c)};}
+export function prepareFrelloSave(previous:FrelloState,next:FrelloState,at=new Date().toISOString(),by=''){
+ const incoming=new Map(next.cards.map(c=>[c.id,c]));
+ // Older clients may still remove a card from the array. Preserve it in the bin.
+ const cards=[...next.cards,...previous.cards.filter(c=>!incoming.has(c.id)).map(c=>({...c,archived:true}))];
+ const before=new Map(previous.cards.map(c=>[c.id,c]));
+ return frelloStateSchema.parse({...next,cards:cards.map(card=>{
+  const old=before.get(card.id),copy={...card,archiveHistory:old?.archiveHistory,archivedAt:old?.archivedAt,archivedBy:old?.archivedBy};
+  if(card.archived&&!old?.archived){copy.archivedAt=at;copy.archivedBy=by;copy.archiveHistory=[...(old?.archiveHistory||[]),{action:'archived',at,by}];}
+  if(!card.archived&&old?.archived){copy.archivedAt=undefined;copy.archivedBy=undefined;copy.archiveHistory=[...(old.archiveHistory||[]),{action:'restored',at,by}];}
+  return copy;
+ })});
+}
 export function initialFrelloState():FrelloState{return {columns:["Nieuwe leads","Contact gelegd","Offerte verstuurd","Opvolgen","Gewonnen","Verloren"].map(name=>({id:crypto.randomUUID(),name})),cards:[]};}
 export function moveFrelloCard(state:FrelloState,cardId:string,columnId:string,beforeId?:string):FrelloState{
   if(!state.columns.some(c=>c.id===columnId))return state;

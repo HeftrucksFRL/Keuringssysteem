@@ -110,3 +110,6 @@ migratie en transacties uit in PostgreSQL via PGlite: herhaalbare import,
 verouderde saves, behoud van andere bonnen, terugdraaien na machinewijziging,
 verhuurconflicten in beide richtingen en afscherming van directe toegang.
 De live migratie en deployment worden afzonderlijk gecontroleerd en gerapporteerd.
+
+
+Werkbonnen en Frello-kaarten kunnen naar de archiefbak worden verplaatst en teruggezet. Gegevens, bijlagen en historie blijven bewaard. Verwijderen is een aparte actie naast annuleren. Open werkbonnen komen bij terugzetten ongepland terug; afgesloten bonnen behouden afsluiting en betaalgegevens. Gekoppelde transportbonnen blijven bewaard maar worden niet automatisch opnieuw ingepland. Installeer hiervoor ook `supabase/workshop-archive-bin.sql`.
