@@ -17,7 +17,7 @@ export async function GET(){
   if(!role)return json({role:null,jobs:[],count:0});
   const {state}=await readWorkshopState(client());
   const jobs=state.jobs.filter(j=>role==='planner'?pendingReplanning(j):followUpDue(j));
-  return json({role,jobs,count:jobs.length});
+  return json({role,jobs,replanning:state.jobs.filter(pendingReplanning),count:jobs.length});
  }catch{return json({message:'Werkbonopvolging kon niet worden geladen.'},503);}
 }
 export async function POST(request:NextRequest){
