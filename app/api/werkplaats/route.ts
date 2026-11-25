@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { hasSupabaseConfig } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import { applyRateLimit, validateCsrf, validateOrigin } from "@/lib/security";
-import { getMachineById,getCustomerById,getMachineSummaries,updateWorkshopMachineHours } from "@/lib/inspection-service";
+import { getMachineById,getCustomerById,getMachineSummaries,updateWorkshopMachineHours,assignMachineToCustomer } from "@/lib/inspection-service";
 import {workshopMachineSnapshot,workshopHourReadingChange} from '@/lib/workshop-machine';
 import type { WorkshopState } from "@/lib/workshop";
 import { prepareWorkshopSave,workshopSaveSchema } from "@/lib/workshop";
@@ -11,6 +11,7 @@ import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { normalizeWorkshopTransports } from "@/lib/workshop-transport";
 import { isWorkshopViewer,canManageWorkshopTablet } from "@/lib/workshop-access";
 
+import {isRentalStockCustomer} from "@/lib/stock-customer";
 export const dynamic = "force-dynamic";
 const json = (value: unknown, status = 200) => NextResponse.json(value, { status, headers: { "Cache-Control": "private, no-store" } });
 async function check(request: NextRequest, writing: boolean) {
@@ -52,7 +53,7 @@ export async function GET(request: NextRequest) {
   } catch { return json({message:"De planning kon niet worden geladen. Probeer opnieuw."},500); }
 }
 export async function PUT(request: NextRequest) {
-  let machineHoursSaved=false;
+  let machineHoursSaved=false,machineTransferred=false;
   try {
     const denied = await check(request,true); if (denied) return denied;
     const raw = await request.text();
@@ -71,12 +72,19 @@ export async function PUT(request: NextRequest) {
     const previous=current.data.state as WorkshopState;
     try{state=prepareWorkshopSave(previous,state,new Date().toISOString(),{canApprove:canManageWorkshopTablet(user),approvedBy:user?.email||"Kantoor"});}catch(e){return json({message:e instanceof Error?e.message:"Controleer de werkbonnen."},400);}
     const hourChanges=new Map<string,string>(),previousById=new Map(previous.jobs.map(j=>[j.id,j]));
+    const transfers:{machineId:string;customerId:string}[]=[];
     for(const job of state.jobs){
       const old=previousById.get(job.id);
       if(!old&&!job.customerId)return json({message:"Koppel de nieuwe werkbon aan een klant en machine."},400);
       if(job.customerId&&(!old||old.customerId!==job.customerId||old.machineId!==job.machineId||old.hourReading!==job.hourReading)){
         const [customer,machine]=await Promise.all([getCustomerById(job.customerId),getMachineById(job.machineId!)]);
-        if(!customer||!machine||machine.customerId!==customer.id)return json({message:"De machine hoort niet bij de gekozen klant."},400);
+        const transferring=job.stockInvoiced&&!old?.stockInvoiced;
+        if(transferring){
+          const source=await getCustomerById(old?.customerId||'');
+          if(!source||!isRentalStockCustomer(source)||!customer||isRentalStockCustomer(customer)||customer.archivedAt)return json({message:"Kies een actieve klant buiten de voorraad."},400);
+          if(machine&&machine.customerId!==customer.id){if(machine.customerId!==source.id)return json({message:"De machine is intussen aan een andere klant gekoppeld."},409);if(transfers.some(t=>t.machineId===machine.id&&t.customerId!==customer.id))return json({message:"Een machine kan maar aan een koper tegelijk worden overgezet."},400);transfers.push({machineId:machine.id,customerId:customer.id});}
+        }
+        if(!customer||!machine||(!transferring&&machine.customerId!==customer.id))return json({message:"De machine hoort niet bij de gekozen klant."},400);
         const reading=job.hourReading||machine.configuration.hour_reading||'';
         job.customer=customer.companyName;Object.assign(job,workshopMachineSnapshot(machine),{hourReading:reading});
       }
@@ -84,11 +92,12 @@ export async function PUT(request: NextRequest) {
       if(change){if(hourChanges.has(change.machineId)&&hourChanges.get(change.machineId)!==change.hourReading)return json({message:'Verschillende nieuwe urenstanden voor dezelfde machine. Sla de bonnen afzonderlijk op.'},400);hourChanges.set(change.machineId,change.hourReading);}
     }
     state=normalizeWorkshopTransports(state);
+    for(const transfer of transfers){await assignMachineToCustomer(transfer);machineTransferred=true;const machine=await getMachineById(transfer.machineId);if(machine?.customerId!==transfer.customerId)throw new Error('Machine overzetten mislukt.');}
     for(const [machineId,reading] of hourChanges){await updateWorkshopMachineHours(machineId,reading);machineHoursSaved=true;}
     const {data,error} = await client.from("workshop_planning").update({state,version:version+1,updated_at:new Date().toISOString(),updated_by:user!.id}).eq("id",1).eq("version",version).select("version").maybeSingle();
-    const machineNotice=hourChanges.size?' De urenstand is wel op de machine bewaard.':'';
+    const machineNotice=(hourChanges.size?' De urenstand is wel op de machine bewaard.':'')+(machineTransferred?' De machine is al naar de klant overgezet; sla de werkbon opnieuw op.':'');
     if (error) return json({message:"Werkbon opslaan mislukt. Probeer opnieuw."+machineNotice},503);
     if (!data) return json({message:"De planning is intussen door een collega gewijzigd."+machineNotice},409);
     return json({version:data.version,state});
-  } catch {return json({message:"Werkbon opslaan mislukt. Probeer opnieuw."+(machineHoursSaved?' Eén of meer urenstanden zijn wel op de machine bewaard.':'')},500);}
+  } catch {return json({message:"Werkbon opslaan mislukt. Probeer opnieuw."+(machineTransferred?' De machine is al naar de klant overgezet; sla de werkbon opnieuw op.':'')+(machineHoursSaved?' Eén of meer urenstanden zijn wel op de machine bewaard.':'')},500);}
 }

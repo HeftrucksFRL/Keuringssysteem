@@ -57,3 +57,21 @@ test("work order archive filters by Amsterdam closing date, month, year, status 
  assert.equal(filterWorkshopDocuments([open,closed],{status:"all"}).length,2);
  assert.equal(filterWorkshopDocuments([open,closed],{date:"2027-01-02"}).length,0);
 });
+
+test("stock sale requires office permission, same machine, buyer and invoice reference; preserves audit",()=>{
+ const previous:WorkshopState={...state,jobs:[{...job,kind:'Voorraadtruck'}]};
+ const sale={...job,kind:'Verkooptruck' as const,customerId:'buyer',customer:'Koper',stockInvoiced:true,stockInvoiceReference:'M-2026-123'};
+ const next:WorkshopState={...state,jobs:[sale]};
+ assert.throws(()=>prepareWorkshopSave(previous,next,undefined,{canApprove:false,approvedBy:'Monteur'}),/Alleen kantoor/);
+ for(const change of [{stockInvoiceReference:''},{machineId:'other'},{customerId:'customer'},{kind:'Voorraadtruck' as const}]){
+  assert.throws(()=>prepareWorkshopSave(previous,{...next,jobs:[{...sale,...change}]}),/koper/);
+ }
+ const saved=prepareWorkshopSave(previous,next,'2026-11-25T12:00:00.000Z');
+ assert.equal(saved.jobs[0].stockSourceCustomerId,'customer');
+ assert.equal(saved.jobs[0].stockTransferredAt,'2026-11-25T12:00:00.000Z');
+ assert.equal(saved.jobs[0].machineId,'machine');
+ assert.equal(workshopSaveSchema.safeParse({version:1,state:saved}).success,true);
+ const edited=prepareWorkshopSave(saved,{...saved,jobs:[{...saved.jobs[0],stockInvoiced:false,stockInvoiceReference:''}]});
+ assert.equal(edited.jobs[0].stockInvoiceReference,'M-2026-123');
+ assert.equal(edited.jobs[0].stockInvoiced,true);
+});

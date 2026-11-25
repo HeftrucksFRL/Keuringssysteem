@@ -25,6 +25,7 @@ const jobSchema = z.object({
   id, number: z.string().regex(/^WB-\d{4,}$/), customer: name, machine: name,
   customerId:z.string().max(80).optional(),machineId:z.string().max(80).optional(),internalNumber:z.string().max(180).optional(),deliveryAddress:text.optional(),
   officeApprovedAt:z.string().datetime().optional(),officeApprovedBy:z.string().max(180).optional(),invoiceReference:z.string().max(180).optional(),invoiceSentAt:z.string().datetime().optional(),invoicePaidAt:z.string().datetime().optional(),hourReading:z.string().max(180).optional(),usedParts:z.string().max(6000).optional(),
+  stockInvoiced:z.boolean().optional(),stockInvoiceReference:z.string().trim().max(180).optional(),stockTransferredAt:z.string().datetime().optional(),stockSourceCustomerId:z.string().max(80).optional(),
   kind:z.enum(["Klantreparatie","Verkooptruck","Voorraadtruck"]).optional(),urgent:z.boolean().optional(),
   estimatedMinutes:z.number().int().min(15).max(1440).multipleOf(15).optional(),
   requiredChecks:checklistSchema.optional(),checkedPoints:checklistSchema.optional(),completedAt:z.string().datetime().optional(),createdAt:z.string().datetime().optional(),
@@ -110,6 +111,11 @@ export function prepareWorkshopSave(previous:WorkshopState,next:WorkshopState,at
  const nextIds=new Set(next.jobs.map(j=>j.id)),previousById=new Map(previous.jobs.map(j=>[j.id,j]));
  if(previous.jobs.some(old=>isWorkshopJobClosed(old)&&!nextIds.has(old.id)))throw new Error("Afgeronde werkbonnen blijven bewaard in het archief.");
  const jobs=next.jobs.map(job=>{const old=previousById.get(job.id),copy={...job};copy.createdAt=old?.createdAt||(!old?at:undefined);
+  if(copy.stockInvoiced&&!old?.stockInvoiced){
+    if(!permissions.canApprove)throw new Error("Alleen kantoor mag een voorraadmachine overzetten.");
+    if(old?.kind!=='Voorraadtruck'||old.machineId!==copy.machineId||!copy.customerId||copy.customerId===old.customerId||copy.kind!=='Verkooptruck'||!copy.stockInvoiceReference?.trim())throw new Error("Kies de koper, behoud de voorraadmachine en vul de factuurreferentie in.");
+    copy.stockTransferredAt=at;copy.stockSourceCustomerId=old.customerId;
+  }else if(old?.stockInvoiced){copy.stockInvoiced=true;copy.stockInvoiceReference=old.stockInvoiceReference;copy.stockTransferredAt=old.stockTransferredAt;copy.stockSourceCustomerId=old.stockSourceCustomerId;}
   const closed=["Afgerond","Klaar voor transport"].includes(copy.status),wasClosed=old&&["Afgerond","Klaar voor transport"].includes(old.status);
   if(closed&&!wasClosed){if(!permissions.canApprove)throw new Error("Alleen Renze/Age mogen de laatste controle goedkeuren.");if(old?.status!=="Werkbon-controle")throw new Error("De monteur moet de werkbon eerst op Afronden / te controleren zetten.");if(copy.requiredChecks?.some((needed,i)=>needed&&!copy.checkedPoints?.[i]))throw new Error("De geselecteerde check-up is nog niet compleet.");copy.officeApprovedAt=at;copy.officeApprovedBy=permissions.approvedBy;}
   else {copy.officeApprovedAt=old?.officeApprovedAt;copy.officeApprovedBy=old?.officeApprovedBy;}
