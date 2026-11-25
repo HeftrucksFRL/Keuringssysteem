@@ -616,14 +616,14 @@ export function PlanningCalendar({
     <div className="panel">
       <div className="calendar-head">
         <div className="calendar-head-main">
-          <h1 className="calendar-title">{scope === "inspections" ? "Keuringsplanning" : scope === "appointments" ? "Agenda" : "Kalenderoverzicht"}</h1>
-          <p>{scope === "inspections" ? "Verwachte keuringen, ingeplande keuringen en keuringsroutes." : scope === "appointments" ? "Eigen afspraken en opleidingen. Werkplaatswerk en ritten staan onder Planning." : "Keuringen, verhuurmomenten en afspraken."}</p>
+          <h1 className="calendar-title">{scope === "inspections" ? "Keuringsplanning" : "Agenda"}</h1>
+          <p>{scope === "inspections" ? "Verwachte keuringen, ingeplande keuringen en keuringsroutes." : "Keuringsreminders, geplande keuringen, verhuurmomenten, eigen afspraken en opleidingen."}</p>
           <div className="search-bar calendar-head-search">
             <input
               className="calendar-search-input"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder={scope === "inspections" ? "Zoek in keuringsplanning" : "Zoek afspraken en opleidingen"}
+              placeholder={scope === "inspections" ? "Zoek in keuringsplanning" : "Zoek in agenda"}
             />
           </div>
         </div>

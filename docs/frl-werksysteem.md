@@ -6,11 +6,11 @@
 - **Planning**: Keuringsplanning, Werkplaatsplanning en Transportplanning.
 - **Werk & dossiers**: Werkbonnen, Keuringen, Verhuur en Onderdelen & gereedschap.
 - **Relaties & materieel**: Klanten en Machines, de gezamenlijke basisgegevens.
-- **Agenda**: eigen afspraken en de bestaande alleen-lezen cursusfeed.
+- **Agenda**: keuringsreminders, geplande keuringen, verhuurmomenten, eigen afspraken en de bestaande alleen-lezen cursusfeed.
 - **Frellobord**: vrije taken en opvolging op het bestaande Frello-bord.
 
-Keuringsplanning bevat uitsluitend keuringen en keuringsroutes. Afspraken,
-opleidingen en verhuur worden daar niet langer tussen gezet. Verhuur wordt
+Agenda blijft het gezamenlijke kalenderoverzicht, inclusief keuringsreminders.
+Keuringsplanning bevat daarnaast de gerichte planning van keuringen en keuringsroutes. Verhuur wordt
 beheerd vanuit het eigen dossieroverzicht. Werkplaatsagenda en Monteursagenda
 heten voortaan consequent Werkplaatsplanning. De dubbele hoofdmenu-ingang
 Werkplaats is verwijderd; de oude URL blijft werken, ook voor de tablet.
