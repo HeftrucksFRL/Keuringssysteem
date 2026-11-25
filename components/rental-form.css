@@ -1,4 +1,7 @@
 .rental-form label,.rental-customer-dialog label{display:flex;flex-direction:column;gap:6px;margin:10px 0;color:#24435d;font-weight:600}
+.rental-form label,.rental-form .field{min-width:0}
+.rental-form input:not([type=checkbox]):not([type=hidden]),.rental-form select,.rental-form textarea,.rental-customer-dialog input{width:100%;min-width:0;min-height:44px;padding:10px 12px;border:1px solid #cad9e6;border-radius:10px;background:#fff;color:#173b56;font:inherit;font-weight:400;box-sizing:border-box}
+.rental-form .form-grid-wide>button{align-self:end;min-height:48px;margin:10px 0}
 .rental-form label:has(input[type=checkbox]){flex-direction:row;align-items:center;gap:9px}
 .rental-form input[type=checkbox]{width:18px;height:18px;flex-shrink:0}
 .rental-form fieldset{min-width:0;border:1px solid #cad9e6;border-radius:10px;padding:14px;margin-bottom:16px}
