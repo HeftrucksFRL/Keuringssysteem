@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef } from "react";
-import { CalendarDays, FilePenLine, ChevronDown, Forklift, FolderKanban, LayoutDashboard, PackageCheck, Truck, Users, Wrench } from "lucide-react";
+import { CalendarDays, FilePenLine, ChevronDown, Forklift, FolderKanban, KeyRound, LayoutDashboard, PackageCheck, Truck, Users, Wrench } from "lucide-react";
 import type { Route } from "next";
 import "./app-navigation.css";
 
@@ -17,7 +17,7 @@ const links: NavLink[] = [
   { href: "/planning", label: "Keuringsplanning", icon: FolderKanban },
   { href: "/planning/transport", label: "Transportplanning", icon: Truck },
   { href: "/planning/werkplaats", label: "Werkplaatsplanning", icon: Wrench },
-  { href: "/verhuur", label: "Verhuur", icon: PackageCheck },
+  { href: "/verhuur", label: "Verhuur", icon: KeyRound },
   { href: "/werkplaats/bestellingen", label: "Onderdelen & gereedschap", icon: PackageCheck },
   { href: "/agenda", label: "Agenda", icon: CalendarDays },
   { href: "/werkplaats", label: "Werkplaats", icon: Wrench },
