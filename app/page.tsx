@@ -176,7 +176,7 @@ export default async function HomePage({
             Transportplanning openen
           </Link>
           <Link className="button-secondary" href="/agenda">
-            Afspraken & opleidingen
+            Agenda
           </Link>
         </div>
       </section>

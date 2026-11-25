@@ -616,7 +616,7 @@ export function PlanningCalendar({
     <div className="panel">
       <div className="calendar-head">
         <div className="calendar-head-main">
-          <h1 className="calendar-title">{scope === "inspections" ? "Keuringsplanning" : scope === "appointments" ? "Afspraken & opleidingen" : "Kalenderoverzicht"}</h1>
+          <h1 className="calendar-title">{scope === "inspections" ? "Keuringsplanning" : scope === "appointments" ? "Agenda" : "Kalenderoverzicht"}</h1>
           <p>{scope === "inspections" ? "Verwachte keuringen, ingeplande keuringen en keuringsroutes." : scope === "appointments" ? "Eigen afspraken en opleidingen. Werkplaatswerk en ritten staan onder Planning." : "Keuringen, verhuurmomenten en afspraken."}</p>
           <div className="search-bar calendar-head-search">
             <input

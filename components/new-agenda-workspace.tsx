@@ -282,7 +282,7 @@ export function NewAgendaWorkspace({
           </p>
         </div>
         <Link className="button-secondary" href="/agenda">
-          Afspraken & opleidingen
+          Agenda
         </Link>
       </div>
 

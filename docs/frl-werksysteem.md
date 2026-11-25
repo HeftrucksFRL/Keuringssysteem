@@ -6,7 +6,7 @@
 - **Planning**: Keuringsplanning, Werkplaatsplanning en Transportplanning.
 - **Werk & dossiers**: Werkbonnen, Keuringen, Verhuur en Onderdelen & gereedschap.
 - **Relaties & materieel**: Klanten en Machines, de gezamenlijke basisgegevens.
-- **Afspraken & opleidingen**: eigen afspraken en de bestaande alleen-lezen cursusfeed.
+- **Agenda**: eigen afspraken en de bestaande alleen-lezen cursusfeed.
 - **Takenbord**: vrije taken en opvolging op het bestaande Frello-bord.
 
 Keuringsplanning bevat uitsluitend keuringen en keuringsroutes. Afspraken,
