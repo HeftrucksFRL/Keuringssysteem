@@ -1,3 +1,4 @@
+import {readWorkshopState,saveWorkshopState} from "@/lib/workshop-storage";
 import { agendaRangeSchema,packAgendaDescription,unpackAgendaDescription } from "@/lib/calendar";
 import {unwrapLazyModule} from "@/lib/lazy-module";
 import {fetchTargetedRows} from "@/lib/targeted-rows";
@@ -4711,6 +4712,7 @@ export async function createRental(input: {
 
     const machine = mapMachineRow(machineRow);
     assertMachineNotArchiveLocked(machine, "Verhuur starten");
+    if(machine.availabilityStatus === "maintenance") throw new Error("Deze machine staat in onderhoud en is niet verhuurbaar.");
     const { data: ownerRow } = await supabase
       .from("customers")
       .select("*")
@@ -4735,7 +4737,7 @@ export async function createRental(input: {
       input.endDate
     );
 
-    const { data } = await supabase
+    const { data, error: rentalError } = await supabase
       .from("rentals")
       .insert({
         machine_id: input.machineId,
@@ -4748,15 +4750,7 @@ export async function createRental(input: {
       .select("*")
       .single();
 
-    await supabase
-      .from("machines")
-      .update({
-        availability_status: getMachineAvailabilityStatus(machine, [
-          ...((existingRentals ?? []).map((row) => mapRentalRow(row))),
-          mapRentalRow(data)
-        ])
-      })
-      .eq("id", input.machineId);
+    if (rentalError || !data) throw new Error(rentalError?.message || "Verhuur opslaan mislukt.");
 
     return mapRentalRow(data);
   }
@@ -4768,6 +4762,7 @@ export async function createRental(input: {
   }
 
   assertMachineNotArchiveLocked(machine, "Verhuur starten");
+  if(machine.availabilityStatus === "maintenance") throw new Error("Deze machine staat in onderhoud en is niet verhuurbaar.");
 
   const ownerCustomer = data.customers.find((item) => item.id === machine.customerId) ?? null;
   if (!isRentalStockCustomer(ownerCustomer)) {
@@ -4803,42 +4798,18 @@ export async function createRental(input: {
 export async function completeRental(rentalId: string) {
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
-    const { data: rentalRow } = await supabase
+    const { data: rentalRow, error: rentalError } = await supabase
       .from("rentals")
       .update({ status: "completed" })
       .eq("id", rentalId)
       .select("*")
       .maybeSingle();
 
+    if(rentalError) throw new Error(rentalError.message || "Verhuur afronden mislukt.");
     if (!rentalRow) {
       return;
     }
 
-    const rental = mapRentalRow(rentalRow);
-    const { data: openRentals } = await supabase
-      .from("rentals")
-      .select("*")
-      .eq("machine_id", rental.machineId)
-      .eq("status", "active");
-
-    const { data: machineRow } = await supabase
-      .from("machines")
-      .select("*")
-      .eq("id", rental.machineId)
-      .maybeSingle();
-
-    if (machineRow) {
-      const machine = mapMachineRow(machineRow);
-      await supabase
-        .from("machines")
-        .update({
-          availability_status: getMachineAvailabilityStatus(
-            machine,
-            (openRentals ?? []).map((row) => mapRentalRow(row))
-          )
-        })
-        .eq("id", rental.machineId);
-    }
     return;
   }
 
@@ -5116,7 +5087,7 @@ export async function updateRental(input: {
       input.rentalId
     );
 
-    await supabase
+    const {error: rentalError} = await supabase
       .from("rentals")
       .update({
         start_date: input.startDate,
@@ -5125,28 +5096,8 @@ export async function updateRental(input: {
         price: input.price?.trim() || null
       })
       .eq("id", input.rentalId);
+    if(rentalError) throw new Error(rentalError.message || "Verhuur wijzigen mislukt.");
 
-    await supabase
-      .from("machines")
-      .update({
-        availability_status: getMachineAvailabilityStatus(
-          machine,
-          (machineRentals ?? [])
-            .map((row) => mapRentalRow(row))
-            .map((rental) =>
-              rental.id === input.rentalId
-                ? {
-                    ...rental,
-                    startDate: input.startDate,
-                    endDate: input.endDate,
-                    customerId: input.customerId || rental.customerId,
-                    price: input.price?.trim() || undefined
-                  }
-                : rental
-            )
-        )
-      })
-      .eq("id", currentRental.machineId);
     return;
   }
 
@@ -5330,77 +5281,13 @@ export async function assignMachineToCustomer(input: {
 }) {
   if (hasSupabaseConfig()) {
     const supabase = createSupabaseAdmin();
-    const { data: currentMachineRow } = await supabase
-      .from("machines")
-      .select("*")
-      .eq("id", input.machineId)
-      .maybeSingle();
-
-    if (currentMachineRow) {
-      assertMachineNotArchiveLocked(
-        mapMachineRow(currentMachineRow),
-        "Deze machine aan een andere klant koppelen"
-      );
-    }
-
-    const { data: customerRow } = await supabase
-      .from("customers")
-      .select("*")
-      .eq("id", input.customerId)
-      .maybeSingle();
-    const { data: machineRow } = await supabase
-      .from("machines")
-      .update({
-        customer_id: input.customerId,
-        configuration: sanitizeMachineConfiguration(
-          clearMachineLocationDetails(mapMachineRow(currentMachineRow ?? {}).configuration)
-        )
-      })
-      .eq("id", input.machineId)
-      .select("*")
-      .maybeSingle();
-
-    if (!customerRow || !machineRow) {
-      return [];
-    }
-
-    const customer = mapCustomerRow(customerRow);
-    await supabase
-      .from("planning_items")
-      .update({ customer_id: input.customerId })
-      .eq("machine_id", input.machineId)
-      .neq("state", "completed");
-
-    const { data: draftRows } = await supabase
-      .from("inspections")
-      .update({
-        customer_id: input.customerId,
-        customer_snapshot: buildCustomerSnapshot(customer)
-      })
-      .eq("machine_id", input.machineId)
-      .eq("status", "draft")
-      .select("*");
-
-    const affectedInspectionIds: string[] = [];
-    for (const row of draftRows ?? []) {
-      const inspection = mapInspectionRow(row);
-      affectedInspectionIds.push(inspection.id);
-      const { data: attachmentRows } = await supabase
-        .from("inspection_attachments")
-        .select("id, kind, storage_path")
-        .eq("inspection_id", inspection.id);
-
-      await syncSupabaseInspectionDocuments(
-        inspection,
-        (attachmentRows ?? []).map((attachment) => ({
-          id: String(attachment.id),
-          kind: String(attachment.kind),
-          storage_path: String(attachment.storage_path)
-        }))
-      );
-    }
-
-    return affectedInspectionIds;
+    const machine = await getMachineById(input.machineId);
+    const customer = await getCustomerById(input.customerId);
+    if (!machine || !customer || customer.archivedAt) throw new Error("Kies een bestaande, actieve klant en machine.");
+    assertMachineNotArchiveLocked(machine, "Machine overzetten");
+    const current = await readWorkshopState(supabase);
+    await saveWorkshopState(supabase, current.state, current.state, "", [{machineId:machine.id, expectedCustomerId:machine.customerId, customerId:customer.id}]);
+    return [];
   }
 
   const data = await readAppData();

@@ -159,11 +159,11 @@ export async function createAgendaEventAction(formData: FormData) {
   const eventDate = String(formData.get("eventDate") || "");
 
   if (!title || !eventDate) {
-    redirect(`/planning?month=${eventDate.slice(0, 7)}&error=Vul%20een%20titel%20en%20datum%20in`);
+    redirect(`/agenda?month=${eventDate.slice(0, 7)}&error=Vul%20een%20titel%20en%20datum%20in`);
   }
 
   const range=agendaRangeSchema.safeParse({eventDate,endDate:String(formData.get("endDate")||eventDate),startTime:String(formData.get("startTime")||""),endTime:String(formData.get("endTime")||"")});
-  if(!range.success)redirect(`/planning?error=${encodeURIComponent(range.error.issues[0].message)}`);
+  if(!range.success)redirect(`/agenda?error=${encodeURIComponent(range.error.issues[0].message)}`);
   await addAgendaEvent({
     ...range.data,
     ownerId: String(user?.id ?? "demo-user"),
@@ -182,8 +182,8 @@ export async function createAgendaEventAction(formData: FormData) {
     details: { eventDate }
   });
 
-  revalidatePath("/planning");
-  redirect(`/planning?month=${eventDate.slice(0, 7)}&appointment=1`);
+  revalidatePath("/agenda");
+  redirect(`/agenda?month=${eventDate.slice(0, 7)}&appointment=1`);
 }
 
 export async function updateAgendaEventAction(formData: FormData) {
@@ -196,11 +196,11 @@ export async function updateAgendaEventAction(formData: FormData) {
   const month = String(formData.get("month") || "");
 
   if (!id || !title || !eventDate) {
-    redirect(`/planning?month=${month}&error=Vul%20een%20titel%20en%20datum%20in`);
+    redirect(`/agenda?month=${month}&error=Vul%20een%20titel%20en%20datum%20in`);
   }
 
   const range=agendaRangeSchema.safeParse({eventDate,endDate:String(formData.get("endDate")||eventDate),startTime:String(formData.get("startTime")||""),endTime:String(formData.get("endTime")||"")});
-  if(!range.success)redirect(`/planning?error=${encodeURIComponent(range.error.issues[0].message)}`);
+  if(!range.success)redirect(`/agenda?error=${encodeURIComponent(range.error.issues[0].message)}`);
   await updateAgendaEvent({
     ...range.data,
     id,
@@ -221,8 +221,8 @@ export async function updateAgendaEventAction(formData: FormData) {
     details: { eventDate }
   });
 
-  revalidatePath("/planning");
-  redirect(`/planning?month=${month || eventDate.slice(0, 7)}&updated=1`);
+  revalidatePath("/agenda");
+  redirect(`/agenda?month=${month || eventDate.slice(0, 7)}&updated=1`);
 }
 
 export async function deleteAgendaEventAction(formData: FormData) {
@@ -232,7 +232,7 @@ export async function deleteAgendaEventAction(formData: FormData) {
   const month = String(formData.get("month") || "");
 
   if (!id) {
-    redirect(`/planning?month=${month}&error=Afspraak%20niet%20gevonden`);
+    redirect(`/agenda?month=${month}&error=Afspraak%20niet%20gevonden`);
   }
 
   await deleteAgendaEvent({
@@ -250,6 +250,6 @@ export async function deleteAgendaEventAction(formData: FormData) {
     targetLabel: `Afspraak ${id}`
   });
 
-  revalidatePath("/planning");
-  redirect(`/planning?month=${month}&deleted=1`);
+  revalidatePath("/agenda");
+  redirect(`/agenda?month=${month}&deleted=1`);
 }

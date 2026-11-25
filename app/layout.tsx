@@ -9,11 +9,12 @@ import { AppNavigation } from "@/components/app-navigation";
 import { RouteLoadingIndicator } from "@/components/route-loading-indicator";
 import { getCurrentUser } from "@/lib/auth";
 import { isWorkshopViewer } from "@/lib/workshop-access";
+import { systemName, systemDescription } from "@/lib/branding";
 
 export const metadata: Metadata = {
-  title: "Keuringssysteem | Heftrucks Friesland",
-  applicationName: "Heftrucks Friesland",
-  description: "Digitale keuringsapp voor intern transportmaterieel.",
+  title: `${systemName} | Heftrucks Friesland`,
+  applicationName: systemName,
+  description: systemDescription,
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
@@ -26,7 +27,7 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    title: "Keuringen HF",
+    title: systemName,
     statusBarStyle: "default"
   }
 };
@@ -58,7 +59,7 @@ export default async function RootLayout({
                   priority
                 />
               </Link>
-              <span>{workshopOnly ? "Werkplaats" : "Keuringssysteem"}</span>
+              <span>{systemName}{workshopOnly ? " · Werkplaats" : ""}</span>
             </div>
             <AppNavigation variant="desktop" workshopOnly={workshopOnly} />
             <div className="auth-slot">

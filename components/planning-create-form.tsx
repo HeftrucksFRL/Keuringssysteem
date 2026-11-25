@@ -38,12 +38,14 @@ function SubmitButton({
 }
 
 interface PlanningCreateFormProps {
+  mode?: "inspection" | "appointment" | "all";
   customers: CustomerRecord[];
   machines: MachineRecord[];
   initialMonth?: string;
 }
 
 export function PlanningCreateForm({
+  mode="all",
   customers,
   machines,
   initialMonth
@@ -79,24 +81,24 @@ export function PlanningCreateForm({
   return (
     <>
       <div className="planning-quick-actions" aria-label="Agenda acties">
-        <button
+        {mode !== "appointment" && <button
           className="button planning-quick-button"
           type="button"
           onClick={() => setOpenModal("inspection")}
           aria-label="Nieuwe keuring toevoegen"
         >
           <ClipboardPlus size={18} />
-          <span>Keuring</span>
-        </button>
-        <button
+          <span>Keuring inplannen</span>
+        </button>}
+        {mode !== "inspection" && <button
           className="button-secondary planning-quick-button"
           type="button"
           onClick={() => setOpenModal("appointment")}
           aria-label="Nieuwe afspraak toevoegen"
         >
           <CalendarPlus size={18} />
-          <span>Afspraak</span>
-        </button>
+          <span>Afspraak toevoegen</span>
+        </button>}
       </div>
 
       {openModal ? (

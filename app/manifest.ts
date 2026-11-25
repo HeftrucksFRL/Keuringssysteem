@@ -1,10 +1,11 @@
 import type { MetadataRoute } from "next";
+import { systemName, systemDescription } from "@/lib/branding";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Keuringssysteem Heftrucks Friesland",
-    short_name: "Keuringen HF",
-    description: "Digitale keuringsapp voor intern transportmaterieel.",
+    name: systemName,
+    short_name: systemName,
+    description: systemDescription,
     start_url: "/",
     display: "standalone",
     background_color: "#edf3f8",

@@ -25,6 +25,7 @@ const jobSchema = z.object({
   id, number: z.string().regex(/^WB-\d{4,}$/), customer: name, machine: name,
   customerId:z.string().max(80).optional(),machineId:z.string().max(80).optional(),internalNumber:z.string().max(180).optional(),deliveryAddress:text.optional(),
   officeApprovedAt:z.string().datetime().optional(),officeApprovedBy:z.string().max(180).optional(),invoiceReference:z.string().max(180).optional(),invoiceSentAt:z.string().datetime().optional(),invoicePaidAt:z.string().datetime().optional(),hourReading:z.string().max(180).optional(),usedParts:z.string().max(6000).optional(),
+  officeHistory:z.array(z.object({at:z.string().datetime(),by:z.string().max(180),action:z.enum(['reopened','invoice']),invoiceReference:z.string().max(180).optional(),invoiceSentAt:z.string().datetime().optional(),invoicePaidAt:z.string().datetime().optional()}).strict()).max(1000).optional(),
   stockInvoiced:z.boolean().optional(),stockInvoiceReference:z.string().trim().max(180).optional(),stockTransferredAt:z.string().datetime().optional(),stockSourceCustomerId:z.string().max(80).optional(),
   kind:z.enum(["Klantreparatie","Verkooptruck","Voorraadtruck"]).optional(),urgent:z.boolean().optional(),
   estimatedMinutes:z.number().int().min(15).max(1440).multipleOf(15).optional(),
@@ -75,7 +76,7 @@ export const workshopStateSchema = z.object({
     for (let i = 1; i < list.length; i++) if (list[i].start < list[i - 1].end) problem(`${list[i].number} overlapt met ${list[i - 1].number}. Kies een andere tijd of medewerker.`);
   }
 });
-export const workshopSaveSchema = z.object({version:z.number().int().min(0),state:workshopStateSchema}).strict();
+export const workshopSaveSchema = z.object({version:z.number().int().min(0),state:workshopStateSchema,baseState:workshopStateSchema.optional()}).strict();
 export type WorkshopState=z.infer<typeof workshopStateSchema>;
 export function applyWorkshopActivity(state:WorkshopState,input:WorkshopActivityInput,at=new Date().toISOString()):WorkshopState{
   const job=state.jobs.find(j=>j.id===input.jobId),employee=state.employees.find(e=>e.id===input.employeeId);
@@ -125,19 +126,36 @@ export function prepareWorkshopSave(previous:WorkshopState,next:WorkshopState,at
     copy.stockTransferredAt=at;copy.stockSourceCustomerId=old.customerId;
   }else if(old?.stockInvoiced){copy.stockInvoiced=true;copy.stockInvoiceReference=old.stockInvoiceReference;copy.stockTransferredAt=old.stockTransferredAt;copy.stockSourceCustomerId=old.stockSourceCustomerId;}
   const closed=["Afgerond","Klaar voor transport"].includes(copy.status),wasClosed=old&&["Afgerond","Klaar voor transport"].includes(old.status);
+  copy.officeHistory=old?.officeHistory;
+  if(wasClosed&&!closed){
+    if(!permissions.canApprove)throw new Error("Alleen kantoor mag een afgesloten werkbon heropenen.");
+    // Reopening is technical. Preserve the actual invoice/payment; corrections
+    // use the separate office form and are recorded in officeHistory.
+    copy.invoiceReference=old.invoiceReference;copy.invoiceSentAt=old.invoiceSentAt;copy.invoicePaidAt=old.invoicePaidAt;
+    copy.officeHistory=[...(old.officeHistory||[]),{at,by:permissions.approvedBy,action:'reopened' as const,invoiceReference:old.invoiceReference,invoiceSentAt:old.invoiceSentAt,invoicePaidAt:old.invoicePaidAt}];
+  }
   if(closed&&!wasClosed){if(!permissions.canApprove)throw new Error("Alleen Renze/Age mogen de laatste controle goedkeuren.");if(old?.status!=="Werkbon-controle")throw new Error("De monteur moet de werkbon eerst op Afronden / te controleren zetten.");if(copy.requiredChecks?.some((needed,i)=>needed&&!copy.checkedPoints?.[i]))throw new Error("De geselecteerde check-up is nog niet compleet.");copy.officeApprovedAt=at;copy.officeApprovedBy=permissions.approvedBy;}
   else {copy.officeApprovedAt=old?.officeApprovedAt;copy.officeApprovedBy=old?.officeApprovedBy;}
-  if(!closed){delete copy.officeApprovedAt;delete copy.officeApprovedBy;delete copy.invoicePaidAt;delete copy.completedAt;}
+  if(!closed){delete copy.officeApprovedAt;delete copy.officeApprovedBy;delete copy.completedAt;}
   else if(copy.status==="Afgerond")copy.completedAt=old?.completedAt||(old?.status==='Klaar voor transport'?old.officeApprovedAt:at);
   if((copy.invoicePaidAt||"")!==(old?.invoicePaidAt||"")||(copy.invoiceSentAt||"")!==(old?.invoiceSentAt||"")||(copy.invoiceReference||"")!==(old?.invoiceReference||"")){
     if(!permissions.canApprove)throw new Error("Alleen kantoor mag facturatie en betaling vastleggen.");
-    if(copy.invoicePaidAt&&(!closed||!copy.invoiceReference?.trim()))throw new Error("Sluit eerst de gecontroleerde werkbon af en vul een factuurnummer in.");
+    if(copy.invoicePaidAt&&((!closed&&!old?.invoicePaidAt)||!copy.invoiceReference?.trim()))throw new Error("Sluit eerst de gecontroleerde werkbon af en vul een factuurnummer in.");
     if(copy.invoicePaidAt)copy.invoicePaidAt=old?.invoicePaidAt||at;
     if(copy.invoiceSentAt)copy.invoiceSentAt=old?.invoiceSentAt||at;
+    copy.officeHistory=[...(copy.officeHistory||[]),{at,by:permissions.approvedBy,action:'invoice' as const,invoiceReference:copy.invoiceReference,invoiceSentAt:copy.invoiceSentAt,invoicePaidAt:copy.invoicePaidAt}];
   }
   return copy;
  });
  let result=normalizeWorkshopTransports({...next,jobs,transports:next.transports||before.transports});
+ result={...result,transports:result.transports!.map(t=>{
+   const oldJob=previous.jobs.find(j=>j.id===t.jobId),job=jobs.find(j=>j.id===t.jobId);
+   if(oldJob&&job&&['Afgerond','Klaar voor transport'].includes(oldJob.status)&&!isWorkshopJobClosed(job)){
+     if(t.state==='Afgeleverd')throw new Error('Maak voor vervolgwerk na aflevering een nieuwe werkbon. De afgeleverde rit blijft bewaard.');
+     const reset={...t,driver:'',date:'',state:'Nieuw' as const};delete reset.legacyReleased;return reset;
+   }
+   return t;
+ })};
  result={...result,transports:result.transports!.map(t=>t.jobId&&jobs.some(j=>j.id===t.jobId&&j.status==='Geannuleerd')?{...t,deletedAt:t.deletedAt||at}:t)};
  // Removing an open work order also removes its linked, unscheduled preparation ticket.
  result={...result,transports:result.transports!.filter(t=>!t.jobId||jobs.some(j=>j.id===t.jobId))};

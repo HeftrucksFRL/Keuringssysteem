@@ -35,7 +35,7 @@ export async function POST(request:NextRequest){
     const existing=await client.from("workshop_orders").select(columnsWithCreator).eq("id",parsed.data.id).maybeSingle();
     if(existing.error)return json({message:"De bestellijstopslag is nog niet beschikbaar."},503);
     if(existing.data){if(existing.data.created_by!==gate.user!.id)return json({message:"Aanvraag-ID is al in gebruik."},409);const {created_by,...order}=existing.data;void created_by;return json({order});}
-    const planning=await client.from("workshop_planning").select("state").eq("id",1).single();
+    const planning=await client.from("workshop_state").select("state").eq("id",1).single();
     if(planning.error)return json({message:"Medewerkers konden niet worden geladen."},503);
     const employee=planning.data.state.employees.find((e:{id:string;name:string})=>e.id===parsed.data.employeeId);
     const job=planning.data.state.jobs.find((j:{id:string;number:string})=>parsed.data.jobId?j.id===parsed.data.jobId:parsed.data.context?.toLowerCase()===j.number.toLowerCase());

@@ -17,7 +17,7 @@ function loadPlanner(){
   if(window.HFWorkshopMount)return Promise.resolve();
   if(!window.hfWorkshopScript)window.hfWorkshopScript=new Promise<void>((resolve,reject)=>{
     const script=document.createElement('script');script.src='/werkplaats-preview/assets/planning.js?v=20261125-machine-results-v8';script.async=true;
-    script.onload=()=>resolve();script.onerror=()=>{window.hfWorkshopScript=undefined;script.remove();reject(new Error('Werkplaatsagenda laden is niet gelukt.'));};document.head.appendChild(script);
+    script.onload=()=>resolve();script.onerror=()=>{window.hfWorkshopScript=undefined;script.remove();reject(new Error('Werkplaatsplanning laden is niet gelukt.'));};document.head.appendChild(script);
   });
   return window.hfWorkshopScript;
 }
@@ -30,7 +30,7 @@ export function WorkshopPlanner({connected,readOnly,initialMode="workshop"}:{con
     return()=>{active=false;dispose?.();surface.remove();};
   },[connected,readOnly,initialMode,router]);
   return <>
-    {loading&&<p role="status">Werkplaatsagenda laden…</p>}
+    {loading&&<p role="status">Werkplaatsplanning laden…</p>}
     {error&&<p role="alert">{error} Vernieuw de pagina om opnieuw te proberen.</p>}
     <div ref={host}/>
   </>;

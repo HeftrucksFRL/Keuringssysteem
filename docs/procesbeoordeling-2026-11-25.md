@@ -2,6 +2,10 @@
 
 Datum: 25 november 2026.
 
+Vervolg: de gekozen naam en uitgevoerde wijzigingen staan in
+[FRL werksysteem](frl-werksysteem.md). Deze beoordeling beschrijft de situatie
+vóór die vervolgopdracht.
+
 ## Reikwijdte
 
 Beoordeling van navigatie, dashboard, gedeelde klant-/machinegegevens, werkbonnen,

@@ -1,15 +1,11 @@
 import { NewAgendaWorkspace } from "@/components/new-agenda-workspace";
 import { PlanningCalendar } from "@/components/planning-calendar";
 import { PlanningCreateForm } from "@/components/planning-create-form";
-import {hasSupabaseConfig} from "@/lib/env";
-import {canManageWorkshopTablet} from "@/lib/workshop-access";
 import { requireUser } from "@/lib/auth";
 import {
-  getAgendaEvents,
   getCustomerSummaries,
   getMachineSummaries,
-  getPlanningItems,
-  getRentals
+  getPlanningItems
 } from "@/lib/inspection-service";
 
 export const dynamic = "force-dynamic";
@@ -32,14 +28,12 @@ export default async function PlanningPage({
     to?: string;
   }>;
 }) {
-  const user = await requireUser();
+  await requireUser();
   const params = await searchParams;
-  const [planningItems, customers, machines, rentals, agendaEvents] = await Promise.all([
+  const [planningItems, customers, machines] = await Promise.all([
     getPlanningItems(),
     getCustomerSummaries({ visibleOnly: true }),
-    getMachineSummaries(),
-    getRentals(),
-    getAgendaEvents(String(user?.id ?? "demo-user"))
+    getMachineSummaries()
   ]);
 
   return (
@@ -67,14 +61,14 @@ export default async function PlanningPage({
       >
         <PlanningCalendar
           initialMonth={params?.month}
-          externalCourses={!hasSupabaseConfig()||canManageWorkshopTablet(user)}
+          scope="inspections"
           items={planningItems}
-          rentals={rentals}
-          agendaEventItems={agendaEvents}
+          rentals={[]}
+          agendaEventItems={[]}
           customers={customers}
           machines={machines}
         >
-          <PlanningCreateForm customers={customers} machines={machines} initialMonth={params?.month} />
+          <PlanningCreateForm mode="inspection" customers={customers} machines={machines} initialMonth={params?.month} />
         </PlanningCalendar>
       </NewAgendaWorkspace>
     </>

@@ -32,6 +32,7 @@ import { getCustomerDisplayName, isRentalStockCustomer } from "@/lib/stock-custo
 import { formatDisplayDate, formatLocalDateInput, parseLocalDateInput, todayLocalIso } from "@/lib/utils";
 
 interface PlanningCalendarProps {
+  scope?: "inspections" | "appointments" | "all";
   items: PlanningRecord[];
   rentals: RentalRecord[];
   agendaEventItems: AgendaEventRecord[];
@@ -313,6 +314,7 @@ function dayPopupSubtitle(event: AgendaEvent) {
 }
 
 export function PlanningCalendar({
+  scope="all",
   items,
   rentals,
   agendaEventItems,
@@ -614,13 +616,14 @@ export function PlanningCalendar({
     <div className="panel">
       <div className="calendar-head">
         <div className="calendar-head-main">
-          <h1 className="calendar-title">Planning</h1>
+          <h1 className="calendar-title">{scope === "inspections" ? "Keuringsplanning" : scope === "appointments" ? "Afspraken & opleidingen" : "Kalenderoverzicht"}</h1>
+          <p>{scope === "inspections" ? "Verwachte keuringen, ingeplande keuringen en keuringsroutes." : scope === "appointments" ? "Eigen afspraken en opleidingen. Werkplaatswerk en ritten staan onder Planning." : "Keuringen, verhuurmomenten en afspraken."}</p>
           <div className="search-bar calendar-head-search">
             <input
               className="calendar-search-input"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Zoek in agenda"
+              placeholder={scope === "inspections" ? "Zoek in keuringsplanning" : "Zoek afspraken en opleidingen"}
             />
           </div>
         </div>
@@ -835,27 +838,27 @@ export function PlanningCalendar({
         >
           Alles
         </button>
-        <button
+        {scope !== "appointments" && <button
           className={`button-secondary calendar-filter-button ${viewFilter === "inspections" ? "active-toggle" : ""}`}
           type="button"
           onClick={() => setViewFilter("inspections")}
         >
-          Keuring
-        </button>
-        <button
+          Keuringen
+        </button>}
+        {scope === "all" && <button
           className={`button-secondary calendar-filter-button ${viewFilter === "rentals" ? "active-toggle" : ""}`}
           type="button"
           onClick={() => setViewFilter("rentals")}
         >
           Verhuur
-        </button>
-        <button
+        </button>}
+        {scope !== "inspections" && <button
           className={`button-secondary calendar-filter-button ${viewFilter === "appointments" ? "active-toggle" : ""}`}
           type="button"
           onClick={() => setViewFilter("appointments")}
         >
-          Vrij
-        </button>
+          Eigen afspraken
+        </button>}
       </div>
 
       {selectedDayDate ? (
