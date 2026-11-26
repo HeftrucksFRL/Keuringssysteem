@@ -4,8 +4,11 @@ import { NextResponse, type NextRequest } from "next/server";
 import { hasSupabaseConfig } from "@/lib/env";
 import { ensureCsrfCookie } from "@/lib/security";
 import { isWorkshopViewer, workshopViewerRequestAllowed } from "@/lib/workshop-access";
+import { agendaExportRequest } from "@/lib/agenda-export-path";
 
 export async function middleware(request: NextRequest) {
+  // This single read-only endpoint authenticates its dedicated bearer key in the route.
+  if(agendaExportRequest(request.method,request.nextUrl.pathname))return NextResponse.next();
   if(["GET","HEAD"].includes(request.method)&&isPublicAssetPath(request.nextUrl.pathname))return NextResponse.next();
   let response = ensureCsrfCookie(request, NextResponse.next());
 
